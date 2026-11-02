@@ -17,6 +17,9 @@ const router = vi.hoisted(() => ({
   back: vi.fn(),
   canGoBack: vi.fn(() => false),
 }));
+const screenOptions = vi.hoisted(() => ({ title: undefined as string | undefined }));
+const headerInset = vi.hoisted(() => ({ value: 96 }));
+vi.mock("./floating-header", () => ({ useFloatingHeaderInset: () => headerInset.value }));
 const routeParams = vi.hoisted(() => ({ id: "a1" as string, decodes: 0 }));
 vi.mock("expo-router", () => ({
   useRouter: () => router,
@@ -25,11 +28,26 @@ vi.mock("expo-router", () => ({
     for (let i = 0; i < routeParams.decodes; i++) id = decodeURIComponent(id);
     return { id };
   },
-  Stack: { Screen: () => null },
+  Stack: {
+    Screen: ({ options }: { options?: { title?: string } }) => {
+      screenOptions.title = options?.title;
+      return null;
+    },
+  },
 }));
 vi.mock("react-native", () => {
-  const View = ({ children, testID }: { children?: ReactNode; testID?: string }) => (
-    <div data-testid={testID}>{children}</div>
+  const View = ({
+    children,
+    testID,
+    style,
+  }: {
+    children?: ReactNode;
+    testID?: string;
+    style?: unknown;
+  }) => (
+    <div data-testid={testID} data-style={JSON.stringify(style)}>
+      {children}
+    </div>
   );
   return {
     Platform: { OS: "ios" },
@@ -213,13 +231,23 @@ const button = (label: string) =>
 const texts = () => [...host.querySelectorAll("[data-md]")].map((n) => n.textContent);
 const messageCalls = () => rpcMock.mock.calls.filter((c) => c[0] === "agents/messages");
 
-it("shows the header with name, machine and status, never the id", async () => {
+it("shows the name once, in the native title, with machine and status in a sub-row", async () => {
   serve({ messages: page([msg(1, "user", "hi")]) });
   await render();
-  expect(host.querySelector('[data-testid="agent-name"]')?.textContent).toBe("alpha");
+  expect(screenOptions.title).toBe("alpha");
+  expect(host.textContent).not.toContain("alpha");
+  expect(host.querySelector('[data-testid="agent-name"]')).toBeNull();
   expect(host.querySelector('[data-testid="agent-machine"]')?.textContent).toContain("mac-1");
   expect(host.textContent).toContain("Working");
   expect(host.textContent).not.toContain("a1");
+});
+
+it("offsets the header sub-row below the floating native header", async () => {
+  serve({ messages: page([msg(1, "user", "hi")]) });
+  headerInset.value = 96;
+  await render();
+  const row = host.querySelector('[data-testid="agent-subheader"]');
+  expect(row?.getAttribute("data-style")).toContain('"paddingTop":106');
 });
 
 it("shows messages oldest at top and loads older on scroll up using beforeSeq", async () => {

@@ -3,9 +3,11 @@ import { useCallback, useRef } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { AgentEvent, isRenderableEvent } from "../components/agent-event";
 import { useAgentStatus } from "../components/agent-row";
+import { glassHeaderOptions } from "../components/glass-title";
 import { agentIdFromRoute } from "../lib/agent-route";
 import type { AgentEvent as Event } from "../lib/agents";
 import { agentEvent, isAgentGone } from "../lib/agents";
+import { useFloatingHeaderInset } from "../lib/floating-header";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { useAgentConversation } from "../lib/use-agent-conversation";
@@ -22,6 +24,8 @@ export default function AgentScreen() {
   const { t } = useI18n();
   const tokens = useMobileTokens();
   const router = useRouter();
+  // The glass header floats over the screen on iOS 26, so fixed content starts below it.
+  const headerInset = useFloatingHeaderInset();
   const { id } = useLocalSearchParams<{ id?: string }>();
   const agentId = agentIdFromRoute(id) ?? "";
   const conversation = useAgentConversation(agentId);
@@ -65,22 +69,27 @@ export default function AgentScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.background }]}>
-      <Stack.Screen options={{ title: name || t("Agent") }} />
+      <Stack.Screen options={glassHeaderOptions(name || t("Agent"))} />
       {agent ? (
-        <View style={[styles.header, { borderBottomColor: tokens.border }]}>
-          <Text style={[styles.title, { color: tokens.foreground }]} numberOfLines={1}>
-            <Text testID="agent-name" style={styles.name}>
-              {name || t("Unknown")}
-            </Text>
-            {agent.machine ? (
-              <Text testID="agent-machine" style={{ color: tokens.mutedForeground }}>
-                {` ${agent.machine}`}
-              </Text>
-            ) : null}
+        <View
+          testID="agent-subheader"
+          style={[
+            styles.header,
+            { borderBottomColor: tokens.border, paddingTop: headerInset + 10 },
+          ]}
+        >
+          <Text
+            testID="agent-machine"
+            style={[styles.title, { color: tokens.mutedForeground }]}
+            numberOfLines={1}
+          >
+            {agent.machine}
           </Text>
           <StatusChip status={agent.status} />
         </View>
-      ) : null}
+      ) : (
+        <View style={{ height: headerInset }} />
+      )}
       {conversation.reconnecting ? (
         <Text style={[styles.small, { color: tokens.mutedForeground }]}>{t("Reconnecting")}</Text>
       ) : null}
@@ -159,7 +168,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
   title: { flex: 1, fontSize: 17, lineHeight: 22 },
-  name: { fontWeight: "600" },
   chip: {
     fontSize: 12,
     lineHeight: 16,
