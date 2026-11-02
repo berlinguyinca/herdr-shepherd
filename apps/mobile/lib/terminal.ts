@@ -47,8 +47,30 @@ function fromBase64(text: string): Uint8Array {
 
 const nextBackoff = (ms: number) => Math.min(BACKOFF_MAX_MS, ms * 2);
 
-/** One queued input call. `n` belongs to `terminalId` and is reused by every retry of the call. */
+/** Unsent input beyond this is dropped, oldest first. */
+const QUEUE_MAX_BYTES = 256 * 1024;
+
+/**
+ * One queued input call. `n` belongs to `terminalId` and is reused by every retry of the call.
+ * Input rules across terminals: an item never sent is numbered for whichever terminal is current;
+ * one already attempted on an older terminal has an unknown outcome and is dropped, never
+ * retyped (a repeated "...\r" would run a command twice; the replayed screen shows what landed).
+ * Input is also cleared on taken_over, ended and stream errors, so typing made while the
+ * terminal was away is never typed later.
+ */
 type Pending = { bytes: Uint8Array; terminalId?: string; n?: number };
+
+/** A 4xx other than a timeout or rate limit will not change by asking again. */
+const isFinal4xx = (error: unknown) => {
+  const status = statusOf(error);
+  return (
+    typeof status === "number" && status >= 400 && status < 500 && status !== 408 && status !== 429
+  );
+};
+const retryAfterOf = (error: unknown): number =>
+  typeof error === "object" && error !== null && "retryAfterMs" in error
+    ? Number((error as { retryAfterMs?: unknown }).retryAfterMs) || 0
+    : 0;
 
 export type TerminalClient = {
   readonly state: TerminalState;
@@ -92,6 +114,7 @@ export function createTerminalClient(
   let pumpTimer: ReturnType<typeof setTimeout> | undefined;
   let resizeTimer: ReturnType<typeof setTimeout> | undefined;
   let wake: (() => void) | undefined;
+  let pumpWake: (() => void) | undefined;
 
   const setState = (next: TerminalState) => {
     if (state === next) return;
@@ -120,14 +143,15 @@ export function createTerminalClient(
   const settled = (next: "ended" | "taken_over") => {
     setState(next);
     controller.abort();
-    if (next === "ended") queue.length = 0;
+    queue.length = 0;
   };
 
   const onFrame = (json: unknown) => {
     if (typeof json !== "object" || json === null) return;
     const frame = json as TerminalFrame;
     if (typeof frame.seq !== "number") return;
-    if (frame.seq > cursor) cursor = frame.seq;
+    if (frame.seq <= cursor) return;
+    cursor = frame.seq;
     if (frame.taken_over) return settled("taken_over");
     if (frame.ended) return settled("ended");
     if (frame.reset) emit({ kind: "clear" });
@@ -150,29 +174,36 @@ export function createTerminalClient(
         try {
           if (needOpen) {
             setState("connecting");
-            const opened = await openTerminal(agentId, rows, cols);
+            const asked = { rows, cols };
+            const opened = await openTerminal(agentId, asked.rows, asked.cols);
             if (disposed) return;
             terminalId = opened.terminalId;
             nextN = 1;
             cursor = opened.seq;
+            // Whatever was already attempted on an older terminal has an unknown outcome.
+            for (let i = queue.length - 1; i >= 0; i -= 1) {
+              if (queue[i]?.terminalId !== undefined) queue.splice(i, 1);
+            }
             if (everOpened) emit({ kind: "clear" });
             everOpened = true;
             needOpen = false;
-            backoff = BACKOFF_MIN_MS;
+            if (asked.rows !== rows || asked.cols !== cols) sendResize();
           }
           setState("live");
           void pump();
           await streamRpc("terminal/subscribe", { terminalId, cursor }, signal, (json) => {
+            if (!received) backoff = BACKOFF_MIN_MS;
             received = true;
             onFrame(json);
           });
         } catch (error) {
           if (disposed) return;
-          // An unknown agent will not appear by asking again.
-          if (needOpen && statusOf(error) === 404) return setState("error");
+          // Opening is refused for good (unknown agent, no access): asking again changes nothing.
+          if (needOpen && isFinal4xx(error)) return setState("error");
           needOpen = true;
           setState("error");
-          if (!(await sleep(backoff))) return;
+          queue.length = 0;
+          if (!(await sleep(Math.max(backoff, retryAfterOf(error))))) return;
           backoff = nextBackoff(backoff);
           continue;
         }
@@ -201,8 +232,7 @@ export function createTerminalClient(
     try {
       while (!disposed && queue.length > 0 && state === "live" && terminalId) {
         const item = queue[0] as Pending;
-        // A call that belonged to an older terminal is numbered afresh for this one.
-        if (item.terminalId !== terminalId) {
+        if (item.terminalId === undefined) {
           item.terminalId = terminalId;
           item.n = nextN;
           nextN += 1;
@@ -214,18 +244,28 @@ export function createTerminalClient(
             data: toBase64(item.bytes),
             n: item.n as number,
           });
-          queue.shift();
+          const at = queue.indexOf(item);
+          if (at >= 0) queue.splice(at, 1);
           backoff = BACKOFF_MIN_MS;
         } catch (error) {
           if (disposed) return;
-          if (statusOf(error) === 404) {
-            // Retired under us (closed or expired): have the loop open a new one.
-            if (state === "live" && terminalId === sentTo) controller.abort();
-            return;
+          // The terminal was reopened meanwhile and the item dropped: carry on with the rest.
+          if (terminalId !== sentTo) continue;
+          // Retired (taken over or closed): keep the item and stop; the stream says which.
+          if (statusOf(error) === 404) return;
+          if (isFinal4xx(error)) {
+            // Refused, so the bridge did not count it: give its number back.
+            const at = queue.indexOf(item);
+            if (at >= 0) queue.splice(at, 1);
+            if (item.n === nextN - 1) nextN -= 1;
+            setState("error");
+            continue;
           }
           await new Promise<void>((resolve) => {
+            pumpWake = resolve;
             pumpTimer = setTimeout(resolve, backoff);
           });
+          pumpWake = undefined;
           backoff = nextBackoff(backoff);
         }
       }
@@ -233,6 +273,12 @@ export function createTerminalClient(
       pumping = false;
     }
   }
+
+  const sendResize = () => {
+    if (!terminalId) return;
+    // Best effort: the next open carries the size anyway.
+    rpc("terminal/resize", { terminalId, rows, cols }).catch(() => undefined);
+  };
 
   const flush = () => {
     batchTimer = undefined;
@@ -244,8 +290,22 @@ export function createTerminalClient(
       at += part.length;
     }
     batch = [];
+    if (state === "error" || stopped()) return;
     for (let i = 0; i < joined.length; i += WRITE_CHUNK_BYTES) {
       queue.push({ bytes: joined.subarray(i, i + WRITE_CHUNK_BYTES) });
+    }
+    let queued = queue.reduce(
+      (sum, item) => (item.terminalId === undefined ? sum + item.bytes.length : sum),
+      0,
+    );
+    for (let i = 0; queued > QUEUE_MAX_BYTES && i < queue.length; ) {
+      const item = queue[i] as Pending;
+      if (item.terminalId !== undefined) {
+        i += 1;
+        continue;
+      }
+      queued -= item.bytes.length;
+      queue.splice(i, 1);
     }
     void pump();
   };
@@ -257,8 +317,8 @@ export function createTerminalClient(
       return state;
     },
     write(bytes) {
-      if (disposed || state === "ended" || bytes.length === 0) return;
-      batch.push(bytes);
+      if (disposed || state === "error" || stopped() || bytes.length === 0) return;
+      batch.push(bytes.slice());
       batchTimer ??= setTimeout(flush, WRITE_BATCH_MS);
     },
     resize(nextRows, nextCols) {
@@ -266,9 +326,8 @@ export function createTerminalClient(
       cols = nextCols;
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
-        if (disposed || !terminalId || state !== "live") return;
-        // Best effort: the next open carries the size anyway.
-        rpc("terminal/resize", { terminalId, rows, cols }).catch(() => undefined);
+        if (disposed || state !== "live") return;
+        sendResize();
       }, RESIZE_DEBOUNCE_MS);
     },
     reopen() {
@@ -292,11 +351,15 @@ export function createTerminalClient(
       clearTimeout(pumpTimer);
       clearTimeout(resizeTimer);
       wake?.();
+      pumpWake?.();
     },
   };
 }
 
-/** The terminal of one agent: connection state, input, resize and a subscription to its output. */
+/**
+ * The terminal of one agent: connection state, input, resize and a subscription to its output.
+ * `size` only seeds the first open; after that callers report the real size with resize().
+ */
 export function useTerminal(
   agentId: string,
   size: { rows: number; cols: number } = { rows: 24, cols: 80 },

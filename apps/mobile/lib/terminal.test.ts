@@ -20,6 +20,8 @@ let live: Live[] = [];
 let opens = 0;
 let posts: Json[] = [];
 let inputFailures: unknown[] = [];
+/** A held input POST stays in flight until its promise settles (a rejection fails the call). */
+let inputHolds: Promise<void>[] = [];
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -27,6 +29,7 @@ beforeEach(() => {
   opens = 0;
   posts = [];
   inputFailures = [];
+  inputHolds = [];
   stream.mockReset();
   call.mockReset();
   call.mockImplementation(async (proc: string, body: Json) => {
@@ -42,6 +45,8 @@ beforeEach(() => {
     if (proc === "terminal/input") {
       const failing = inputFailures.shift();
       posts.push(body);
+      const hold = inputHolds.shift();
+      if (hold) await hold;
       if (failing) throw failing;
     }
     return { ok: true };
@@ -234,6 +239,222 @@ describe("reconnect", () => {
     expect(opens).toBe(2);
     expect(client.state).toBe("live");
     expect(output.map((o) => o.kind)).toEqual(["clear"]);
+    client.dispose();
+  });
+});
+
+const deferred = () => {
+  let resolve!: () => void;
+  let reject!: (error: unknown) => void;
+  const promise = new Promise<void>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  promise.catch(() => undefined);
+  return { promise, resolve, reject };
+};
+
+describe("input and a retired terminal", () => {
+  it("a 404 on input keeps the stream; the taken_over frame drives the state", async () => {
+    const { client } = await start();
+    inputFailures = [failure(404)];
+    client.write(bytes("a"));
+    await vi.advanceTimersByTimeAsync(8);
+    await vi.advanceTimersByTimeAsync(2_000);
+    expect(opens).toBe(1);
+    expect(live).toHaveLength(1);
+    expect(live[0]?.body).toEqual({ terminalId: "t1", cursor: 0 });
+    live[0]?.emit({ seq: 2, taken_over: true });
+    await settle();
+    expect(client.state).toBe("taken_over");
+    expect(opens).toBe(1);
+    client.dispose();
+  });
+
+  it("a late 404 for the old id does not stall the queue on the new id", async () => {
+    const { client } = await start();
+    const hold = deferred();
+    inputHolds = [hold.promise];
+    client.write(bytes("a"));
+    await vi.advanceTimersByTimeAsync(8);
+    client.write(bytes("b"));
+    await vi.advanceTimersByTimeAsync(8);
+    live[0]?.fail(new Error("drop"));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(opens).toBe(2);
+    client.write(bytes("c"));
+    await vi.advanceTimersByTimeAsync(8);
+    hold.reject(failure(404));
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(8);
+    expect(
+      inputs()
+        .filter((p) => p.terminalId === "t2")
+        .map((p) => p.data),
+    ).toEqual([b64("c")]);
+    client.dispose();
+  });
+
+  it("an item already attempted on an older terminal is dropped, never retyped", async () => {
+    const { client } = await start();
+    const hold = deferred();
+    inputHolds = [hold.promise];
+    client.write(bytes("run\r"));
+    await vi.advanceTimersByTimeAsync(8);
+    live[0]?.fail(new Error("drop"));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(opens).toBe(2);
+    hold.reject(failure(503));
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(inputs().filter((p) => p.terminalId === "t2")).toEqual([]);
+    client.dispose();
+  });
+
+  it("typing made while the stream was down is never typed later", async () => {
+    const { client } = await start();
+    live[0]?.fail(new Error("offline"));
+    await settle();
+    client.write(bytes("offline"));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(opens).toBe(2);
+    await vi.advanceTimersByTimeAsync(100);
+    expect(inputs()).toEqual([]);
+    client.dispose();
+  });
+
+  it("queued input is cleared on taken_over", async () => {
+    const { client } = await start();
+    inputFailures = [failure(503), failure(503), failure(503)];
+    client.write(bytes("a"));
+    await vi.advanceTimersByTimeAsync(8);
+    live[0]?.emit({ seq: 2, taken_over: true });
+    await settle();
+    client.reopen();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(inputs().filter((p) => p.terminalId === "t2")).toEqual([]);
+    client.dispose();
+  });
+
+  it("caps the unsent queue at 256 KB, dropping the oldest unsent", async () => {
+    const { client } = await start();
+    const hold = deferred();
+    inputHolds = [hold.promise];
+    client.write(bytes("first"));
+    await vi.advanceTimersByTimeAsync(8);
+    for (let i = 0; i < 10; i += 1) {
+      client.write(new Uint8Array(32 * 1024).fill(65 + i));
+      await vi.advanceTimersByTimeAsync(8);
+    }
+    hold.resolve();
+    await vi.advanceTimersByTimeAsync(100);
+    const sent = inputs().slice(1);
+    expect(sent.reduce((sum, p) => sum + atob(p.data as string).length, 0)).toBe(256 * 1024);
+    expect(atob(sent[0]?.data as string)[0]).toBe("C");
+    client.dispose();
+  });
+
+  it("a non-404 4xx on input drops that item and reports error", async () => {
+    const { client } = await start();
+    inputFailures = [failure(400)];
+    client.write(bytes("a"));
+    await vi.advanceTimersByTimeAsync(8);
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(inputs()).toHaveLength(1);
+    expect(client.state).toBe("error");
+    client.dispose();
+  });
+
+  it("copies the caller's bytes", async () => {
+    const { client } = await start();
+    const mine = bytes("a");
+    client.write(mine);
+    mine[0] = 90;
+    await vi.advanceTimersByTimeAsync(8);
+    expect(inputs()[0]?.data).toBe(b64("a"));
+    client.dispose();
+  });
+});
+
+describe("stream hygiene", () => {
+  it("ignores frames at or before the cursor", async () => {
+    const { client, output } = await start();
+    live[0]?.emit({ seq: 5, data: b64("x") });
+    live[0]?.emit({ seq: 5, data: b64("dup") });
+    live[0]?.emit({ seq: 3, data: b64("old") });
+    expect(output).toHaveLength(1);
+    client.dispose();
+  });
+
+  it("a 4xx open (other than 408/429) is final", async () => {
+    call.mockImplementation(async (proc: string) => {
+      if (proc === "terminal/open") {
+        opens += 1;
+        throw failure(403);
+      }
+      return { ok: true };
+    });
+    const { client } = await start();
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(opens).toBe(1);
+    expect(client.state).toBe("error");
+    client.dispose();
+  });
+
+  it("a 429 open waits for Retry-After", async () => {
+    let first = true;
+    call.mockImplementation(async (proc: string, body: Json) => {
+      if (proc === "terminal/open") {
+        opens += 1;
+        if (first) {
+          first = false;
+          throw Object.assign(failure(429), { retryAfterMs: 3_000 });
+        }
+        return { terminalId: "t9", seq: 0, rows: body.rows, cols: body.cols };
+      }
+      return { ok: true };
+    });
+    const { client } = await start();
+    await vi.advanceTimersByTimeAsync(2_999);
+    expect(opens).toBe(1);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(opens).toBe(2);
+    client.dispose();
+  });
+
+  it("sends a resize after open when the size changed while connecting", async () => {
+    const gate = deferred();
+    call.mockImplementation(async (proc: string, body: Json) => {
+      if (proc === "terminal/open") {
+        await gate.promise;
+        return { terminalId: "t1", seq: 0, rows: body.rows, cols: body.cols };
+      }
+      return { ok: true };
+    });
+    const { client } = await start();
+    client.resize(50, 150);
+    await vi.advanceTimersByTimeAsync(200);
+    gate.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(call).toHaveBeenCalledWith("terminal/resize", { terminalId: "t1", rows: 50, cols: 150 });
+    client.dispose();
+  });
+
+  it("resets the backoff on the first received frame, not on open", async () => {
+    const { client } = await start();
+    live[0]?.fail(new Error("a"));
+    await vi.advanceTimersByTimeAsync(500);
+    expect(opens).toBe(2);
+    live[1]?.fail(new Error("b"));
+    await settle();
+    await vi.advanceTimersByTimeAsync(999);
+    expect(opens).toBe(2);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(opens).toBe(3);
+    live[2]?.emit({ seq: 41, data: b64("x") });
+    live[2]?.fail(new Error("c"));
+    await settle();
+    await vi.advanceTimersByTimeAsync(500);
+    expect(opens).toBe(4);
     client.dispose();
   });
 });
