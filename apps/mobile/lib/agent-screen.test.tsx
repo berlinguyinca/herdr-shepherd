@@ -75,6 +75,7 @@ vi.mock("react-native", () => {
       ListEmptyComponent,
       ListFooterComponent,
       onStartReached,
+      contentContainerStyle,
     }: {
       data: unknown[];
       renderItem: (info: { item: unknown; index: number }) => ReactNode;
@@ -82,8 +83,9 @@ vi.mock("react-native", () => {
       ListEmptyComponent?: ReactNode;
       ListFooterComponent?: ReactNode;
       onStartReached?: () => void;
+      contentContainerStyle?: unknown;
     }) => (
-      <div>
+      <div data-testid="event-list" data-content-style={JSON.stringify(contentContainerStyle)}>
         <button type="button" aria-label="scroll-top" onClick={onStartReached} />
         {ListHeaderComponent}
         {data.length === 0 ? ListEmptyComponent : null}
@@ -257,6 +259,20 @@ it("keeps the back arrow on a phone and drops it when the list is beside the con
     </InboxBesideContext.Provider>,
   );
   expect(screenOptions.headerBackVisible).toBe(false);
+});
+
+it("keeps the sub-row and the events in a centred column at most 720 points wide", async () => {
+  serve({ messages: page([msg(1, "user", "hi")]) });
+  await render();
+  const column = {
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
+  };
+  const list = host.querySelector('[data-testid="event-list"]');
+  expect(JSON.parse(list?.getAttribute("data-content-style") ?? "null")).toEqual(column);
+  const header = host.querySelector('[data-testid="agent-column"]');
+  expect(JSON.parse(header?.getAttribute("data-style") ?? "[]")[0]).toEqual(column);
 });
 
 it("offsets the header sub-row below the floating native header", async () => {
