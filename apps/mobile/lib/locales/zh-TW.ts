@@ -675,6 +675,10 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Updating…": "正在更新…",
   Usage: "用量",
   "Use a custom server": "使用自訂伺服器",
+  "Your dashboard": "你的儀表板",
+  "This app only connects to your personal dashboard server":
+    "此 App 只會連線到你的個人儀表板伺服器",
+  "Sign-up is only available on your personal dashboard server": "僅能在你的個人儀表板伺服器上註冊",
   "Use a found model": "使用找到的模型",
   "Use an http or https URL": "請使用 http 或 https 地址",
   "Use default server": "使用預設伺服器",

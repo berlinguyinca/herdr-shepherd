@@ -1,3 +1,6 @@
+// Upstream's server-switching code stays covered: these suites run with the personal-server lock off.
+process.env.EXPO_PUBLIC_PERSONAL_SERVER_ONLY = "false";
+
 import { getArtifactById } from "./artifacts";
 
 vi.mock("./ai-consent", () => ({ promptAiConsent: vi.fn() }));

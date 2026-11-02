@@ -206,6 +206,11 @@ export const ES_MESSAGES: Record<string, string> = {
   "Sign up": "Registrarse",
   "Sign up for Rakazo": "Regístrate en Rakazo",
   "Use a custom server": "Usar un servidor personalizado",
+  "Your dashboard": "Tu panel",
+  "This app only connects to your personal dashboard server":
+    "Esta app solo se conecta a tu servidor de panel personal",
+  "Sign-up is only available on your personal dashboard server":
+    "El registro solo está disponible en tu servidor de panel personal",
   "Use default server": "Usar el servidor predeterminado",
   Activity: "Actividad",
   "Collapse {name}": "Contraer {name}",

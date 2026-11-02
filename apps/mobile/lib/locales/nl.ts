@@ -216,6 +216,11 @@ export const NL_MESSAGES: Record<string, string> = {
   "Sign up": "Registreren",
   "Sign up for Rakazo": "Registreer je voor Rakazo",
   "Use a custom server": "Gebruik een eigen server",
+  "Your dashboard": "Jouw dashboard",
+  "This app only connects to your personal dashboard server":
+    "Deze app maakt alleen verbinding met je persoonlijke dashboardserver",
+  "Sign-up is only available on your personal dashboard server":
+    "Registreren kan alleen op je persoonlijke dashboardserver",
   "Use default server": "Gebruik de standaardserver",
   Activity: "Activiteit",
   "Collapse {name}": "{name} inklappen",

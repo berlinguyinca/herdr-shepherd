@@ -718,6 +718,11 @@ export const RU_MESSAGES: Record<string, string> = {
   "Updating…": "Обновление…",
   Usage: "Использование",
   "Use a custom server": "Использовать собственный сервер",
+  "Your dashboard": "Ваша панель",
+  "This app only connects to your personal dashboard server":
+    "Это приложение подключается только к вашему личному серверу панели",
+  "Sign-up is only available on your personal dashboard server":
+    "Регистрация доступна только на вашем личном сервере панели",
   "Use a found model": "Использовать найденную модель",
   "Use an http or https URL": "Используйте URL-адрес http или https.",
   "Use default server": "Использовать сервер по умолчанию",

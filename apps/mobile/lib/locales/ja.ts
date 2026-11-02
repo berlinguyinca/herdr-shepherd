@@ -204,6 +204,11 @@ export const JA_MESSAGES: Record<string, string> = {
   "Sign up": "新規登録",
   "Sign up for Rakazo": "Rakazoに新規登録",
   "Use a custom server": "カスタムサーバーを使用",
+  "Your dashboard": "あなたのダッシュボード",
+  "This app only connects to your personal dashboard server":
+    "このアプリは個人のダッシュボードサーバーにのみ接続します",
+  "Sign-up is only available on your personal dashboard server":
+    "サインアップは個人のダッシュボードサーバーでのみ利用できます",
   "Use default server": "デフォルトのサーバーを使用",
   Activity: "アクティビティ",
   "Collapse {name}": "{name}を折りたたむ",

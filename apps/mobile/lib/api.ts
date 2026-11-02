@@ -73,7 +73,7 @@ import {
   syncMobileAvatarSession,
 } from "./logo-avatar-activity";
 import { reportMobileError } from "./monitoring";
-import { API_BASE_STORAGE_KEY as ENDPOINT_KEY } from "./server-config";
+import { API_BASE_STORAGE_KEY as ENDPOINT_KEY, personalServerOnly } from "./server-config";
 import { fetchServer, loadServerHeaders, saveServerHeaders, serverHeaders } from "./server-headers";
 import {
   clearSessionToken,
@@ -166,7 +166,9 @@ export async function loadApiBase() {
   let apiBase = defaultApiBase();
   try {
     const stored = await SecureStore.getItemAsync(ENDPOINT_KEY);
-    if (stored) {
+    if (stored && personalServerOnly()) {
+      await SecureStore.deleteItemAsync(ENDPOINT_KEY); // saved by an earlier build: dropped, never followed
+    } else if (stored) {
       const parsed = normalizeApiBase(stored);
       if (parsed.ok) {
         apiBase = parsed.url;
@@ -432,6 +434,9 @@ export async function saveApiBase(
 ): Promise<EndpointResult> {
   const parsed = normalizeApiBase(input);
   if (!parsed.ok) return parsed;
+  if (personalServerOnly() && parsed.url !== defaultApiBase()) {
+    return { ok: false, error: t("This app only connects to your personal dashboard server") };
+  }
   if (parsed.url === defaultApiBase() && Object.keys(headers).length === 0) return resetApiBase();
   const previous = currentApiBase();
   const previousHeaders = serverHeaders(previous);
@@ -583,6 +588,11 @@ export function signIn(email: string, password: string) {
 }
 
 export function signUp(email: string, password: string, name: string) {
+  if (personalServerOnly() && currentApiBase() !== defaultApiBase()) {
+    return Promise.reject(
+      new Error(t("Sign-up is only available on your personal dashboard server")),
+    );
+  }
   return authenticate(
     "sign-up/email",
     { email, password, name },

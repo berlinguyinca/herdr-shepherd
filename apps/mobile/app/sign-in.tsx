@@ -28,7 +28,6 @@ import {
   signIn,
   signInWithCode,
   signUp,
-  usesCustomApiBase,
 } from "../lib/api";
 import type { AuthMode } from "../lib/auth-routing";
 import { initialAuthMode } from "../lib/auth-routing";
@@ -215,8 +214,6 @@ export default function SignIn() {
       setPending(false);
     }
   }
-
-  const custom = usesCustomApiBase(apiBase);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: tokens.background }}>
@@ -531,37 +528,21 @@ export default function SignIn() {
                 </>
               )}
             </ScrollView>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel={
-                custom
-                  ? t("Custom server {host}", { host: displayApiHost(apiBase) })
-                  : t("Use a custom server")
-              }
-              hitSlop={12}
-              onPress={() => router.push("/server")}
+            <View
               style={{
                 alignItems: "center",
-                paddingHorizontal: 24,
                 paddingBottom: 12,
+                paddingHorizontal: 24,
                 paddingTop: 8,
               }}
             >
-              {custom ? (
-                <>
-                  <Text style={{ color: tokens.mutedForeground, fontSize: 12 }}>
-                    {t("Custom server")}
-                  </Text>
-                  <Text style={{ color: tokens.mutedForeground, fontSize: 13, marginTop: 2 }}>
-                    {displayApiHost(apiBase)}
-                  </Text>
-                </>
-              ) : (
-                <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>
-                  {t("Use a custom server")}
-                </Text>
-              )}
-            </Pressable>
+              <Text style={{ color: tokens.mutedForeground, fontSize: 12 }}>
+                {t("Your dashboard")}
+              </Text>
+              <Text style={{ color: tokens.mutedForeground, fontSize: 13, marginTop: 2 }}>
+                {displayApiHost(apiBase)}
+              </Text>
+            </View>
           </View>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
