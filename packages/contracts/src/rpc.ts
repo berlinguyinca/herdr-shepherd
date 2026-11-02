@@ -176,6 +176,16 @@ import {
 import { SearchQueryOutputSchema } from "./search.js";
 import { SecurityEventListInputSchema, SecurityEventSchema } from "./security-events.js";
 import { SettingsScopeSchema, SpaceSettingSchema, settingsScopeInput } from "./settings-scope.js";
+import {
+  TerminalFrameSchema,
+  TerminalIdInputSchema,
+  TerminalInputInputSchema,
+  TerminalOkOutputSchema,
+  TerminalOpenInputSchema,
+  TerminalOpenOutputSchema,
+  TerminalResizeInputSchema,
+  TerminalSubscribeInputSchema,
+} from "./shepherd-terminal.js";
 
 const botId = z.object({ botId: Id });
 const groupId = z.object({ groupId: Id });
@@ -504,6 +514,14 @@ export const appContract = {
     subscribeList: oc
       .input(AgentSubscribeListInputSchema)
       .output(eventIterator(AgentListFrameSchema)),
+  },
+  /** Shepherd Terminal; served by the bridge, so an older server answers 404. */
+  terminal: {
+    open: oc.input(TerminalOpenInputSchema).output(TerminalOpenOutputSchema),
+    input: oc.input(TerminalInputInputSchema).output(TerminalOkOutputSchema),
+    resize: oc.input(TerminalResizeInputSchema).output(TerminalOkOutputSchema),
+    close: oc.input(TerminalIdInputSchema).output(TerminalOkOutputSchema),
+    subscribe: oc.input(TerminalSubscribeInputSchema).output(eventIterator(TerminalFrameSchema)),
   },
   threads: {
     head: oc.input(threadTarget).output(
