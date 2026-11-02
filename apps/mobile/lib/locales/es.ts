@@ -1173,6 +1173,17 @@ export const ES_MESSAGES: Record<string, string> = {
   "Use email code": "Usar código por correo",
   "Use password": "Usar contraseña",
   "{count} messages with {peer}": "{count} mensajes con {peer}",
+  Assistant: "Asistente",
+  Agents: "Agentes",
+  Blocked: "Bloqueado",
+  Idle: "Inactivo",
+  Unknown: "Desconocido",
+  Closed: "Cerrado",
+  "Show older": "Mostrar anteriores",
+  "No agents yet": "Aún no hay agentes",
+  "This server does not offer the Agents view yet":
+    "Este servidor aún no ofrece la vista de agentes",
+  "Could not load agents": "No se pudieron cargar los agentes",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

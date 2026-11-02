@@ -1237,6 +1237,16 @@ export const ZH_MESSAGES: Record<string, string> = {
   "1 free month earned": "已获得 1 个月免费",
   "{count} free months earned": "已获得 {count} 个月免费",
   "Submit a plugin": "提交插件",
+  Assistant: "助手",
+  Agents: "智能体",
+  Blocked: "已阻塞",
+  Idle: "空闲",
+  Unknown: "未知",
+  Closed: "已关闭",
+  "Show older": "显示更早的",
+  "No agents yet": "暂无智能体",
+  "This server does not offer the Agents view yet": "此服务器暂不支持智能体视图",
+  "Could not load agents": "无法加载智能体",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

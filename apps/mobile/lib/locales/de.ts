@@ -1231,6 +1231,17 @@ export const DE_MESSAGES: Record<string, string> = {
   "1 free month earned": "1 Gratismonat verdient",
   "{count} free months earned": "{count} Gratismonate verdient",
   "Submit a plugin": "Plugin einreichen",
+  Assistant: "Assistent",
+  Agents: "Agenten",
+  Blocked: "Blockiert",
+  Idle: "Inaktiv",
+  Unknown: "Unbekannt",
+  Closed: "Geschlossen",
+  "Show older": "Ältere anzeigen",
+  "No agents yet": "Noch keine Agenten",
+  "This server does not offer the Agents view yet":
+    "Dieser Server bietet die Agentenansicht noch nicht an",
+  "Could not load agents": "Agenten konnten nicht geladen werden",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

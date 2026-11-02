@@ -1262,6 +1262,17 @@ export const RU_MESSAGES: Record<string, string> = {
   "1 free month earned": "Получен 1 бесплатный месяц",
   "{count} free months earned": "Бесплатных месяцев получено: {count}",
   "Submit a plugin": "Предложить плагин",
+  Assistant: "Ассистент",
+  Agents: "Агенты",
+  Blocked: "Заблокирован",
+  Idle: "Простаивает",
+  Unknown: "Неизвестно",
+  Closed: "Закрыт",
+  "Show older": "Показать старые",
+  "No agents yet": "Агентов пока нет",
+  "This server does not offer the Agents view yet":
+    "Этот сервер пока не поддерживает раздел агентов",
+  "Could not load agents": "Не удалось загрузить агентов",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

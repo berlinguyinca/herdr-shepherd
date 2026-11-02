@@ -55,7 +55,8 @@ export function agentListQuery(showOlder: boolean) {
   const query = rpcQuery("agents/list", { showOlder });
   return {
     ...query,
-    queryFn: (ctx: never) => classify(async () => query.queryFn(ctx), unsupported),
+    queryFn: (ctx: Parameters<typeof query.queryFn>[0]) =>
+      classify(async () => query.queryFn(ctx), unsupported),
   };
 }
 

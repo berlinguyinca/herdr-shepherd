@@ -1223,6 +1223,17 @@ export const NL_MESSAGES: Record<string, string> = {
   "1 free month earned": "1 gratis maand verdiend",
   "{count} free months earned": "{count} gratis maanden verdiend",
   "Submit a plugin": "Plugin indienen",
+  Assistant: "Assistent",
+  Agents: "Agents",
+  Blocked: "Geblokkeerd",
+  Idle: "Inactief",
+  Unknown: "Onbekend",
+  Closed: "Gesloten",
+  "Show older": "Oudere tonen",
+  "No agents yet": "Nog geen agents",
+  "This server does not offer the Agents view yet":
+    "Deze server biedt de Agents-weergave nog niet aan",
+  "Could not load agents": "Agents konden niet worden geladen",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

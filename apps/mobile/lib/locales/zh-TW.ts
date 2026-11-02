@@ -1235,6 +1235,16 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "1 free month earned": "已獲得 1 個月免費",
   "{count} free months earned": "已獲得 {count} 個月免費",
   "Submit a plugin": "提交外掛程式",
+  Assistant: "助理",
+  Agents: "智慧代理",
+  Blocked: "已封鎖",
+  Idle: "閒置",
+  Unknown: "未知",
+  Closed: "已關閉",
+  "Show older": "顯示較舊的",
+  "No agents yet": "尚無智慧代理",
+  "This server does not offer the Agents view yet": "此伺服器尚未提供智慧代理檢視",
+  "Could not load agents": "無法載入智慧代理",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "與{peer}的 {count} 則訊息" };

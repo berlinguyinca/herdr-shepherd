@@ -26,6 +26,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BotOrganizeModal } from "../components/bot-organize-modal";
 import { HomeErrorState } from "../components/home-error-state";
 import { createHomeStyles } from "../components/home-styles";
+import { HomeTabBar } from "../components/home-tab-bar";
 import { ActivitySection } from "../components/inbox-activity";
 import { InboxHeader } from "../components/inbox-header";
 import { InboxListFooter, SWIPE_ROWS, useInboxRenderItem } from "../components/inbox-render-item";
@@ -113,7 +114,12 @@ async function openMobileSpace(spaceId: string | undefined, open: () => void) {
 
 export default function HomeRoute() {
   const { split } = useSplitView();
-  return split ? <PickChatPane /> : <HomeSession />;
+  return (
+    <View style={{ flex: 1 }}>
+      <View style={{ flex: 1 }}>{split ? <PickChatPane /> : <HomeSession />}</View>
+      <HomeTabBar active="assistant" />
+    </View>
+  );
 }
 
 /** The chat list beside the open chat on a wide window. */

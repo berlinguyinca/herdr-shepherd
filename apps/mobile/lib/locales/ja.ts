@@ -1254,6 +1254,17 @@ export const JA_MESSAGES: Record<string, string> = {
   "1 free month earned": "1か月分の無料期間を獲得",
   "{count} free months earned": "{count}か月分の無料期間を獲得",
   "Submit a plugin": "プラグインを申請",
+  Assistant: "アシスタント",
+  Agents: "エージェント",
+  Blocked: "ブロック中",
+  Idle: "待機中",
+  Unknown: "不明",
+  Closed: "終了",
+  "Show older": "以前のものを表示",
+  "No agents yet": "エージェントはまだありません",
+  "This server does not offer the Agents view yet":
+    "このサーバーはまだエージェント表示に対応していません",
+  "Could not load agents": "エージェントを読み込めませんでした",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "{peer}とのメッセージ{count}件" };
