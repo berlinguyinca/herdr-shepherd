@@ -58,7 +58,7 @@ const QUEUE_MAX_BYTES = 256 * 1024;
  * Input is also cleared on taken_over, ended and stream errors, so typing made while the
  * terminal was away is never typed later.
  */
-type Pending = { bytes: Uint8Array; terminalId?: string; n?: number };
+type Pending = { bytes: Uint8Array; terminalId?: string; n?: number; attempts: number };
 
 /** A 4xx other than a timeout or rate limit will not change by asking again. */
 const isFinal4xx = (error: unknown) => {
@@ -81,6 +81,8 @@ export type TerminalClient = {
   /** Opens the terminal again after another client took it over. */
   reopen(): void;
   onOutput(callback: (chunk: TerminalOutput) => void): () => void;
+  /** Called with the error when the bridge refuses one input call (the call is dropped). */
+  onInputError(callback: (error: unknown) => void): () => void;
   onState(callback: (state: TerminalState) => void): () => void;
   dispose(): void;
 };
@@ -106,6 +108,7 @@ export function createTerminalClient(
   let controller = new AbortController();
   const outputs = new Set<(chunk: TerminalOutput) => void>();
   const states = new Set<(state: TerminalState) => void>();
+  const inputErrors = new Set<(error: unknown) => void>();
 
   let batch: Uint8Array[] = [];
   let batchTimer: ReturnType<typeof setTimeout> | undefined;
@@ -180,10 +183,8 @@ export function createTerminalClient(
             terminalId = opened.terminalId;
             nextN = 1;
             cursor = opened.seq;
-            // Whatever was already attempted on an older terminal has an unknown outcome.
-            for (let i = queue.length - 1; i >= 0; i -= 1) {
-              if (queue[i]?.terminalId !== undefined) queue.splice(i, 1);
-            }
+            // The queue holds no attempted item here: every way to a new open (an error, a
+            // taken_over, ended) cleared it first, so none can be retyped on the new terminal.
             if (everOpened) emit({ kind: "clear" });
             everOpened = true;
             needOpen = false;
@@ -199,7 +200,12 @@ export function createTerminalClient(
         } catch (error) {
           if (disposed) return;
           // Opening is refused for good (unknown agent, no access): asking again changes nothing.
-          if (needOpen && isFinal4xx(error)) return setState("error");
+          if (needOpen && isFinal4xx(error)) {
+            queue.length = 0;
+            return setState("error");
+          }
+          // The same terminal answering 404: another client's open retired it.
+          if (!needOpen && statusOf(error) === 404) return settled("taken_over");
           needOpen = true;
           setState("error");
           queue.length = 0;
@@ -208,11 +214,6 @@ export function createTerminalClient(
           continue;
         }
         if (disposed || stopped()) return;
-        // The input path found the terminal retired and aborted the stream: open a fresh one.
-        if (signal.aborted) {
-          needOpen = true;
-          continue;
-        }
         // Clean end (the server closes a stream after its time limit): resume, no open. A stream
         // that closes at once without a frame backs off so it cannot spin.
         if (received || Date.now() - started >= MIN_LIVE_MS) continue;
@@ -238,6 +239,7 @@ export function createTerminalClient(
           nextN += 1;
         }
         const sentTo = terminalId;
+        item.attempts += 1;
         try {
           await rpc("terminal/input", {
             terminalId: sentTo,
@@ -254,11 +256,13 @@ export function createTerminalClient(
           // Retired (taken over or closed): keep the item and stop; the stream says which.
           if (statusOf(error) === 404) return;
           if (isFinal4xx(error)) {
-            // Refused, so the bridge did not count it: give its number back.
+            // This call was refused, not the connection: drop it and go on. Its number goes back
+            // only after a first attempt; an earlier one of unknown outcome may have landed, and
+            // reusing the number would then swallow the next call.
             const at = queue.indexOf(item);
             if (at >= 0) queue.splice(at, 1);
-            if (item.n === nextN - 1) nextN -= 1;
-            setState("error");
+            if (item.attempts === 1 && item.n === nextN - 1) nextN -= 1;
+            for (const callback of inputErrors) callback(error);
             continue;
           }
           await new Promise<void>((resolve) => {
@@ -292,7 +296,7 @@ export function createTerminalClient(
     batch = [];
     if (state === "error" || stopped()) return;
     for (let i = 0; i < joined.length; i += WRITE_CHUNK_BYTES) {
-      queue.push({ bytes: joined.subarray(i, i + WRITE_CHUNK_BYTES) });
+      queue.push({ bytes: joined.subarray(i, i + WRITE_CHUNK_BYTES), attempts: 0 });
     }
     let queued = queue.reduce(
       (sum, item) => (item.terminalId === undefined ? sum + item.bytes.length : sum),
@@ -339,6 +343,10 @@ export function createTerminalClient(
     onOutput(callback) {
       outputs.add(callback);
       return () => outputs.delete(callback);
+    },
+    onInputError(callback) {
+      inputErrors.add(callback);
+      return () => inputErrors.delete(callback);
     },
     onState(callback) {
       states.add(callback);
@@ -390,6 +398,11 @@ export function useTerminal(
     (nextRows: number, nextCols: number) => client.current?.resize(nextRows, nextCols),
     [],
   );
+  const onInputError = useCallback(
+    (callback: (error: unknown) => void) =>
+      client.current?.onInputError(callback) ?? (() => undefined),
+    [],
+  );
   const reopen = useCallback(() => client.current?.reopen(), []);
   const onOutput = useCallback((callback: (chunk: TerminalOutput) => void) => {
     listeners.current.add(callback);
@@ -398,5 +411,5 @@ export function useTerminal(
     };
   }, []);
 
-  return { state, write, resize, reopen, onOutput };
+  return { state, write, resize, reopen, onOutput, onInputError };
 }

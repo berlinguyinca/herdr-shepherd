@@ -353,14 +353,51 @@ describe("input and a retired terminal", () => {
     client.dispose();
   });
 
-  it("a non-404 4xx on input drops that item and reports error", async () => {
+  it("a refused input call is dropped and reported; the terminal stays live and input flows", async () => {
     const { client } = await start();
+    const refused: unknown[] = [];
+    client.onInputError((error) => refused.push(error));
     inputFailures = [failure(400)];
     client.write(bytes("a"));
     await vi.advanceTimersByTimeAsync(8);
+    client.write(bytes("b"));
+    await vi.advanceTimersByTimeAsync(8);
     await vi.advanceTimersByTimeAsync(5_000);
-    expect(inputs()).toHaveLength(1);
-    expect(client.state).toBe("error");
+    expect(refused).toHaveLength(1);
+    expect(client.state).toBe("live");
+    expect(inputs().map((p) => [p.n, p.data])).toEqual([
+      [1, b64("a")],
+      [1, b64("b")],
+    ]);
+    client.dispose();
+  });
+
+  it("keeps the number when the refused call had an earlier unknown-outcome attempt", async () => {
+    const { client } = await start();
+    inputFailures = [failure(503), failure(400)];
+    client.write(bytes("a"));
+    await vi.advanceTimersByTimeAsync(8);
+    await vi.advanceTimersByTimeAsync(500);
+    client.write(bytes("b"));
+    await vi.advanceTimersByTimeAsync(8);
+    expect(inputs().map((p) => [p.n, p.data])).toEqual([
+      [1, b64("a")],
+      [1, b64("a")],
+      [2, b64("b")],
+    ]);
+    client.dispose();
+  });
+
+  it("a 404 when resubscribing the same terminal is a takeover and does not reopen", async () => {
+    const { client } = await start();
+    live[0]?.emit({ seq: 2, data: b64("x") });
+    stream.mockImplementationOnce(async () => {
+      throw failure(404);
+    });
+    live[0]?.end();
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(opens).toBe(1);
+    expect(client.state).toBe("taken_over");
     client.dispose();
   });
 
@@ -397,6 +434,32 @@ describe("stream hygiene", () => {
     await vi.advanceTimersByTimeAsync(30_000);
     expect(opens).toBe(1);
     expect(client.state).toBe("error");
+    client.dispose();
+  });
+
+  it("input typed while connecting is dropped when open is refused for good", async () => {
+    const gate = deferred();
+    let refuse = true;
+    call.mockImplementation(async (proc: string, body: Json) => {
+      if (proc === "terminal/open") {
+        opens += 1;
+        await gate.promise;
+        if (refuse) throw failure(403);
+        return { terminalId: "t2", seq: 0, rows: body.rows, cols: body.cols };
+      }
+      if (proc === "terminal/input") posts.push(body);
+      return { ok: true };
+    });
+    const { client } = await start();
+    client.write(bytes("early"));
+    await vi.advanceTimersByTimeAsync(8);
+    gate.resolve();
+    await vi.advanceTimersByTimeAsync(0);
+    expect(client.state).toBe("error");
+    refuse = false;
+    client.reopen();
+    await vi.advanceTimersByTimeAsync(100);
+    expect(inputs()).toEqual([]);
     client.dispose();
   });
 
