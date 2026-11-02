@@ -53,7 +53,10 @@ const gone = (cause: unknown) => new AgentGoneError({ cause });
 /** The list of agents; `showOlder` also returns the ones hidden as closed or stale. */
 export function agentListQuery(showOlder: boolean) {
   const query = rpcQuery("agents/list", { showOlder });
-  return { ...query, queryFn: (ctx: never) => classify(async () => query.queryFn(ctx), unsupported) };
+  return {
+    ...query,
+    queryFn: (ctx: never) => classify(async () => query.queryFn(ctx), unsupported),
+  };
 }
 
 export function getAgent(id: string) {
