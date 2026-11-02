@@ -43,6 +43,8 @@ vi.mock("react-native", () => {
       ListFooterComponent,
       windowSize,
       initialNumToRender,
+      refreshing,
+      onRefresh,
     }: {
       data: unknown[];
       renderItem: (info: { item: unknown; index: number }) => ReactNode;
@@ -50,8 +52,15 @@ vi.mock("react-native", () => {
       ListFooterComponent?: ReactNode;
       windowSize?: number;
       initialNumToRender?: number;
+      refreshing?: boolean;
+      onRefresh?: () => void;
     }) => (
-      <div data-window={windowSize} data-initial={initialNumToRender}>
+      <div
+        data-window={windowSize}
+        data-initial={initialNumToRender}
+        data-refreshing={String(refreshing)}
+      >
+        <button type="button" aria-label="pull" onClick={onRefresh} />
         {data.length === 0 ? ListEmptyComponent : null}
         {data.map((item, index) => renderItem({ item, index }))}
         {ListFooterComponent}
@@ -253,4 +262,52 @@ it("tapping the Agents tab from home navigates to /agents and back", async () =>
   router.push.mockClear();
   await act(async () => button("Agents")!.click());
   expect(router.push).not.toHaveBeenCalled();
+});
+
+const refreshing = () => host.querySelector("[data-refreshing]")?.getAttribute("data-refreshing");
+
+it("does not show the pull spinner for background polls, only for an explicit pull", async () => {
+  vi.useFakeTimers();
+  let release: () => void = () => {};
+  rpcMock.mockResolvedValue(list([row("1", "working")]));
+  streamMock.mockRejectedValue(Object.assign(new Error("busy"), { status: 429 }));
+  await render();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10);
+  });
+  const seen: (string | null | undefined)[] = [];
+  rpcMock.mockImplementation(
+    () =>
+      new Promise((resolve) => {
+        seen.push(refreshing());
+        release = () => resolve(list([row("1", "working")]));
+      }),
+  );
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(5_000);
+  });
+  expect(seen.length).toBe(1);
+  expect(refreshing()).toBe("false");
+  await act(async () => release());
+  await act(async () => {
+    host.querySelector<HTMLButtonElement>('button[aria-label="pull"]')!.click();
+  });
+  expect(refreshing()).toBe("true");
+  await act(async () => release());
+  await settle();
+  expect(refreshing()).toBe("false");
+});
+
+it("never commits the empty state while the list holds agents", async () => {
+  rpcMock.mockResolvedValue(list([row("1", "working")]));
+  const empties: boolean[] = [];
+  const observer = new MutationObserver(() => {
+    if (host.textContent?.includes("No agents yet")) empties.push(true);
+  });
+  observer.observe(host, { childList: true, subtree: true, characterData: true });
+  await render();
+  await Promise.resolve();
+  observer.disconnect();
+  expect(names()).toEqual(["agent-1"]);
+  expect(empties).toEqual([]);
 });

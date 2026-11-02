@@ -20,13 +20,15 @@ export default function Agents() {
   const insets = useSafeAreaInsets();
   const [showOlder, setShowOlder] = useState(false);
   const [polling, setPolling] = useState(false);
-  const [rows, setRows] = useState<Row[]>([]);
+  const [pulling, setPulling] = useState(false);
+  // Rows changed by the stream, kept only for the list they were applied to.
+  const [live, setLive] = useState<{ source: unknown; rows: Row[] } | null>(null);
   const query = useQuery(agentListQuery(showOlder), queryClient);
   const { data, refetch } = query;
 
-  useEffect(() => {
-    if (data) setRows(data.agents);
-  }, [data]);
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const rows = live && live.source === data ? live.rows : (data?.agents ?? []);
 
   // The stream starts from the cursor of the first list for this view, so a refetch (a poll, or
   // Show older) does not restart it; a new view of the list (showOlder) opens its own stream.
@@ -38,7 +40,12 @@ export default function Agents() {
     if (startCursor === null || polling) return;
     return subscribeAgentList(
       startCursor,
-      (row) => setRows((current) => applyAgentRow(current, row, showOlder)),
+      (row) =>
+        setLive((current) => {
+          const source = dataRef.current;
+          const base = current && current.source === source ? current.rows : (source?.agents ?? []);
+          return { source, rows: applyAgentRow(base, row, showOlder) };
+        }),
       () => setPolling(true),
     );
   }, [startCursor, showOlder, polling]);
@@ -80,8 +87,11 @@ export default function Agents() {
           maxToRenderPerBatch={12}
           windowSize={7}
           removeClippedSubviews
-          refreshing={query.isFetching && !query.isLoading}
-          onRefresh={() => void refetch()}
+          refreshing={pulling}
+          onRefresh={() => {
+            setPulling(true);
+            void refetch().finally(() => setPulling(false));
+          }}
           ListEmptyComponent={
             <Text style={[styles.message, styles.empty, { color: tokens.mutedForeground }]}>
               {t("No agents yet")}
