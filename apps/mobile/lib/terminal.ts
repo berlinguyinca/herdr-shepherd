@@ -1,6 +1,7 @@
 import type { RpcOutput, TerminalFrame } from "@rakazo/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { rpc, streamRpc } from "./api";
+import { base64ToBytes as fromBase64, bytesToBase64 as toBase64 } from "./terminal-bridge";
 
 export type TerminalState = "connecting" | "live" | "ended" | "taken_over" | "error";
 
@@ -27,22 +28,6 @@ export type OpenedTerminal = RpcOutput<"terminal/open">;
 /** Opens (or takes over) the agent's terminal. `seq` 0 replays the whole kept buffer. */
 export function openTerminal(agentId: string, rows: number, cols: number) {
   return rpc("terminal/open", { id: agentId, rows, cols });
-}
-
-function toBase64(bytes: Uint8Array): string {
-  let binary = "";
-  const step = 0x8000;
-  for (let i = 0; i < bytes.length; i += step) {
-    binary += String.fromCharCode(...bytes.subarray(i, i + step));
-  }
-  return btoa(binary);
-}
-
-function fromBase64(text: string): Uint8Array {
-  const binary = atob(text);
-  const out = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i += 1) out[i] = binary.charCodeAt(i);
-  return out;
 }
 
 const nextBackoff = (ms: number) => Math.min(BACKOFF_MAX_MS, ms * 2);
@@ -375,6 +360,7 @@ export function useTerminal(
   const [state, setState] = useState<TerminalState>("connecting");
   const client = useRef<TerminalClient | undefined>(undefined);
   const listeners = useRef(new Set<(chunk: TerminalOutput) => void>());
+  const errorListeners = useRef(new Set<(error: unknown) => void>());
   const { rows, cols } = size;
 
   useEffect(() => {
@@ -385,9 +371,13 @@ export function useTerminal(
     const stopOutput = next.onOutput((chunk) => {
       for (const callback of listeners.current) callback(chunk);
     });
+    const stopInputError = next.onInputError((error) => {
+      for (const callback of errorListeners.current) callback(error);
+    });
     return () => {
       stopState();
       stopOutput();
+      stopInputError();
       next.dispose();
       if (client.current === next) client.current = undefined;
     };
@@ -398,11 +388,12 @@ export function useTerminal(
     (nextRows: number, nextCols: number) => client.current?.resize(nextRows, nextCols),
     [],
   );
-  const onInputError = useCallback(
-    (callback: (error: unknown) => void) =>
-      client.current?.onInputError(callback) ?? (() => undefined),
-    [],
-  );
+  const onInputError = useCallback((callback: (error: unknown) => void) => {
+    errorListeners.current.add(callback);
+    return () => {
+      errorListeners.current.delete(callback);
+    };
+  }, []);
   const reopen = useCallback(() => client.current?.reopen(), []);
   const onOutput = useCallback((callback: (chunk: TerminalOutput) => void) => {
     listeners.current.add(callback);
