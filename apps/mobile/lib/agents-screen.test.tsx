@@ -8,6 +8,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import Agents from "../app/agents";
 import { AgentsList } from "../components/agents-list";
 import { HomeTabBar } from "../components/home-tab-bar";
+import { agentRouteId } from "./agent-route";
 import { rpc, streamRpc } from "./api";
 import { queryClient } from "./query";
 import { InboxBesideContext } from "./side-insets";
@@ -309,6 +310,17 @@ it("on a narrow window tapping a row pushes the agent over the list", async () =
   await render(<Agents />);
   await act(async () => (host.querySelector("button[data-selected]") as HTMLElement).click());
   expect(router.push).toHaveBeenCalledWith({ pathname: "/agent", params: { id: "a1" } });
+});
+
+it("navigation id is the decode-invariant route id", async () => {
+  const id = "herdr:mac.lan:default:wD%3ApF";
+  rpcMock.mockResolvedValue(list([row(id, "working")]));
+  await render(<Agents />);
+  await act(async () => (host.querySelector("button[data-selected]") as HTMLElement).click());
+  expect(router.push).toHaveBeenCalledWith({
+    pathname: "/agent",
+    params: { id: agentRouteId(id) },
+  });
 });
 
 const refreshing = () => host.querySelector("[data-refreshing]")?.getAttribute("data-refreshing");

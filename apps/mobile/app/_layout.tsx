@@ -36,6 +36,7 @@ import { MessageActionSheetHost } from "../components/message-action-sheet-host"
 import { NativeSymbol } from "../components/native-symbol";
 import { SplitLeftPane } from "../components/split-left-pane";
 import { VoicePlayerBar } from "../components/voice-player-bar";
+import { agentIdFromRoute, agentRouteId } from "../lib/agent-route";
 import {
   currentApiBase,
   loadApiBase,
@@ -163,10 +164,10 @@ function SplitFrame({ children }: { children: ReactNode }) {
           <SplitLeftPane
             pane={leftPane}
             tab={tabFor(pathname, leftPane)}
-            selectedAgentId={typeof params.id === "string" ? params.id : undefined}
+            selectedAgentId={agentIdFromRoute(params.id) ?? undefined}
             onSelectAgent={(id) => {
               // The open agent is replaced, so picking through the list never grows the stack.
-              const target = { pathname: "/agent", params: { id } } as const;
+              const target = { pathname: "/agent", params: { id: agentRouteId(id) } } as const;
               if (pathname === "/agent") router.replace(target);
               else router.push(target);
             }}

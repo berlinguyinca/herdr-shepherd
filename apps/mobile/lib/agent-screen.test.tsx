@@ -7,6 +7,7 @@ import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import AgentScreen from "../app/agent";
 import Agents from "../app/agents";
+import { agentRouteId } from "./agent-route";
 import { rpc, streamRpc } from "./api";
 import { queryClient } from "./query";
 
@@ -16,9 +17,14 @@ const router = vi.hoisted(() => ({
   back: vi.fn(),
   canGoBack: vi.fn(() => false),
 }));
+const routeParams = vi.hoisted(() => ({ id: "a1" as string, decodes: 0 }));
 vi.mock("expo-router", () => ({
   useRouter: () => router,
-  useLocalSearchParams: () => ({ id: "a1" }),
+  useLocalSearchParams: () => {
+    let id = routeParams.id;
+    for (let i = 0; i < routeParams.decodes; i++) id = decodeURIComponent(id);
+    return { id };
+  },
   Stack: { Screen: () => null },
 }));
 vi.mock("react-native", () => {
@@ -170,6 +176,8 @@ const notFound = () => Object.assign(new Error("nf"), { status: 404 });
 
 beforeEach(() => {
   vi.clearAllMocks();
+  routeParams.id = "a1";
+  routeParams.decodes = 0;
   queryClient.clear();
   foreground.value = true;
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
@@ -474,3 +482,22 @@ it("while the full fetch keeps failing, the header tap still collapses and the h
   expect(host.textContent).not.toContain("Tap to retry");
   expect(calls).toBe(2);
 });
+
+it.each([0, 1, 2])(
+  "uses the original id on the wire when the param is decoded %i extra times",
+  async (decodes) => {
+    const original = "herdr:mac.lan:default:wD%3ApF";
+    routeParams.id = agentRouteId(original);
+    routeParams.decodes = decodes;
+    serve({
+      get: { agent: { ...agent, id: original }, hasConversation: true },
+      messages: page([msg(1, "user", "hi")]),
+    });
+    await render();
+    const calls = rpcMock.mock.calls.filter(([p]) => p === "agents/get" || p === "agents/messages");
+    expect(calls.map(([p]) => p).sort()).toEqual(
+      expect.arrayContaining(["agents/get", "agents/messages"]),
+    );
+    for (const [, input] of calls) expect((input as Data).id).toBe(original);
+  },
+);

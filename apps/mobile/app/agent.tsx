@@ -3,6 +3,7 @@ import { useCallback, useRef } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { AgentEvent, isRenderableEvent } from "../components/agent-event";
 import { useAgentStatus } from "../components/agent-row";
+import { agentIdFromRoute } from "../lib/agent-route";
 import type { AgentEvent as Event } from "../lib/agents";
 import { agentEvent, isAgentGone } from "../lib/agents";
 import { useI18n } from "../lib/i18n";
@@ -22,7 +23,7 @@ export default function AgentScreen() {
   const tokens = useMobileTokens();
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id?: string }>();
-  const agentId = typeof id === "string" ? id : "";
+  const agentId = agentIdFromRoute(id) ?? "";
   const conversation = useAgentConversation(agentId);
   const { agent, events, loading, gone, failed, empty, markGone } = conversation;
   // Usage and other quiet events draw nothing; a conversation of only those gets a calm message.

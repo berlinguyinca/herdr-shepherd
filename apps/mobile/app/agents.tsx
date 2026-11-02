@@ -3,6 +3,7 @@ import { useContext } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { AgentsList } from "../components/agents-list";
 import { HomeTabBar } from "../components/home-tab-bar";
+import { agentRouteId } from "../lib/agent-route";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { InboxBesideContext } from "../lib/side-insets";
@@ -24,7 +25,9 @@ export default function Agents() {
   }
   return (
     <View style={[styles.screen, { backgroundColor: tokens.background }]}>
-      <AgentsList onSelect={(id) => router.push({ pathname: "/agent", params: { id } })} />
+      <AgentsList
+        onSelect={(id) => router.push({ pathname: "/agent", params: { id: agentRouteId(id) } })}
+      />
       <HomeTabBar active="agents" />
     </View>
   );
