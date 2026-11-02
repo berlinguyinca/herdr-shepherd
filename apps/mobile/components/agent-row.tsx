@@ -57,14 +57,24 @@ export function AgentRow({
       ]}
     >
       <View style={styles.top}>
-        <Text style={[styles.title, { color: tokens.foreground }]} numberOfLines={1}>
-          <Text testID="agent-name" style={styles.name}>
+        <View style={styles.title}>
+          <Text
+            testID="agent-name"
+            style={[styles.name, { color: tokens.foreground }]}
+            numberOfLines={1}
+          >
             {name || t("Unknown")}
           </Text>
           {row.machine ? (
-            <Text style={{ color: tokens.mutedForeground }}>{` ${row.machine}`}</Text>
+            <Text
+              testID="agent-row-machine"
+              style={[styles.machine, { color: tokens.mutedForeground }]}
+              numberOfLines={1}
+            >
+              {row.machine}
+            </Text>
           ) : null}
-        </Text>
+        </View>
         <Text style={[styles.chip, { color, borderColor: color }]}>{label}</Text>
       </View>
       {needsYou ? (
@@ -96,9 +106,12 @@ const styles = StyleSheet.create({
     backgroundColor: native.fillPressed,
   },
   top: { flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { flex: 1, fontSize: 17, lineHeight: 22 },
-  name: { fontWeight: "600" },
+  // The name gives way first: the machine and the chip keep their room.
+  title: { flex: 1, flexDirection: "row", alignItems: "baseline", gap: 6 },
+  name: { flexShrink: 1, fontSize: 17, lineHeight: 22, fontWeight: "600" },
+  machine: { flexShrink: 0, maxWidth: "45%", fontSize: 17, lineHeight: 22 },
   chip: {
+    flexShrink: 0,
     fontSize: 12,
     lineHeight: 16,
     paddingHorizontal: 8,

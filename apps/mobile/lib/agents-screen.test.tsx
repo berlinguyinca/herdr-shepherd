@@ -35,8 +35,20 @@ vi.mock("react-native", () => {
     Platform: { OS: "ios" },
     StyleSheet: { create: <T,>(styles: T) => styles, hairlineWidth: 1 },
     View,
-    Text: ({ children, testID }: { children?: ReactNode; testID?: string }) => (
-      <span data-testid={testID}>{children}</span>
+    Text: ({
+      children,
+      testID,
+      style,
+      numberOfLines,
+    }: {
+      children?: ReactNode;
+      testID?: string;
+      style?: unknown;
+      numberOfLines?: number;
+    }) => (
+      <span data-testid={testID} data-style={JSON.stringify(style)} data-lines={numberOfLines}>
+        {children}
+      </span>
     ),
     ActivityIndicator: () => <div role="progressbar" />,
     RefreshControl: () => null,
@@ -306,6 +318,20 @@ it("the list highlights the open agent and reports the tapped row", async () => 
   expect(rows[0].getAttribute("data-style")).not.toContain("backgroundColor");
   await act(async () => (rows[0] as HTMLElement).click());
   expect(onSelect).toHaveBeenCalledWith("a1");
+});
+
+it("a row shrinks the agent name first and keeps the machine and the status chip", async () => {
+  rpcMock.mockResolvedValue(list([row("a1", "working")]));
+  await render(<AgentsList onSelect={vi.fn()} />);
+  const name = host.querySelector('[data-testid="agent-name"]');
+  const machine = host.querySelector('[data-testid="agent-row-machine"]');
+  expect(machine?.textContent).toBe("mac");
+  expect(name?.getAttribute("data-lines")).toBe("1");
+  expect(machine?.getAttribute("data-lines")).toBe("1");
+  expect(name?.getAttribute("data-style")).toContain('"flexShrink":1');
+  expect(machine?.getAttribute("data-style")).toContain('"flexShrink":0');
+  const chip = [...host.querySelectorAll("span")].find((n) => n.textContent === "Working");
+  expect(chip?.getAttribute("data-style")).toContain('"flexShrink":0');
 });
 
 it("the list has a title header with the Assistant list's top inset", async () => {
