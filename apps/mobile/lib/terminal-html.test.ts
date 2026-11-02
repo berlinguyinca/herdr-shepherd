@@ -37,7 +37,15 @@ describe("terminal page", () => {
 
   it("inlines the one source of the fit decisions and of the control bytes", () => {
     const source = build.fitSource();
-    for (const name of ["validPane", "paneFit", "pinchScale", "clampPinch"]) {
+    for (const name of [
+      "validPane",
+      "paneFit",
+      "pinchScale",
+      "clampPinch",
+      "measuredRatio",
+      "overflows",
+      "focalScroll",
+    ]) {
       expect(source).toContain(`function ${name}(`);
     }
     expect(source).not.toContain("export");

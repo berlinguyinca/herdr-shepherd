@@ -26,6 +26,7 @@ const term = vi.hoisted(() => ({
 }));
 const keyboard = vi.hoisted(() => ({ visible: false }));
 const batchers = vi.hoisted(() => ({
+  paused: [] as boolean[],
   options: [] as Array<{ maxPendingBytes?: number; onOverflow?: () => void }>,
 }));
 
@@ -122,7 +123,14 @@ vi.mock("./terminal-bridge", async (importOriginal) => {
       options: { maxPendingBytes?: number; onOverflow?: () => void },
     ) => {
       batchers.options.push(options);
-      return actual.createOutputBatcher(send, schedule, options as never);
+      const real = actual.createOutputBatcher(send, schedule, options as never);
+      return {
+        ...real,
+        setPaused: (next: boolean) => {
+          batchers.paused.push(next);
+          real.setPaused(next);
+        },
+      };
     },
   };
 });
@@ -163,6 +171,7 @@ beforeEach(() => {
   term.reason = undefined;
   term.calls = [];
   batchers.options = [];
+  batchers.paused = [];
   keyboard.visible = false;
   host = document.createElement("div");
   document.body.append(host);
@@ -287,6 +296,17 @@ describe("closing the terminal when the view goes", () => {
     expect(first?.current).toBe(true);
     expect(term.calls.at(-1)?.retain).not.toBe(first);
     expect(term.calls.at(-1)?.retain?.current).toBe(false);
+  });
+});
+
+describe("output while Chat is shown", () => {
+  it("is held while the terminal is not the focused view, and released when it is", () => {
+    render("a1", false);
+    expect(batchers.paused.at(-1)).toBe(true);
+    render("a1", true);
+    expect(batchers.paused.at(-1)).toBe(false);
+    render("a1", false);
+    expect(batchers.paused.at(-1)).toBe(true);
   });
 });
 

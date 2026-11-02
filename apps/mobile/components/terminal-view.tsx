@@ -202,6 +202,8 @@ function TerminalPage({
     };
   }, [batcher, onOutput]);
   useEffect(() => batcher.setReady(ready), [batcher, ready]);
+  // Under Chat nothing is drawn: the batcher keeps only the newest frame for when focus returns.
+  useEffect(() => batcher.setPaused(!focused), [batcher, focused]);
   useEffect(() => {
     if (ready) send({ t: "theme", dark });
   }, [ready, dark]);

@@ -156,13 +156,13 @@
 
   // The pane at its own cols x rows, its font scaled to the container width (paneFit), times
   // the pinch scale. Vertical scroll shows the rest of the pane; horizontal only where it pans.
-  const before = encoder.encode("\x1b[?25l\x1b[?2026h");
-  const after = encoder.encode("\x1b[?2026l");
+  const syncOn = encoder.encode("\x1b[?25l\x1b[?2026h");
+  const syncOff = encoder.encode("\x1b[?2026l");
   const wrapFrame = (bytes) => {
-    const out = new Uint8Array(before.length + bytes.length + after.length);
-    out.set(before);
-    out.set(bytes, before.length);
-    out.set(after, before.length + bytes.length);
+    const out = new Uint8Array(syncOn.length + bytes.length + syncOff.length);
+    out.set(syncOn);
+    out.set(bytes, syncOn.length);
+    out.set(syncOff, syncOn.length + bytes.length);
     return out;
   };
   let userFont = window.__fontSize || 13;
@@ -174,19 +174,45 @@
   const toBottom = () => {
     if (stick) box.scrollTop = box.scrollHeight;
   };
+  // xterm's measured cell width (no public way to read it): 0 when unavailable.
+  const cellWidth = () => {
+    return term._core?._renderService?.dimensions?.css?.cell?.width || 0;
+  };
+  // The cell width as a share of the font, learned from what xterm measures.
+  let ratio = CHAR_RATIO;
+  // Where between the fingers a pinch holds the content (box coordinates), until it is applied.
+  let focal = null;
   const applyFit = () => {
     // Laid out at zero (hidden, or not sized yet) fits to nothing: wait for a real width.
     if (!pane || !box.clientWidth) return;
-    const f = paneFit(box.clientWidth - 8, pane.cols, userFont, pinch);
+    const width = box.clientWidth - 8;
+    const was = Number(term.options.fontSize);
+    // Fit, measure the real cell, and fit again to what was measured.
+    let f = paneFit(width, pane.cols, userFont, pinch, ratio);
+    for (let i = 0; i < 2; i++) {
+      term.options.fontSize = f.font;
+      const next = cellWidth() ? measuredRatio(cellWidth(), f.font) : ratio;
+      if (Math.abs(next - ratio) < 0.005) break;
+      ratio = next;
+      f = paneFit(width, pane.cols, userFont, pinch, ratio);
+    }
     term.options.fontSize = f.font;
-    box.style.overflowX = f.pan ? "auto" : "hidden";
+    // Never clip the last column: what still overflows pans.
+    const pan = f.pan || (cellWidth() > 0 && overflows(cellWidth(), pane.cols, width));
+    box.style.overflowX = pan ? "auto" : "hidden";
     box.style.overflowY = "auto";
     const key = `${pane.rows}x${pane.cols}@${f.pct}`;
     if (key !== lastFit) {
       lastFit = key;
       post({ t: "fit", rows: pane.rows, cols: pane.cols, pct: f.pct });
     }
-    toBottom();
+    if (!focal) toBottom();
+    else if (f.font !== was) {
+      const k = f.font / was;
+      box.scrollLeft = focalScroll(box.scrollLeft, focal.x, k);
+      box.scrollTop = focalScroll(box.scrollTop, focal.y, k);
+    }
+    focal = null;
   };
   let queued = 0;
   const refit = () => {
@@ -203,8 +229,10 @@
   // Two fingers pinch the scale between 1x and 4x; a double tap puts it back to 1x.
   let startDist = 0;
   let startPinch = 1;
+  let startFocal = null;
   let gesture = false;
   let lastTap = 0;
+  let doubleTapAt = 0;
   const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
   box.addEventListener(
     "touchstart",
@@ -213,6 +241,12 @@
       gesture = true;
       startDist = dist(event.touches);
       startPinch = pinch;
+      const rect = box.getBoundingClientRect();
+      const t = event.touches;
+      startFocal = {
+        x: (t[0].clientX + t[1].clientX) / 2 - rect.left,
+        y: (t[0].clientY + t[1].clientY) / 2 - rect.top,
+      };
       event.preventDefault();
     },
     { passive: false },
@@ -223,7 +257,8 @@
       if (event.touches.length !== 2) return;
       event.preventDefault();
       pinch = pinchScale(startPinch, startDist, dist(event.touches));
-      applyFit();
+      focal = startFocal;
+      refit();
     },
     { passive: false },
   );
@@ -239,7 +274,15 @@
       pinch = 1;
       applyFit();
       lastTap = 0;
+      doubleTapAt = now;
+      // The second tap must not also click: that would select a word under the finger.
+      event.preventDefault();
     } else lastTap = now;
+  });
+  // The browser may still synthesize a dblclick for the double tap: drop it, so no word is
+  // selected. A double click made some other way (a mouse) is left alone.
+  box.addEventListener("dblclick", (event) => {
+    if (Date.now() - doubleTapAt < 600) event.preventDefault();
   });
 
   const onMessage = (event) => {

@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { base64ToBytes, bytesToBase64, MAX_CLIPBOARD_BYTES } from "./terminal-bridge";
-import { paneFit, pinchScale } from "./terminal-fit";
+import { focalScroll, paneFit, pinchScale } from "./terminal-fit";
 import { terminalHtml } from "./terminal-html.generated";
 import { controlByte } from "./terminal-keys";
 
@@ -25,13 +25,16 @@ class FakeTerminal {
   unicode = { activeVersion: "6" };
   /** xterm's measured cell: `cellRatio` of the font, as the real renderer reports it. */
   cellRatio = 0;
+  /** Added to the measured width: a cell the renderer rounds up. */
+  cellExtra = 0;
   _core = {
     _renderService: {
       dimensions: {
         css: {
           cell: {
             get width() {
-              return fake.term.cellRatio * Number(fake.term.options.fontSize);
+              if (!fake.term.cellRatio) return 0;
+              return fake.term.cellRatio * Number(fake.term.options.fontSize) + fake.term.cellExtra;
             },
           },
         },
@@ -353,6 +356,31 @@ describe("terminal page: fit to the width", () => {
   });
 });
 
+describe("terminal page: the measured cell", () => {
+  it("fits to xterm's measured cell width, so the last column is never clipped", () => {
+    fake.term.cellRatio = 0.7;
+    frame(120, 50);
+    const font = Number(fake.term.options.fontSize);
+    expect(font).toBeCloseTo(paneFit(300, 50, 13, 1, 0.7).font, 5);
+    expect(font * 0.7 * 50).toBeLessThanOrEqual(300);
+    expect(box().style.overflowX).toBe("hidden");
+  });
+
+  it("pans when the measured columns still do not fit the container", () => {
+    // A cell that is always 3 px wider than any font says: no font fits, so the pane pans.
+    fake.term.cellRatio = 0.7;
+    fake.term.cellExtra = 3;
+    frame(120, 50);
+    expect(box().style.overflowX).toBe("auto");
+  });
+
+  it("does not trust a measurement that makes no sense", () => {
+    fake.term.cellRatio = 40;
+    frame(120, 50);
+    expect(fake.term.options.fontSize).toBe(paneFit(300, 50, 13, 1).font);
+  });
+});
+
 describe("terminal page: pinch and double tap", () => {
   it("multiplies the scale by the fingers' spread, between 1x and 4x", () => {
     frame(24, 30);
@@ -393,6 +421,43 @@ describe("terminal page: pinch and double tap", () => {
     expect(fake.term.options.fontSize).toBe(26);
   });
 
+  it("follows the fingers once a frame, not once per touch move", () => {
+    const queue: Array<() => void> = [];
+    frame(24, 30);
+    vi.stubGlobal("requestAnimationFrame", (run: () => void) => queue.push(run));
+    vi.stubGlobal("cancelAnimationFrame", () => {});
+    touch("touchstart", [
+      [0, 0],
+      [100, 0],
+    ]);
+    for (const x of [120, 150, 200]) {
+      touch("touchmove", [
+        [0, 0],
+        [x, 0],
+      ]);
+    }
+    expect(fake.term.options.fontSize).toBe(13);
+    for (const run of queue.splice(0)) run();
+    expect(fake.term.options.fontSize).toBe(26);
+  });
+
+  it("keeps the point between the fingers where it was", () => {
+    frame(24, 30);
+    define(box(), { scrollLeft: 0, scrollTop: 400 });
+    box().getBoundingClientRect = () => ({ left: 10, top: 20 }) as DOMRect;
+    touch("touchstart", [
+      [10, 70],
+      [110, 70],
+    ]);
+    touch("touchmove", [
+      [10, 70],
+      [210, 70],
+    ]);
+    // The midpoint was (60, 70) on screen: (50, 50) in the box. The font doubled.
+    expect(box().scrollLeft).toBe(focalScroll(0, 50, 2));
+    expect(box().scrollTop).toBe(focalScroll(400, 50, 2));
+  });
+
   it("a double tap resets the scale", () => {
     frame(24, 30);
     touch("touchstart", [
@@ -410,6 +475,24 @@ describe("terminal page: pinch and double tap", () => {
     touch("touchstart", [[10, 10]]);
     touch("touchend", [[10, 10]]);
     expect(fake.term.options.fontSize).toBe(13);
+  });
+
+  it("a double tap is not followed by a word selection or a click", () => {
+    frame(24, 30);
+    const taps = [touch("touchstart", [[10, 10]]), touch("touchend", [[10, 10]])];
+    const second = [touch("touchstart", [[10, 10]]), touch("touchend", [[10, 10]])];
+    expect(taps[1]?.defaultPrevented).toBe(false);
+    expect(second[1]?.defaultPrevented).toBe(true);
+    const dblclick = new Event("dblclick", { bubbles: true, cancelable: true });
+    box().dispatchEvent(dblclick);
+    expect(dblclick.defaultPrevented).toBe(true);
+  });
+
+  it("leaves a double click alone when no double tap came before it", () => {
+    frame(24, 30);
+    const dblclick = new Event("dblclick", { bubbles: true, cancelable: true });
+    box().dispatchEvent(dblclick);
+    expect(dblclick.defaultPrevented).toBe(false);
   });
 
   it("a single tap does not reset it", () => {
