@@ -26,6 +26,7 @@ import {
   requestPasswordReset,
   rpc,
   sendSignInCode,
+  serverNeedsSetup,
   signIn,
   signInWithCode,
   signUp,
@@ -71,14 +72,18 @@ export default function SignIn() {
 
   // A server that trusts its own network (`open_owner`) may open a session as its owner with no password. Any other
   // server refuses, and the password form below stays available.
-  const triedOpenSession = useRef(false);
+  const triedOpenSession = useRef<string | null>(null);
   useEffect(() => {
-    if (triedOpenSession.current) return;
-    triedOpenSession.current = true;
+    if (serverNeedsSetup()) {
+      router.replace("/server"); // nothing to sign in to yet: the first thing to enter is the server URL
+      return;
+    }
+    if (triedOpenSession.current === apiBase) return;
+    triedOpenSession.current = apiBase;
     openOwnerSession()
       .then(() => openApp())
       .catch(() => undefined);
-  }, []);
+  }, [apiBase, router]);
 
   useFocusEffect(
     useCallback(() => {
@@ -511,32 +516,22 @@ export default function SignIn() {
                           marginTop: 24,
                         }}
                       >
-                        <Text style={{ color: tokens.mutedForeground, fontSize: 15 }}>
-                          {mode === "in"
-                            ? t("Don’t have an account?")
-                            : mode === "up"
-                              ? t("Already have an account?")
-                              : ""}
-                        </Text>
-                        <Pressable
-                          accessibilityRole="button"
-                          hitSlop={8}
-                          onPress={() => {
-                            setMode((current) => (current === "in" ? "up" : "in"));
-                            setError(null);
-                          }}
-                          style={{ marginLeft: 5 }}
-                        >
-                          <Text
-                            style={{ color: tokens.foreground, fontSize: 15, fontWeight: "600" }}
+                        {mode === "forgot" ? (
+                          <Pressable
+                            accessibilityRole="button"
+                            hitSlop={8}
+                            onPress={() => {
+                              setMode("in");
+                              setError(null);
+                            }}
                           >
-                            {mode === "in"
-                              ? t("Sign up")
-                              : mode === "up"
-                                ? t("Sign in")
-                                : t("Back to sign in")}
-                          </Text>
-                        </Pressable>
+                            <Text
+                              style={{ color: tokens.foreground, fontSize: 15, fontWeight: "600" }}
+                            >
+                              {t("Back to sign in")}
+                            </Text>
+                          </Pressable>
+                        ) : null}
                       </View>
                     </>
                   ) : null}

@@ -122,8 +122,10 @@ vi.mock("./i18n", () => ({
       text.replace(/\{(\w+)\}/g, (_, key: string) => values?.[key] ?? key),
   }),
 }));
+let setupNeeded = false;
 vi.mock("./api", () => ({
   currentApiBase: () => server.base,
+  serverNeedsSetup: () => setupNeeded,
   displayApiHost: () => "example.invalid",
   usesCustomApiBase: () => false,
   loadSessionToken: vi.fn().mockResolvedValue(null),
@@ -197,7 +199,7 @@ function expectBefore(first: Element, second: Element) {
   expect(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 }
 
-it.each(["in", "up"])(
+it.each(["in"])(
   "places a single quiet SSO action below the password form in %s mode",
   async (mode) => {
     route.mode = mode;
@@ -208,21 +210,15 @@ it.each(["in", "up"])(
     const buttons = ssoButtons();
     expect(buttons).toHaveLength(1);
     const sso = buttons[0]!;
-    const prompt = [...host.querySelectorAll("span")].find(
-      (span) =>
-        span.textContent ===
-        (mode === "in" ? "Don’t have an account?" : "Already have an account?"),
-    )!;
     expect(submit.textContent).toBe(mode === "in" ? "Sign in" : "Sign up");
     expect(sso.dataset.prominence).toBe("quiet");
     expectBefore(email, password);
     expectBefore(password, submit);
     expectBefore(submit, sso);
-    expectBefore(sso, prompt);
   },
 );
 
-it.each(["in", "up"])(
+it.each(["in"])(
   "shows one primary SSO action without credentials in SSO-only %s mode",
   async (mode) => {
     route.mode = mode;
@@ -276,7 +272,7 @@ it("ignores a code sent by the previous server", async () => {
   expect(input("Code")).toBeNull();
 });
 
-it.each(["in", "up"])("signs in with an emailed code by default in %s mode", async (mode) => {
+it.each(["in"])("signs in with an emailed code by default in %s mode", async (mode) => {
   route.mode = mode;
   vi.mocked(passwordResetCapabilities).mockResolvedValue({ ...capabilities, emailCode: true });
   vi.mocked(sendSignInCode).mockResolvedValue();
@@ -434,9 +430,6 @@ it("offers a secondary passkey sign-in only in sign-in mode on a supported serve
   expectBefore(host.querySelector('button[data-prominence="primary"]')!, passkey);
   await act(async () => passkey.click());
   expect(signInWithPasskey).toHaveBeenCalledOnce();
-
-  act(() => buttonNamed("Sign up")!.click());
-  expect(buttonNamed("Sign in with passkey")).toBeUndefined();
 });
 
 it("asks the signup survey after an external sign-in creates the account", async () => {
@@ -457,40 +450,26 @@ it("hides passkey sign-in where the device or server cannot use it", async () =>
   expect(buttonNamed("Sign in with passkey")).toBeUndefined();
 });
 
-it.each(["in", "up"])(
-  "reveals and hides the password in %s mode without changing it",
-  async (mode) => {
-    route.mode = mode;
-    await render();
-    const password = input("Password")!;
-    await type(password, "example-password");
-    expect(password.type).toBe("password");
-    expect(password.autocomplete).toBe(mode === "in" ? "current-password" : "new-password");
+it.each(["in"])("reveals and hides the password in %s mode without changing it", async (mode) => {
+  route.mode = mode;
+  await render();
+  const password = input("Password")!;
+  await type(password, "example-password");
+  expect(password.type).toBe("password");
+  expect(password.autocomplete).toBe(mode === "in" ? "current-password" : "new-password");
 
-    await act(async () =>
-      host.querySelector<HTMLButtonElement>('button[aria-label="Show password"]')!.click(),
-    );
-    expect(password.type).toBe("text");
-    expect(password.value).toBe("example-password");
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('button[aria-label="Show password"]')!.click(),
+  );
+  expect(password.type).toBe("text");
+  expect(password.value).toBe("example-password");
 
-    await act(async () =>
-      host.querySelector<HTMLButtonElement>('button[aria-label="Hide password"]')!.click(),
-    );
-    expect(password.type).toBe("password");
-    expect(password.value).toBe("example-password");
-
-    await act(async () =>
-      host.querySelector<HTMLButtonElement>('button[aria-label="Show password"]')!.click(),
-    );
-    // The last matching action switches modes rather than submitting the form.
-    await act(async () =>
-      [...host.querySelectorAll("button")]
-        .findLast((button) => button.textContent === (mode === "in" ? "Sign up" : "Sign in"))!
-        .click(),
-    );
-    expect(input("Password")!.type).toBe("password");
-  },
-);
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('button[aria-label="Hide password"]')!.click(),
+  );
+  expect(password.type).toBe("password");
+  expect(password.value).toBe("example-password");
+});
 
 it("hides a revealed password after switching servers", async () => {
   await render();
@@ -506,21 +485,18 @@ it("hides a revealed password after switching servers", async () => {
   expect(input("Password")!.value).toBe("example-password");
 });
 
-it.each(["in", "up"])(
-  "returns to the pending share after password authentication (%s)",
-  async (mode) => {
-    route.mode = mode;
-    route.waiting = true;
-    vi.mocked(signUp).mockResolvedValue({ verificationRequired: false });
-    await render();
-    await type(input("Email")!, "share@example.test");
-    await type(input("Password")!, "test-password-123");
-    await act(async () =>
-      host.querySelector<HTMLButtonElement>('button[data-prominence="primary"]')!.click(),
-    );
-    expect(router.replace).toHaveBeenCalledWith("/share");
-  },
-);
+it.each(["in"])("returns to the pending share after password authentication (%s)", async (mode) => {
+  route.mode = mode;
+  route.waiting = true;
+  vi.mocked(signUp).mockResolvedValue({ verificationRequired: false });
+  await render();
+  await type(input("Email")!, "share@example.test");
+  await type(input("Password")!, "test-password-123");
+  await act(async () =>
+    host.querySelector<HTMLButtonElement>('button[data-prominence="primary"]')!.click(),
+  );
+  expect(router.replace).toHaveBeenCalledWith("/share");
+});
 
 it("returns to the pending share after SSO", async () => {
   route.waiting = true;
@@ -535,4 +511,20 @@ it("returns an existing session to the pending share", async () => {
   vi.mocked(loadSessionToken).mockResolvedValue("fake-session");
   await render();
   expect(route.redirect).toHaveBeenCalledWith("/share");
+});
+
+it("asks for the server URL first when no server has been entered", async () => {
+  setupNeeded = true;
+  try {
+    await render();
+    expect(router.replace).toHaveBeenCalledWith("/server");
+    expect(openOwnerSession).not.toHaveBeenCalled();
+  } finally {
+    setupNeeded = false;
+  }
+});
+
+it("offers no sign-up: accounts are made on the server", async () => {
+  await render();
+  expect(document.body.textContent).not.toMatch(/Sign up|Don.t have an account/);
 });

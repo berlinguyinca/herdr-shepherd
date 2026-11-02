@@ -13,7 +13,7 @@ beforeEach(() => {
 
 describe("mobile authentication routing", () => {
   it("defaults ordinary logged-out visitors to sign-up", () => {
-    expect(initialAuthMode()).toBe("up");
+    expect(initialAuthMode()).toBe("in");
   });
 
   it("honors the explicit sign-in route used after logout", () => {

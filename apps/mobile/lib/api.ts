@@ -73,7 +73,11 @@ import {
   syncMobileAvatarSession,
 } from "./logo-avatar-activity";
 import { reportMobileError } from "./monitoring";
-import { API_BASE_STORAGE_KEY as ENDPOINT_KEY, personalServerOnly } from "./server-config";
+import {
+  API_BASE_STORAGE_KEY as ENDPOINT_KEY,
+  personalServerOnly,
+  pinnedServerUrl,
+} from "./server-config";
 import { fetchServer, loadServerHeaders, saveServerHeaders, serverHeaders } from "./server-headers";
 import {
   clearSessionToken,
@@ -162,8 +166,13 @@ export function currentApiBase() {
   return parsed.url;
 }
 
+/** True until the user has entered a server URL (or the build pins one): a public build has no server of its own. */
+let serverSetupNeeded = false;
+export const serverNeedsSetup = () => serverSetupNeeded;
+
 export async function loadApiBase() {
   let apiBase = defaultApiBase();
+  serverSetupNeeded = !pinnedServerUrl();
   try {
     const stored = await SecureStore.getItemAsync(ENDPOINT_KEY);
     if (stored && personalServerOnly()) {
@@ -172,6 +181,7 @@ export async function loadApiBase() {
       const parsed = normalizeApiBase(stored);
       if (parsed.ok) {
         apiBase = parsed.url;
+        serverSetupNeeded = false;
       }
     }
   } catch {
@@ -465,6 +475,7 @@ export async function saveApiBase(
     return { ok: false, error: t("Could not save the server URL") };
   }
   setCachedApiBase(parsed.url);
+  serverSetupNeeded = false;
   await clearStoredValue(SPACE_ROLLBACK_KEY);
   return parsed;
 }

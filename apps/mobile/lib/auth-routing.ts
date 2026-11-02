@@ -7,8 +7,9 @@ export const explicitSignInRoute = {
   params: { mode: "in" },
 } as const;
 
-export function initialAuthMode(requestedMode?: string | string[]): AuthMode {
-  return requestedMode === "in" ? "in" : "up";
+/** Shepherd has no sign-up: accounts are made on the server, so the form always opens on sign-in. */
+export function initialAuthMode(_requestedMode?: string | string[]): AuthMode {
+  return "in";
 }
 
 /** Leaves every screen, including the settings sheet at any depth, for sign-in alone.
