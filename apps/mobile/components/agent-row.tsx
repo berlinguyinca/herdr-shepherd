@@ -4,11 +4,11 @@ import type { AgentRow as Row } from "../lib/agents";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 
-/** One agent: name and machine, a status chip, and a one-line summary. Never shows the id. */
-export function AgentRow({ row, onPress }: { row: Row; onPress?: () => void }) {
+/** The label and color an agent status reads with. */
+export function useAgentStatus(raw: Row["status"]) {
   const { t } = useI18n();
   const tokens = useMobileTokens();
-  const status = agentStatus(row.status);
+  const status = agentStatus(raw);
   const labels = {
     blocked: t("Blocked"),
     done: t("Done"),
@@ -25,6 +25,14 @@ export function AgentRow({ row, onPress }: { row: Row; onPress?: () => void }) {
     unknown: tokens.mutedForeground,
     closed: tokens.faintForeground,
   }[status];
+  return { status, label: labels[status], color };
+}
+
+/** One agent: name and machine, a status chip, and a one-line summary. Never shows the id. */
+export function AgentRow({ row, onPress }: { row: Row; onPress?: () => void }) {
+  const { t } = useI18n();
+  const tokens = useMobileTokens();
+  const { status, label, color } = useAgentStatus(row.status);
   const needsYou = status === "blocked" || status === "done";
   const name = row.name.trim();
   return (
@@ -47,7 +55,7 @@ export function AgentRow({ row, onPress }: { row: Row; onPress?: () => void }) {
             <Text style={{ color: tokens.mutedForeground }}>{` ${row.machine}`}</Text>
           ) : null}
         </Text>
-        <Text style={[styles.chip, { color, borderColor: color }]}>{labels[status]}</Text>
+        <Text style={[styles.chip, { color, borderColor: color }]}>{label}</Text>
       </View>
       {needsYou ? (
         <Text testID="needs-you" style={[styles.needs, { color }]}>

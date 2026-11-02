@@ -1265,6 +1265,19 @@ export const JA_MESSAGES: Record<string, string> = {
   "This server does not offer the Agents view yet":
     "このサーバーはまだエージェント表示に対応していません",
   "Could not load agents": "エージェントを読み込めませんでした",
+  "Back to agents": "エージェント一覧に戻る",
+  "Could not load this conversation": "この会話を読み込めませんでした",
+  "No conversation was captured for this agent.": "このエージェントの会話は記録されていません。",
+  "This agent is no longer available": "このエージェントは利用できなくなりました",
+  "Withheld: {reason}": "非表示: {reason}",
+  Withheld: "非表示",
+  "Empty message": "空のメッセージ",
+  "Show full message": "メッセージ全文を表示",
+  Succeeded: "成功",
+  Interrupted: "中断",
+  Tool: "ツール",
+  "No output": "出力なし",
+  "Session {phase}": "セッション {phase}",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "{peer}とのメッセージ{count}件" };

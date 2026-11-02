@@ -1245,6 +1245,19 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "No agents yet": "尚無智慧代理",
   "This server does not offer the Agents view yet": "此伺服器尚未提供智慧代理檢視",
   "Could not load agents": "無法載入智慧代理",
+  "Back to agents": "返回代理程式列表",
+  "Could not load this conversation": "無法載入此對話",
+  "No conversation was captured for this agent.": "此代理程式沒有記錄對話。",
+  "This agent is no longer available": "此代理程式已無法使用",
+  "Withheld: {reason}": "已隱藏：{reason}",
+  Withheld: "已隱藏",
+  "Empty message": "空訊息",
+  "Show full message": "顯示完整訊息",
+  Succeeded: "成功",
+  Interrupted: "已中斷",
+  Tool: "工具",
+  "No output": "無輸出",
+  "Session {phase}": "工作階段{phase}",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "與{peer}的 {count} 則訊息" };

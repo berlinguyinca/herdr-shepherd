@@ -1242,6 +1242,21 @@ export const DE_MESSAGES: Record<string, string> = {
   "This server does not offer the Agents view yet":
     "Dieser Server bietet die Agentenansicht noch nicht an",
   "Could not load agents": "Agenten konnten nicht geladen werden",
+  "Back to agents": "Zurück zu den Agenten",
+  "Could not load this conversation": "Diese Unterhaltung konnte nicht geladen werden",
+  "No conversation was captured for this agent.":
+    "Für diesen Agenten wurde keine Unterhaltung aufgezeichnet.",
+  "This agent is no longer available": "Dieser Agent ist nicht mehr verfügbar",
+  "Withheld: {reason}": "Zurückgehalten: {reason}",
+  Withheld: "Zurückgehalten",
+  "Empty message": "Leere Nachricht",
+  Loading: "Wird geladen",
+  "Show full message": "Ganze Nachricht anzeigen",
+  Succeeded: "Erfolgreich",
+  Interrupted: "Unterbrochen",
+  Tool: "Werkzeug",
+  "No output": "Keine Ausgabe",
+  "Session {phase}": "Sitzung {phase}",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

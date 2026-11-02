@@ -113,6 +113,7 @@ const FULL_WINDOW_ROUTES = new Set([
   "/computer",
   "/share",
   "/agents",
+  "/agent",
 ]);
 
 /** On a wide window the chat list stays on the left and the stack shows the open chat beside it. */
@@ -407,6 +408,7 @@ function LayoutContent() {
                       name="agents"
                       options={{ headerShown: false, animation: "none" }}
                     />
+                    <Stack.Screen name="agent" options={glassHeaderOptions(t("Agent"))} />
                     <Stack.Screen name="share" options={{ headerShown: false }} />
                     <Stack.Screen name="sign-in" options={{ headerShown: false }} />
                     <Stack.Screen

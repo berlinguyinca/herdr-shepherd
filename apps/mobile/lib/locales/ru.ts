@@ -1273,6 +1273,19 @@ export const RU_MESSAGES: Record<string, string> = {
   "This server does not offer the Agents view yet":
     "Этот сервер пока не поддерживает раздел агентов",
   "Could not load agents": "Не удалось загрузить агентов",
+  "Back to agents": "Назад к агентам",
+  "Could not load this conversation": "Не удалось загрузить эту беседу",
+  "No conversation was captured for this agent.": "Для этого агента беседа не записана.",
+  "This agent is no longer available": "Этот агент больше недоступен",
+  "Withheld: {reason}": "Скрыто: {reason}",
+  Withheld: "Скрыто",
+  "Empty message": "Пустое сообщение",
+  "Show full message": "Показать сообщение целиком",
+  Succeeded: "Успешно",
+  Interrupted: "Прервано",
+  Tool: "Инструмент",
+  "No output": "Нет вывода",
+  "Session {phase}": "Сеанс {phase}",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

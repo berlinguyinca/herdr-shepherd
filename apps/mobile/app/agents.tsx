@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "expo-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -18,6 +19,7 @@ export default function Agents() {
   const { t } = useI18n();
   const tokens = useMobileTokens();
   const insets = useSafeAreaInsets();
+  const router = useRouter();
   const [showOlder, setShowOlder] = useState(false);
   const [polling, setPolling] = useState(false);
   const [pulling, setPulling] = useState(false);
@@ -82,7 +84,12 @@ export default function Agents() {
           style={styles.list}
           data={rows}
           keyExtractor={(row) => row.id}
-          renderItem={({ item }) => <AgentRow row={item} />}
+          renderItem={({ item }) => (
+            <AgentRow
+              row={item}
+              onPress={() => router.push({ pathname: "/agent", params: { id: item.id } })}
+            />
+          )}
           initialNumToRender={12}
           maxToRenderPerBatch={12}
           windowSize={7}

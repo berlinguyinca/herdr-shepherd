@@ -1234,6 +1234,20 @@ export const NL_MESSAGES: Record<string, string> = {
   "This server does not offer the Agents view yet":
     "Deze server biedt de Agents-weergave nog niet aan",
   "Could not load agents": "Agents konden niet worden geladen",
+  "Back to agents": "Terug naar de agents",
+  "Could not load this conversation": "Dit gesprek kon niet worden geladen",
+  "No conversation was captured for this agent.": "Voor deze agent is geen gesprek vastgelegd.",
+  "This agent is no longer available": "Deze agent is niet meer beschikbaar",
+  "Withheld: {reason}": "Achtergehouden: {reason}",
+  Withheld: "Achtergehouden",
+  "Empty message": "Leeg bericht",
+  Loading: "Laden",
+  "Show full message": "Volledig bericht tonen",
+  Succeeded: "Geslaagd",
+  Interrupted: "Onderbroken",
+  Tool: "Hulpmiddel",
+  "No output": "Geen uitvoer",
+  "Session {phase}": "Sessie {phase}",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

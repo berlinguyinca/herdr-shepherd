@@ -1247,6 +1247,19 @@ export const ZH_MESSAGES: Record<string, string> = {
   "No agents yet": "暂无智能体",
   "This server does not offer the Agents view yet": "此服务器暂不支持智能体视图",
   "Could not load agents": "无法加载智能体",
+  "Back to agents": "返回智能体列表",
+  "Could not load this conversation": "无法加载此对话",
+  "No conversation was captured for this agent.": "此智能体没有记录对话。",
+  "This agent is no longer available": "此智能体已不可用",
+  "Withheld: {reason}": "已隐藏：{reason}",
+  Withheld: "已隐藏",
+  "Empty message": "空消息",
+  "Show full message": "显示完整消息",
+  Succeeded: "成功",
+  Interrupted: "已中断",
+  Tool: "工具",
+  "No output": "无输出",
+  "Session {phase}": "会话{phase}",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {
