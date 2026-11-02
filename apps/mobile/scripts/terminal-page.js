@@ -8,7 +8,7 @@
       cursor: "#e8e8e8",
       cursorAccent: "#141414",
       selectionBackground: "#3d5a80",
-      black: "#2e3436",
+      black: "#64686a",
       red: "#ef5350",
       green: "#66bb6a",
       yellow: "#ffca28",
@@ -37,16 +37,16 @@
       yellow: "#8d6e00",
       blue: "#1565c0",
       magenta: "#8e24aa",
-      cyan: "#00838f",
-      white: "#757575",
+      cyan: "#007f8a",
+      white: "#737373",
       brightBlack: "#5f6368",
       brightRed: "#d32f2f",
-      brightGreen: "#388e3c",
-      brightYellow: "#a07800",
-      brightBlue: "#1976d2",
+      brightGreen: "#338237",
+      brightYellow: "#916d00",
+      brightBlue: "#1874cf",
       brightMagenta: "#9c27b0",
-      brightCyan: "#00959f",
-      brightWhite: "#9e9e9e",
+      brightCyan: "#008088",
+      brightWhite: "#666666",
     },
   };
   const post = (msg) => {
@@ -70,7 +70,10 @@
     fontSize: window.__fontSize || 13,
     scrollback: 5000,
     cursorBlink: true,
-    theme: themes.dark,
+    theme: window.__dark === false ? themes.light : themes.dark,
+    // Remote output can carry OSC 8 hyperlinks. Activating one must do nothing: no dialog, no
+    // navigation. (There is no link policy in this view yet.)
+    linkHandler: { activate() {} },
   });
   const fit = new FitAddon.FitAddon();
   term.loadAddon(fit);
@@ -120,10 +123,15 @@
       return;
     }
     if (!msg) return;
-    if (msg.t === "out") term.write(fromB64(msg.b64));
+    if (msg.t === "out" && typeof msg.b64 === "string") term.write(fromB64(msg.b64));
     else if (msg.t === "clear") term.reset();
     else if (msg.t === "theme") term.options.theme = msg.dark ? themes.dark : themes.light;
     else if (msg.t === "focus") term.focus();
+    else if (msg.t === "font" && typeof msg.size === "number") {
+      // A new size changes rows and cols; refit reports them through the normal size message.
+      term.options.fontSize = Math.min(32, Math.max(8, msg.size));
+      refit();
+    }
   };
   // iOS delivers to window, Android to document.
   window.addEventListener("message", onMessage);

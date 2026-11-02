@@ -7,10 +7,13 @@ import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useTerminal } from "../lib/terminal";
 import {
   base64ToBytes,
+  createLoadGate,
   createOutputBatcher,
   decodeFromWeb,
   encodeToWeb,
   type NativeMsg,
+  type PageState,
+  pageReducer,
   terminalFontSize,
 } from "../lib/terminal-bridge";
 import { terminalHtml } from "../lib/terminal-html.generated";
@@ -19,8 +22,32 @@ const SOURCE = { html: terminalHtml };
 // Nothing but the inline page may load.
 const ORIGINS = ["about:*"];
 
-/** One agent's terminal: an xterm page in a WebView, wired to the agent's terminal session. */
+/**
+ * One agent's terminal: an xterm page in a WebView, wired to the agent's terminal session. A
+ * reloaded or crashed page has lost its screen, so it remounts (new key, new client, full
+ * replay); so does another agent.
+ */
 export function TerminalView({ agentId, focused }: { agentId: string; focused: boolean }) {
+  const [generation, setGeneration] = useState(0);
+  return (
+    <TerminalPage
+      key={`${agentId}:${generation}`}
+      agentId={agentId}
+      focused={focused}
+      onReload={() => setGeneration((n) => n + 1)}
+    />
+  );
+}
+
+function TerminalPage({
+  agentId,
+  focused,
+  onReload,
+}: {
+  agentId: string;
+  focused: boolean;
+  onReload: () => void;
+}) {
   const { t } = useI18n();
   const tokens = useMobileTokens();
   const dark = useResolvedAppearance() === "dark";
@@ -28,6 +55,17 @@ export function TerminalView({ agentId, focused }: { agentId: string; focused: b
   const { state, write, resize, reopen, onOutput } = useTerminal(agentId);
   const web = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
+  const page = useRef<PageState>({ generation: 0, ready: false, dropped: false });
+  const advance = (event: "ready" | "gone" | "overflow") => {
+    const next = pageReducer(page.current, event);
+    const reload = next.generation !== page.current.generation;
+    page.current = next;
+    if (reload) onReload();
+    else setReady(next.ready);
+  };
+  const advanceRef = useRef(advance);
+  advanceRef.current = advance;
+  const allowLoad = useMemo(createLoadGate, []);
   const send = (msg: NativeMsg) => web.current?.postMessage(encodeToWeb(msg));
   const sendRef = useRef(send);
   sendRef.current = send;
@@ -40,6 +78,7 @@ export function TerminalView({ agentId, focused }: { agentId: string; focused: b
           const id = requestAnimationFrame(run);
           return () => cancelAnimationFrame(id);
         },
+        { onOverflow: () => advanceRef.current("overflow") },
       ),
     [],
   );
@@ -54,6 +93,11 @@ export function TerminalView({ agentId, focused }: { agentId: string; focused: b
   useEffect(() => {
     if (ready) send({ t: "theme", dark });
   }, [ready, dark]);
+  const fontSize = terminalFontSize(fontScale);
+  useEffect(() => {
+    // The page starts at the size injected on load; this follows a change while it is open.
+    if (ready) send({ t: "font", size: fontSize });
+  }, [ready, fontSize]);
   useEffect(() => {
     if (ready && focused) send({ t: "focus" });
   }, [ready, focused]);
@@ -61,7 +105,7 @@ export function TerminalView({ agentId, focused }: { agentId: string; focused: b
   const onMessage = (event: WebViewMessageEvent) => {
     const msg = decodeFromWeb(event.nativeEvent.data);
     if (!msg) return;
-    if (msg.t === "ready") setReady(true);
+    if (msg.t === "ready") advance("ready");
     else if (msg.t === "in") write(base64ToBytes(msg.b64));
     else if (msg.t === "size") resize(msg.rows, msg.cols);
     else if (msg.t === "copy") void Clipboard.setStringAsync(msg.text);
@@ -85,9 +129,11 @@ export function TerminalView({ agentId, focused }: { agentId: string; focused: b
         source={SOURCE}
         originWhitelist={ORIGINS}
         javaScriptEnabled
-        injectedJavaScriptBeforeContentLoaded={`window.__fontSize=${terminalFontSize(fontScale)};true;`}
+        injectedJavaScriptBeforeContentLoaded={`window.__fontSize=${fontSize};window.__dark=${dark};true;`}
+        onContentProcessDidTerminate={() => advance("gone")}
+        onRenderProcessGone={() => advance("gone")}
         onMessage={onMessage}
-        onShouldStartLoadWithRequest={(request) => request.url.startsWith("about:")}
+        onShouldStartLoadWithRequest={allowLoad}
         setSupportMultipleWindows={false}
         bounces={false}
         scrollEnabled={false}

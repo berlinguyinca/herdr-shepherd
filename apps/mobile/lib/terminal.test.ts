@@ -161,6 +161,16 @@ describe("resize", () => {
     expect(resizes).toEqual([["terminal/resize", { terminalId: "t1", rows: 40, cols: 120 }]]);
     client.dispose();
   });
+
+  it("clamps a size to what the bridge accepts and ignores one that is not a number", async () => {
+    const { client } = await start();
+    client.resize(0, 5000);
+    client.resize(Number.NaN, 80);
+    await vi.advanceTimersByTimeAsync(150);
+    const resizes = call.mock.calls.filter(([proc]) => proc === "terminal/resize");
+    expect(resizes).toEqual([["terminal/resize", { terminalId: "t1", rows: 1, cols: 1000 }]]);
+    client.dispose();
+  });
 });
 
 describe("reconnect", () => {

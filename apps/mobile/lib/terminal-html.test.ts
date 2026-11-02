@@ -15,4 +15,11 @@ describe("terminal page", () => {
     expect(terminalHtml).not.toMatch(/@import|url\(\s*["']?https?:/i);
     expect(terminalHtml).toContain("ReactNativeWebView");
   });
+
+  it("never lets remote output open a link, and starts in the app's theme", () => {
+    expect(terminalHtml).toMatch(/linkHandler:\s*\{\s*activate\(\)\s*\{\s*\}/);
+    expect(terminalHtml).toContain("window.__dark");
+    expect(terminalHtml).toMatch(/msg\.t === "font"/);
+    expect(terminalHtml).toMatch(/typeof msg\.b64 === "string"/);
+  });
 });

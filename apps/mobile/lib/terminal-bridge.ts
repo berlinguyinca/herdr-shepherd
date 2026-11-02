@@ -6,7 +6,8 @@ export type NativeMsg =
   | { t: "out"; b64: string }
   | { t: "clear" }
   | { t: "theme"; dark: boolean }
-  | { t: "focus" };
+  | { t: "focus" }
+  | { t: "font"; size: number };
 
 /** Page to native: typed bytes, the fitted size, load done, and selected text to copy. */
 export type WebMsg =
@@ -17,8 +18,18 @@ export type WebMsg =
 
 export const encodeToWeb = (msg: NativeMsg): string => JSON.stringify(msg);
 
-const isSize = (value: unknown): value is number =>
-  typeof value === "number" && Number.isInteger(value) && value > 0;
+export const MAX_ROWS = 500;
+export const MAX_COLS = 1000;
+
+const isSize = (value: unknown, max: number): value is number =>
+  typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= max;
+
+/** A size the bridge accepts, or null when either side is not a finite number. */
+export function clampSize(rows: number, cols: number): { rows: number; cols: number } | null {
+  if (!Number.isFinite(rows) || !Number.isFinite(cols)) return null;
+  const clamp = (value: number, max: number) => Math.min(max, Math.max(1, Math.round(value)));
+  return { rows: clamp(rows, MAX_ROWS), cols: clamp(cols, MAX_COLS) };
+}
 
 /** Parses what the page posted; anything malformed or unknown is null, never an exception. */
 export function decodeFromWeb(raw: string): WebMsg | null {
@@ -34,7 +45,7 @@ export function decodeFromWeb(raw: string): WebMsg | null {
     case "in":
       return typeof msg.b64 === "string" ? { t: "in", b64: msg.b64 } : null;
     case "size":
-      return isSize(msg.rows) && isSize(msg.cols)
+      return isSize(msg.rows, MAX_ROWS) && isSize(msg.cols, MAX_COLS)
         ? { t: "size", rows: msg.rows, cols: msg.cols }
         : null;
     case "ready":
@@ -72,17 +83,27 @@ function concat(parts: Uint8Array[]): Uint8Array {
   return out;
 }
 
+/** One `out` message carries at most this many bytes. */
+export const OUT_CHUNK_BYTES = 256 * 1024;
+/** Output waiting for a page that is not ready yet is dropped beyond this. */
+export const MAX_PENDING_BYTES = 2 * 1024 * 1024;
+
 /**
  * Turns terminal output into as few messages as possible: everything that arrives within one
- * frame goes out as one `out`, with a `clear` kept in order between the data around it. Nothing
- * is sent until the page is ready; what arrived before is held and sent together.
+ * frame goes out as `out` messages of at most OUT_CHUNK_BYTES, with a `clear` kept in order
+ * between the data around it. Nothing is sent until the page is ready; what arrived before is
+ * held and sent together, unless it outgrows `maxPendingBytes`: then it is all dropped and
+ * `onOverflow` runs, so the caller can have the screen replayed.
  * `schedule` runs a callback on the next frame and returns its canceller.
  */
 export function createOutputBatcher(
   send: (msg: NativeMsg) => void,
   schedule: (run: () => void) => () => void,
+  options: { maxPendingBytes?: number; onOverflow?: () => void } = {},
 ) {
+  const { maxPendingBytes = MAX_PENDING_BYTES, onOverflow } = options;
   let pending: TerminalOutput[] = [];
+  let pendingBytes = 0;
   let ready = false;
   let cancel: (() => void) | undefined;
 
@@ -90,10 +111,14 @@ export function createOutputBatcher(
     cancel = undefined;
     const items = pending;
     pending = [];
+    pendingBytes = 0;
     let run: Uint8Array[] = [];
     const sendRun = () => {
-      if (run.length > 0) send({ t: "out", b64: bytesToBase64(concat(run)) });
+      const bytes = concat(run);
       run = [];
+      for (let at = 0; at < bytes.length; at += OUT_CHUNK_BYTES) {
+        send({ t: "out", b64: bytesToBase64(bytes.subarray(at, at + OUT_CHUNK_BYTES)) });
+      }
     };
     for (const item of items) {
       if (item.kind === "data") run.push(item.data);
@@ -110,7 +135,14 @@ export function createOutputBatcher(
 
   return {
     push(output: TerminalOutput) {
+      if (output.kind === "data") pendingBytes += output.data.length;
       pending.push(output);
+      if (!ready && pendingBytes > maxPendingBytes) {
+        pending = [];
+        pendingBytes = 0;
+        onOverflow?.();
+        return;
+      }
       arm();
     },
     setReady(next: boolean) {
@@ -121,15 +153,53 @@ export function createOutputBatcher(
       cancel?.();
       cancel = undefined;
       pending = [];
+      pendingBytes = 0;
       ready = false;
     },
   };
 }
 
+/**
+ * Where one page (one WebView mount) stands. A `ready` after the first means the page reloaded
+ * and lost its screen; `gone` is the web process dying; `overflow` is output dropped while the
+ * page was loading. All three end in a new generation: the view remounts, a new client opens
+ * with seq 0 and the whole screen is replayed.
+ */
+export type PageState = { generation: number; ready: boolean; dropped: boolean };
+export type PageEvent = "ready" | "gone" | "overflow";
+
+export function pageReducer(state: PageState, event: PageEvent): PageState {
+  const next = { generation: state.generation + 1, ready: false, dropped: false };
+  if (event === "gone") return next;
+  if (event === "overflow") return { ...state, dropped: true };
+  return state.ready || state.dropped ? next : { ...state, ready: true };
+}
+
+/**
+ * For onShouldStartLoadWithRequest: the page's own load (top frame, about:) goes through once;
+ * after that the WebView never navigates, whatever the remote output or the page asks for.
+ */
+export function createLoadGate() {
+  let loaded = false;
+  return (request: { url: string; isTopFrame?: boolean }): boolean => {
+    if (loaded || request.isTopFrame === false || !request.url.startsWith("about:")) return false;
+    loaded = true;
+    return true;
+  };
+}
+
 export const TERMINAL_FONT_SIZE = 13;
+
+export const MIN_FONT_PX = 8;
+export const MAX_FONT_PX = 32;
+
+export function clampFontSize(size: number): number {
+  if (!Number.isFinite(size)) return TERMINAL_FONT_SIZE;
+  return Math.min(MAX_FONT_PX, Math.max(MIN_FONT_PX, Math.round(size)));
+}
 
 /** The terminal's font size in px: the base size scaled by the user's text size, capped like all app text. */
 export function terminalFontSize(fontScale: number): number {
   const scale = Number.isFinite(fontScale) ? Math.min(fontScale, MAX_FONT_SCALE) : 1;
-  return Math.round(TERMINAL_FONT_SIZE * scale);
+  return clampFontSize(TERMINAL_FONT_SIZE * scale);
 }

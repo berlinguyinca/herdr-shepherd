@@ -1,7 +1,11 @@
 import type { RpcOutput, TerminalFrame } from "@rakazo/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { rpc, streamRpc } from "./api";
-import { base64ToBytes as fromBase64, bytesToBase64 as toBase64 } from "./terminal-bridge";
+import {
+  clampSize,
+  base64ToBytes as fromBase64,
+  bytesToBase64 as toBase64,
+} from "./terminal-bridge";
 
 export type TerminalState = "connecting" | "live" | "ended" | "taken_over" | "error";
 
@@ -311,8 +315,10 @@ export function createTerminalClient(
       batchTimer ??= setTimeout(flush, WRITE_BATCH_MS);
     },
     resize(nextRows, nextCols) {
-      rows = nextRows;
-      cols = nextCols;
+      // Never store a size the bridge would refuse: it would be sent again by the next open.
+      const clamped = clampSize(nextRows, nextCols);
+      if (!clamped) return;
+      ({ rows, cols } = clamped);
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         if (disposed || state !== "live") return;
