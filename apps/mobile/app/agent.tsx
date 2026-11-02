@@ -24,7 +24,7 @@ export default function AgentScreen() {
   const { id } = useLocalSearchParams<{ id?: string }>();
   const agentId = typeof id === "string" ? id : "";
   const conversation = useAgentConversation(agentId);
-  const { agent, events, loading, gone, failed, empty } = conversation;
+  const { agent, events, loading, gone, failed, empty, markGone } = conversation;
   const list = useRef<FlatList<Event>>(null);
   const atBottom = useRef(true);
 
@@ -33,11 +33,12 @@ export default function AgentScreen() {
       try {
         return await agentEvent(agentId, event.seq);
       } catch (error) {
-        if (isAgentGone(error)) return undefined;
-        throw error;
+        if (!isAgentGone(error)) throw error;
+        markGone();
+        return undefined;
       }
     },
-    [agentId],
+    [agentId, markGone],
   );
 
   const backToList = () => (router.canGoBack() ? router.back() : router.replace("/agents"));
@@ -75,6 +76,9 @@ export default function AgentScreen() {
           </Text>
           <StatusChip status={agent.status} />
         </View>
+      ) : null}
+      {conversation.reconnecting ? (
+        <Text style={[styles.small, { color: tokens.mutedForeground }]}>{t("Reconnecting")}</Text>
       ) : null}
       {loading ? (
         <View style={styles.center}>
@@ -154,5 +158,6 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     overflow: "hidden",
   },
+  small: { fontSize: 12, textAlign: "center", paddingVertical: 4 },
   older: { alignItems: "center", paddingVertical: 12 },
 });

@@ -366,3 +366,53 @@ it("tapping a row in the Agents list opens /agent with its id", async () => {
   await act(async () => button("alpha")!.click());
   expect(router.push).toHaveBeenCalledWith({ pathname: "/agent", params: { id: "a1" } });
 });
+
+it("a failing agentEvent shows a retry hint and a second tap retries", async () => {
+  let calls = 0;
+  serve({
+    messages: page([tool(2, { output: "short…", output_more: true })]),
+    event: () => {
+      calls += 1;
+      return calls === 1 ? new Error("boom") : tool(2, { output: "full now" });
+    },
+  });
+  await render();
+  await act(async () => button("bash")!.click());
+  await settle();
+  expect(host.textContent).toContain("Couldn't load the full output. Tap to retry.");
+  await act(async () => button("Tap to retry")!.click());
+  await settle();
+  expect(calls).toBe(2);
+  expect(host.querySelector('[data-testid="tool-output"]')?.textContent).toBe("full now");
+  expect(host.textContent).not.toContain("Tap to retry");
+});
+
+it("a 404 from agentEvent routes to the gone state", async () => {
+  serve({
+    messages: page([tool(2, { output: "short…", output_more: true })]),
+    event: () => notFound(),
+  });
+  await render();
+  await act(async () => button("bash")!.click());
+  await settle();
+  expect(host.textContent).toContain("This agent is no longer available");
+});
+
+it("a failed reconnect keeps the conversation on screen with a Reconnecting line", async () => {
+  serve({ messages: page([msg(1, "user", "kept")]) });
+  await render();
+  foreground.value = false;
+  await render();
+  serve({ messages: new Error("offline") });
+  foreground.value = true;
+  await render();
+  expect(texts()).toEqual(["kept"]);
+  expect(host.textContent).toContain("Reconnecting");
+  expect(host.textContent).not.toContain("Could not load this conversation");
+});
+
+it("a first load that fails still shows the error screen", async () => {
+  serve({ messages: new Error("offline") });
+  await render();
+  expect(host.textContent).toContain("Could not load this conversation");
+});

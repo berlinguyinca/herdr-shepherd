@@ -31,6 +31,7 @@ export function AgentEvent({
   const [open, setOpen] = useState(false);
   const [full, setFull] = useState<Event | null>(null);
   const [loading, setLoading] = useState(false);
+  const [failed, setFailed] = useState(false);
   // A newer revision of the same event (a tool call that finished) replaces what was fetched.
   const shown = full && full.rev === event.rev ? full : event;
   useEffect(() => {
@@ -41,11 +42,14 @@ export function AgentEvent({
   const withheld = data.withheld === true;
   const more = data.output_more === true || data.text_more === true || data.diff_more === true;
   const fetchFull = async () => {
-    if (!more || full?.rev === event.rev || !onExpand) return;
+    if (!more || full?.rev === event.rev || !onExpand || loading) return;
     setLoading(true);
+    setFailed(false);
     try {
       const next = await onExpand(event);
       if (next) setFull(next);
+    } catch {
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -86,7 +90,11 @@ export function AgentEvent({
           {!withheld && data.text_more === true && onExpand && full?.rev !== event.rev ? (
             <Pressable accessibilityRole="button" onPress={() => void fetchFull()}>
               <Text style={[styles.small, { color: tokens.mutedForeground }]}>
-                {loading ? t("Loading") : t("Show full message")}
+                {loading
+                  ? t("Loading")
+                  : failed
+                    ? t("Couldn't load the full text. Tap to retry.")
+                    : t("Show full message")}
               </Text>
             </Pressable>
           ) : null}
@@ -117,6 +125,8 @@ export function AgentEvent({
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
           onPress={() => {
+            // After a failed fetch a tap retries instead of collapsing.
+            if (open && failed) return void fetchFull();
             setOpen(!open);
             if (!open) void fetchFull();
           }}
@@ -136,6 +146,13 @@ export function AgentEvent({
           ) : null}
         </Pressable>
         {chip}
+        {open && failed ? (
+          <Pressable accessibilityRole="button" onPress={() => void fetchFull()}>
+            <Text style={[styles.small, { color: tokens.warning }]}>
+              {t("Couldn't load the full output. Tap to retry.")}
+            </Text>
+          </Pressable>
+        ) : null}
         {open && !withheld ? (
           <Text
             selectable

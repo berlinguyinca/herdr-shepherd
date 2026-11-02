@@ -1248,6 +1248,10 @@ export const NL_MESSAGES: Record<string, string> = {
   Tool: "Hulpmiddel",
   "No output": "Geen uitvoer",
   "Session {phase}": "Sessie {phase}",
+  "Couldn't load the full text. Tap to retry.":
+    "De volledige tekst kon niet worden geladen. Tik om opnieuw te proberen.",
+  "Couldn't load the full output. Tap to retry.":
+    "De volledige uitvoer kon niet worden geladen. Tik om opnieuw te proberen.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

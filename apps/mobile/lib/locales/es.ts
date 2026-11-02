@@ -1198,6 +1198,10 @@ export const ES_MESSAGES: Record<string, string> = {
   Tool: "Herramienta",
   "No output": "Sin salida",
   "Session {phase}": "Sesión {phase}",
+  "Couldn't load the full text. Tap to retry.":
+    "No se pudo cargar el texto completo. Toca para reintentar.",
+  "Couldn't load the full output. Tap to retry.":
+    "No se pudo cargar la salida completa. Toca para reintentar.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

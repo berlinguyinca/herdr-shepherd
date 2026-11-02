@@ -1258,6 +1258,8 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   Tool: "工具",
   "No output": "無輸出",
   "Session {phase}": "工作階段{phase}",
+  "Couldn't load the full text. Tap to retry.": "無法載入完整文字。點一下重試。",
+  "Couldn't load the full output. Tap to retry.": "無法載入完整輸出。點一下重試。",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "與{peer}的 {count} 則訊息" };

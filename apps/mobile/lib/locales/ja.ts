@@ -1278,6 +1278,10 @@ export const JA_MESSAGES: Record<string, string> = {
   Tool: "ツール",
   "No output": "出力なし",
   "Session {phase}": "セッション {phase}",
+  "Couldn't load the full text. Tap to retry.":
+    "全文を読み込めませんでした。タップして再試行してください。",
+  "Couldn't load the full output. Tap to retry.":
+    "出力全体を読み込めませんでした。タップして再試行してください。",
 };
 
 export const PEER_MESSAGE_FORMS = { other: "{peer}とのメッセージ{count}件" };

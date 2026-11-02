@@ -1260,6 +1260,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   Tool: "工具",
   "No output": "无输出",
   "Session {phase}": "会话{phase}",
+  "Couldn't load the full text. Tap to retry.": "无法加载完整文本。点按重试。",
+  "Couldn't load the full output. Tap to retry.": "无法加载完整输出。点按重试。",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

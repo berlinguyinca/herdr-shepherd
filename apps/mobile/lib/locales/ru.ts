@@ -1286,6 +1286,10 @@ export const RU_MESSAGES: Record<string, string> = {
   Tool: "Инструмент",
   "No output": "Нет вывода",
   "Session {phase}": "Сеанс {phase}",
+  "Couldn't load the full text. Tap to retry.":
+    "Не удалось загрузить полный текст. Нажмите, чтобы повторить.",
+  "Couldn't load the full output. Tap to retry.":
+    "Не удалось загрузить полный вывод. Нажмите, чтобы повторить.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

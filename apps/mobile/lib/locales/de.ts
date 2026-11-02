@@ -1257,6 +1257,10 @@ export const DE_MESSAGES: Record<string, string> = {
   Tool: "Werkzeug",
   "No output": "Keine Ausgabe",
   "Session {phase}": "Sitzung {phase}",
+  "Couldn't load the full text. Tap to retry.":
+    "Der vollständige Text konnte nicht geladen werden. Zum Wiederholen tippen.",
+  "Couldn't load the full output. Tap to retry.":
+    "Die vollständige Ausgabe konnte nicht geladen werden. Zum Wiederholen tippen.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {
