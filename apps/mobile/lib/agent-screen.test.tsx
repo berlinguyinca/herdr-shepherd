@@ -416,3 +416,26 @@ it("a first load that fails still shows the error screen", async () => {
   await render();
   expect(host.textContent).toContain("Could not load this conversation");
 });
+
+it("while the full fetch keeps failing, the header tap still collapses and the hint retries", async () => {
+  let calls = 0;
+  serve({
+    messages: page([tool(2, { output: "short…", output_more: true })]),
+    event: () => {
+      calls += 1;
+      return new Error("offline");
+    },
+  });
+  await render();
+  await act(async () => button("bash")!.click());
+  await settle();
+  expect(host.textContent).toContain("Tap to retry");
+  await act(async () => button("Tap to retry")!.click());
+  await settle();
+  expect(calls).toBe(2);
+  expect(host.textContent).toContain("Tap to retry");
+  await act(async () => button("bash")!.click());
+  expect(host.querySelector('[data-testid="tool-output"]')).toBeNull();
+  expect(host.textContent).not.toContain("Tap to retry");
+  expect(calls).toBe(2);
+});

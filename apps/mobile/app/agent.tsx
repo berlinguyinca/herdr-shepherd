@@ -95,7 +95,7 @@ export default function AgentScreen() {
           ref={list}
           style={styles.list}
           data={events}
-          keyExtractor={(event) => String(event.seq)}
+          keyExtractor={(event) => `${agentId}:${event.seq}`}
           renderItem={({ item }) => <AgentEvent event={item} onExpand={expand} />}
           maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
           onStartReached={conversation.loadOlder}

@@ -36,6 +36,7 @@ export function AgentEvent({
   const shown = full && full.rev === event.rev ? full : event;
   useEffect(() => {
     setFull((current) => (current && current.rev !== event.rev ? null : current));
+    setFailed(false);
   }, [event.rev]);
 
   const data: Data = shown.data;
@@ -125,8 +126,7 @@ export function AgentEvent({
           accessibilityRole="button"
           accessibilityState={{ expanded: open }}
           onPress={() => {
-            // After a failed fetch a tap retries instead of collapsing.
-            if (open && failed) return void fetchFull();
+            if (open) setFailed(false);
             setOpen(!open);
             if (!open) void fetchFull();
           }}
