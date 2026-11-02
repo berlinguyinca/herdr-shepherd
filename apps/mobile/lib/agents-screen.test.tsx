@@ -314,8 +314,8 @@ it("the list highlights the open agent and reports the tapped row", async () => 
   const rows = [...host.querySelectorAll("button[data-selected]")];
   expect(rows.map((r) => r.getAttribute("data-selected"))).toEqual(["false", "true"]);
   // The open row has the Assistant list's selected fill; the others have none.
-  expect(rows[1].getAttribute("data-style")).toContain('"backgroundColor":"#888"');
-  expect(rows[0].getAttribute("data-style")).not.toContain("backgroundColor");
+  expect(rows[1]?.getAttribute("data-style")).toContain('"backgroundColor":"#888"');
+  expect(rows[0]?.getAttribute("data-style")).not.toContain("backgroundColor");
   await act(async () => (rows[0] as HTMLElement).click());
   expect(onSelect).toHaveBeenCalledWith("a1");
 });
