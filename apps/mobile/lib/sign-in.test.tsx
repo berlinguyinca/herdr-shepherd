@@ -8,6 +8,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import SignIn from "../app/sign-in";
 import {
   loadSessionToken,
+  openOwnerSession,
   passwordResetCapabilities,
   rpc,
   sendSignInCode,
@@ -126,6 +127,8 @@ vi.mock("./api", () => ({
   displayApiHost: () => "example.invalid",
   usesCustomApiBase: () => false,
   loadSessionToken: vi.fn().mockResolvedValue(null),
+  // a server that has not enabled open_owner refuses, and the form stays
+  openOwnerSession: vi.fn().mockRejectedValue(new Error("no open session")),
   passwordResetCapabilities: vi.fn(),
   requestPasswordReset: vi.fn(),
   rpc: vi.fn(),
@@ -394,6 +397,21 @@ it("asks the signup survey before opening the app", async () => {
   await type(input("Code")!, "123456");
   expect(rpc).toHaveBeenCalledWith("me");
   expect(router.replace).toHaveBeenCalledWith("/signup-survey");
+});
+
+it("opens the app as the owner without showing the form when the server allows it", async () => {
+  vi.mocked(openOwnerSession).mockResolvedValueOnce({ verificationRequired: false });
+  vi.mocked(rpc).mockResolvedValue({} as never);
+  await render();
+  expect(openOwnerSession).toHaveBeenCalledTimes(1);
+  expect(router.replace).toHaveBeenCalledWith("/");
+});
+
+it("keeps the password form when the server does not open an owner session", async () => {
+  await render();
+  expect(openOwnerSession).toHaveBeenCalledTimes(1);
+  expect(router.replace).not.toHaveBeenCalled();
+  expect(input("Email")).toBeTruthy();
 });
 
 function buttonNamed(label: string) {

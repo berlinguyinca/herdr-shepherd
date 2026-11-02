@@ -32,6 +32,7 @@ import {
   MAX_MOBILE_RPC_RESPONSE_BYTES,
   mergeMobileSnapshot,
   mobileThreadRefreshResult,
+  openOwnerSession,
   passwordResetCapabilities,
   prependMobileMessagePage,
   requestAccountDeletionCode,
@@ -231,6 +232,19 @@ describe("mobile API authentication", () => {
       expect(SecureStore.deleteItemAsync).not.toHaveBeenCalledWith("rakazo.session_token");
       expect(await authHeaders(null)).toEqual({ authorization: "Bearer fake-session" });
     });
+  });
+
+  it("opens an owner session with no credentials and persists its token", async () => {
+    const fetchMock = vi.fn(async () => jsonResponse({ token: "owner-token" }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await openOwnerSession();
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "http://127.0.0.1:3100/api/auth/open",
+      expect.objectContaining({ method: "POST", body: "{}" }),
+    );
+    expect(SecureStore.setItemAsync).toHaveBeenCalledWith("rakazo.session_token", "owner-token");
   });
 
   it("persists a successful sign-in token and sends the native origin", async () => {

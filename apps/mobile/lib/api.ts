@@ -583,6 +583,11 @@ async function authenticate(
   return { verificationRequired: false };
 }
 
+/** One-person servers (`rakazo_bridge.open_owner`): a session as the owner, with no credentials, from the owner's own network. */
+export function openOwnerSession() {
+  return authenticate("open", {}, t("Sign-in did not return a session"));
+}
+
 export function signIn(email: string, password: string) {
   return authenticate("sign-in/email", { email, password }, t("Sign-in did not return a session"));
 }

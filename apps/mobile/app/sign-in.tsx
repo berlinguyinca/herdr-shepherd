@@ -1,6 +1,6 @@
 import { credentialIssue, MAX_PASSWORD_LENGTH, PASSWORD_RULES } from "@rakazo/core";
 import { Redirect, useFocusEffect, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   AccessibilityInfo,
   ActivityIndicator,
@@ -21,6 +21,7 @@ import {
   currentApiBase,
   displayApiHost,
   loadSessionToken,
+  openOwnerSession,
   passwordResetCapabilities,
   requestPasswordReset,
   rpc,
@@ -35,6 +36,7 @@ import { useI18n } from "../lib/i18n";
 import { hasIncomingShare } from "../lib/incoming-share";
 import { useMobileTokens } from "../lib/native";
 import { passkeysAvailable, signInWithPasskey } from "../lib/passkey";
+import { personalServerOnly } from "../lib/server-config";
 import { continueWithSso } from "../lib/sso";
 import { credentialIssueText, errorText } from "../lib/user-error";
 
@@ -66,6 +68,17 @@ export default function SignIn() {
   useEffect(() => {
     setPasswordVisible(false);
   }, [mode, apiBase]);
+
+  // Personal-dashboard fork: the dashboard trusts its network, so try to open a session as the owner first. A server
+  // without `open_owner` refuses, and the password form below stays available.
+  const triedOpenSession = useRef(false);
+  useEffect(() => {
+    if (!personalServerOnly() || triedOpenSession.current) return;
+    triedOpenSession.current = true;
+    openOwnerSession()
+      .then(() => openApp())
+      .catch(() => undefined);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
