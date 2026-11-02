@@ -42,6 +42,7 @@ describe("terminal bridge codec", () => {
       { t: "clear" },
       { t: "theme", dark: true },
       { t: "focus" },
+      { t: "blur" },
       { t: "font", size: 15 },
     ];
     for (const msg of msgs) expect(JSON.parse(encodeToWeb(msg))).toEqual(msg);

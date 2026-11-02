@@ -7,6 +7,8 @@ export type NativeMsg =
   | { t: "clear" }
   | { t: "theme"; dark: boolean }
   | { t: "focus" }
+  // The terminal is no longer shown: drop the soft keyboard and the focus.
+  | { t: "blur" }
   | { t: "font"; size: number }
   // A pending Ctrl for the next character typed on the soft keyboard.
   | { t: "ctrl"; on: boolean }

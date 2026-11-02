@@ -147,6 +147,8 @@
 
   let last = "";
   const sendSize = () => {
+    // Laid out at zero (hidden, or not sized yet) fits to nothing: wait for a real size.
+    if (!document.body.clientWidth || !document.body.clientHeight) return;
     fit.fit();
     const key = term.rows + "x" + term.cols;
     if (key === last) return;
@@ -176,7 +178,11 @@
       syncMode();
     } else if (msg.t === "theme") term.options.theme = msg.dark ? themes.dark : themes.light;
     else if (msg.t === "focus") term.focus();
-    else if (msg.t === "copy") copySelection();
+    else if (msg.t === "blur") {
+      // The view went away: no soft keyboard, and no focus left to raise one.
+      term.textarea.setAttribute("inputmode", "none");
+      term.textarea.blur();
+    } else if (msg.t === "copy") copySelection();
     else if (msg.t === "ctrl") ctrl = msg.on === true;
     else if (msg.t === "keyboard") {
       if (msg.on) {

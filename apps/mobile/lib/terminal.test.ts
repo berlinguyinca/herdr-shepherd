@@ -66,8 +66,8 @@ afterEach(() => {
 
 const settle = () => vi.advanceTimersByTimeAsync(0);
 
-async function start() {
-  const client = createTerminalClient("agent-1", { rows: 24, cols: 80 });
+async function start(options?: { waitForSize?: boolean }) {
+  const client = createTerminalClient("agent-1", { rows: 24, cols: 80 }, options);
   const output: TerminalOutput[] = [];
   client.onOutput((chunk) => output.push(chunk));
   await settle();
@@ -179,7 +179,7 @@ describe("reconnect", () => {
     client.write(bytes("a"));
     await vi.advanceTimersByTimeAsync(8);
     live[0]?.emit({ seq: 3, data: b64("x") });
-    live[0]?.fail(new TypeError("Network request failed"));
+    live[0]?.fail(failure(502));
     await settle();
     expect(client.state).toBe("error");
     await vi.advanceTimersByTimeAsync(499);
@@ -203,7 +203,7 @@ describe("reconnect", () => {
       }
       return { ok: true };
     });
-    live[0]?.fail(new Error("boom"));
+    live[0]?.fail(failure(502));
     const seen: number[] = [];
     for (const wait of [500, 1000, 2000, 4000, 8000, 8000]) {
       const before = opens;
@@ -289,7 +289,7 @@ describe("input and a retired terminal", () => {
     await vi.advanceTimersByTimeAsync(8);
     client.write(bytes("b"));
     await vi.advanceTimersByTimeAsync(8);
-    live[0]?.fail(new Error("drop"));
+    live[0]?.fail(failure(502));
     await vi.advanceTimersByTimeAsync(500);
     expect(opens).toBe(2);
     client.write(bytes("c"));
@@ -311,7 +311,7 @@ describe("input and a retired terminal", () => {
     inputHolds = [hold.promise];
     client.write(bytes("run\r"));
     await vi.advanceTimersByTimeAsync(8);
-    live[0]?.fail(new Error("drop"));
+    live[0]?.fail(failure(502));
     await vi.advanceTimersByTimeAsync(500);
     expect(opens).toBe(2);
     hold.reject(failure(503));
@@ -322,7 +322,7 @@ describe("input and a retired terminal", () => {
 
   it("typing made while the stream was down is never typed later", async () => {
     const { client } = await start();
-    live[0]?.fail(new Error("offline"));
+    live[0]?.fail(failure(502));
     await settle();
     client.write(bytes("offline"));
     await vi.advanceTimersByTimeAsync(500);
@@ -443,7 +443,7 @@ describe("stream hygiene", () => {
     const { client } = await start();
     await vi.advanceTimersByTimeAsync(30_000);
     expect(opens).toBe(1);
-    expect(client.state).toBe("error");
+    expect(client.state).toBe("failed");
     client.dispose();
   });
 
@@ -465,7 +465,7 @@ describe("stream hygiene", () => {
     await vi.advanceTimersByTimeAsync(8);
     gate.resolve();
     await vi.advanceTimersByTimeAsync(0);
-    expect(client.state).toBe("error");
+    expect(client.state).toBe("failed");
     refuse = false;
     client.reopen();
     await vi.advanceTimersByTimeAsync(100);
@@ -514,20 +514,178 @@ describe("stream hygiene", () => {
 
   it("resets the backoff on the first received frame, not on open", async () => {
     const { client } = await start();
-    live[0]?.fail(new Error("a"));
+    live[0]?.fail(failure(502));
     await vi.advanceTimersByTimeAsync(500);
     expect(opens).toBe(2);
-    live[1]?.fail(new Error("b"));
+    live[1]?.fail(failure(502));
     await settle();
     await vi.advanceTimersByTimeAsync(999);
     expect(opens).toBe(2);
     await vi.advanceTimersByTimeAsync(1);
     expect(opens).toBe(3);
     live[2]?.emit({ seq: 41, data: b64("x") });
-    live[2]?.fail(new Error("c"));
+    live[2]?.fail(failure(502));
     await settle();
     await vi.advanceTimersByTimeAsync(500);
     expect(opens).toBe(4);
     client.dispose();
+  });
+});
+
+describe("a transport error resubscribes the same terminal first", () => {
+  it("resubscribes from the current cursor without opening, so nothing is taken back", async () => {
+    const { client, output } = await start();
+    live[0]?.emit({ seq: 3, data: b64("x") });
+    live[0]?.fail(new TypeError("Network request failed"));
+    await settle();
+    expect(client.state).toBe("error");
+    await vi.advanceTimersByTimeAsync(500);
+    expect(opens).toBe(1);
+    expect(live[1]?.body).toEqual({ terminalId: "t1", cursor: 3 });
+    expect(client.state).toBe("live");
+    expect(output.map((o) => o.kind)).toEqual(["data"]);
+    client.dispose();
+  });
+
+  it("a 404 on that resubscribe is a takeover", async () => {
+    const { client } = await start();
+    live[0]?.fail(new TypeError("Network request failed"));
+    await settle();
+    stream.mockImplementationOnce(async () => {
+      throw failure(404);
+    });
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(opens).toBe(1);
+    expect(client.state).toBe("taken_over");
+    client.dispose();
+  });
+
+  it("any other failure of that resubscribe opens again", async () => {
+    const { client } = await start();
+    live[0]?.fail(new TypeError("Network request failed"));
+    await settle();
+    stream.mockImplementationOnce(async () => {
+      throw failure(500);
+    });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(opens).toBe(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(opens).toBe(2);
+    client.dispose();
+  });
+});
+
+describe("close", () => {
+  it("retires the terminal on the server and stops", async () => {
+    const { client } = await start();
+    client.close();
+    await settle();
+    expect(call).toHaveBeenCalledWith("terminal/close", { terminalId: "t1" });
+    expect(live[0]?.body).toEqual({ terminalId: "t1", cursor: 0 });
+  });
+
+  it("dispose alone leaves the terminal for a later reattach", async () => {
+    const { client } = await start();
+    client.dispose();
+    await settle();
+    expect(call).not.toHaveBeenCalledWith("terminal/close", expect.anything());
+  });
+
+  it("does not close a terminal that is already over", async () => {
+    const { client } = await start();
+    live[0]?.emit({ seq: 9, taken_over: true });
+    client.close();
+    await settle();
+    expect(call).not.toHaveBeenCalledWith("terminal/close", expect.anything());
+  });
+
+  it("a failing close is swallowed", async () => {
+    const { client } = await start();
+    call.mockImplementation(async () => {
+      throw failure(500);
+    });
+    expect(() => client.close()).not.toThrow();
+    await settle();
+  });
+});
+
+describe("what the client reports when it stops trying", () => {
+  const refuse = (status: number, extra: Json = {}) =>
+    call.mockImplementation(async (proc: string, body: Json) => {
+      if (proc === "terminal/open") {
+        opens += 1;
+        if (status) throw Object.assign(failure(status), extra);
+        return { terminalId: "t9", seq: 0, rows: body.rows, cols: body.cols };
+      }
+      return { ok: true };
+    });
+
+  it("is failed after a final refusal, and reopen tries again", async () => {
+    refuse(403);
+    const { client } = await start();
+    expect(client.state).toBe("failed");
+    refuse(0);
+    client.reopen();
+    await settle();
+    expect(client.state).toBe("live");
+    client.dispose();
+  });
+
+  it("is busy while waiting out a 429, error while backing off from other failures", async () => {
+    refuse(429, { retryAfterMs: 3_000 });
+    const { client } = await start();
+    expect(client.state).toBe("busy");
+    client.dispose();
+    refuse(503);
+    const other = await start();
+    expect(other.client.state).toBe("error");
+    other.client.dispose();
+  });
+
+  it("reopen after ended opens a fresh terminal", async () => {
+    const { client } = await start();
+    live[0]?.emit({ seq: 9, ended: true, exit: 0 });
+    expect(client.state).toBe("ended");
+    await settle();
+    client.reopen();
+    await settle();
+    expect(opens).toBe(2);
+    expect(client.state).toBe("live");
+    client.dispose();
+  });
+});
+
+describe("the first open waits for the page's size", () => {
+  it("opens at the first reported size, so there is one resize, not two", async () => {
+    const { client } = await start({ waitForSize: true });
+    expect(opens).toBe(0);
+    client.resize(40, 120);
+    await settle();
+    expect(call).toHaveBeenCalledWith("terminal/open", { id: "agent-1", rows: 40, cols: 120 });
+    await vi.advanceTimersByTimeAsync(500);
+    expect(call).not.toHaveBeenCalledWith("terminal/resize", expect.anything());
+    client.dispose();
+  });
+
+  it("falls back to the seeded size after a second", async () => {
+    const { client } = await start({ waitForSize: true });
+    await vi.advanceTimersByTimeAsync(999);
+    expect(opens).toBe(0);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(call).toHaveBeenCalledWith("terminal/open", { id: "agent-1", rows: 24, cols: 80 });
+    client.dispose();
+  });
+
+  it("opens straight away when not asked to wait", async () => {
+    const { client } = await start();
+    expect(opens).toBe(1);
+    client.dispose();
+  });
+
+  it("a client disposed while waiting never opens", async () => {
+    const { client } = await start({ waitForSize: true });
+    client.dispose();
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(opens).toBe(0);
   });
 });

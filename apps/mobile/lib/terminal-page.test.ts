@@ -80,11 +80,23 @@ beforeEach(() => {
     add(type, fn as EventListener, opts);
   });
   vi.spyOn(document, "addEventListener").mockImplementation(() => {});
+  // A laid-out page; the zero-size tests change it.
+  for (const side of ["clientWidth", "clientHeight"]) {
+    Object.defineProperty(document.body, side, { configurable: true, value: 300 });
+  }
+  vi.stubGlobal("requestAnimationFrame", (run: () => void) => {
+    run();
+    return 0;
+  });
   Object.assign(globalThis, {
     Terminal: FakeTerminal,
     FitAddon: {
+      // Ten points a cell, so a collapsed page fits to nothing, as the real addon would.
       FitAddon: class {
-        fit() {}
+        fit() {
+          fake.term.rows = Math.floor(document.body.clientHeight / 10);
+          fake.term.cols = Math.floor(document.body.clientWidth / 10);
+        }
       },
     },
     ResizeObserver: class {
@@ -113,6 +125,7 @@ beforeEach(() => {
 afterEach(() => {
   for (const [type, fn] of listeners) window.removeEventListener(type, fn);
   vi.restoreAllMocks();
+  vi.unstubAllGlobals();
 });
 
 describe("terminal page: soft keyboard Ctrl", () => {
@@ -145,6 +158,36 @@ describe("terminal page: soft keyboard Ctrl", () => {
     expect(posted.map((m) => m.t)).toEqual(["ctrlUsed", "in"]);
     expect(sentInputs()).toEqual([text("c")]);
     expect(fake.term.pasted).toEqual(["c"]);
+  });
+});
+
+describe("terminal page: size", () => {
+  const resize = () => window.dispatchEvent(new Event("resize"));
+  const setBody = (width: number, height: number) => {
+    Object.defineProperty(document.body, "clientWidth", { configurable: true, value: width });
+    Object.defineProperty(document.body, "clientHeight", { configurable: true, value: height });
+  };
+
+  it("ignores a fit while the page has no width or no height, and reports once it has both", () => {
+    setBody(0, 400);
+    resize();
+    setBody(300, 0);
+    resize();
+    expect(posted.filter((m) => m.t === "size")).toEqual([]);
+    setBody(200, 100);
+    resize();
+    expect(posted.filter((m) => m.t === "size")).toEqual([{ t: "size", rows: 10, cols: 20 }]);
+  });
+});
+
+describe("terminal page: blur", () => {
+  it("drops the input mode to none and blurs the textarea", () => {
+    message({ t: "keyboard", on: true });
+    log.length = 0;
+    message({ t: "blur" });
+    expect(fake.term.textarea.getAttribute("inputmode")).toBe("none");
+    expect(log).toContain("blur");
+    expect(document.activeElement).not.toBe(fake.term.textarea);
   });
 });
 

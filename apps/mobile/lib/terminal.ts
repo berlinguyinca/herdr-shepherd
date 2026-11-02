@@ -7,7 +7,18 @@ import {
   bytesToBase64 as toBase64,
 } from "./terminal-bridge";
 
-export type TerminalState = "connecting" | "live" | "ended" | "taken_over" | "error";
+/**
+ * `error` is backing off before another try; `busy` is the same after a 429 (too many open
+ * terminals); `failed` means the client gave up (a refusal asking again cannot change).
+ */
+export type TerminalState =
+  | "connecting"
+  | "live"
+  | "ended"
+  | "taken_over"
+  | "error"
+  | "busy"
+  | "failed";
 
 /** Screen output: bytes to feed the emulator, or a signal to wipe it before a replay. */
 export type TerminalOutput = { kind: "data"; data: Uint8Array } | { kind: "clear" };
@@ -17,6 +28,8 @@ export const WRITE_BATCH_MS = 8;
 /** The bridge takes 64 KB per call; stay well below it. */
 export const WRITE_CHUNK_BYTES = 32 * 1024;
 export const RESIZE_DEBOUNCE_MS = 150;
+/** The first open waits this long for the page's real size before using the seeded one. */
+export const FIRST_SIZE_WAIT_MS = 1_000;
 export const BACKOFF_MIN_MS = 500;
 export const BACKOFF_MAX_MS = 8_000;
 /** A stream that closed cleanly after this long was alive (heartbeats), so it does not back off. */
@@ -67,8 +80,10 @@ export type TerminalClient = {
   write(bytes: Uint8Array): void;
   /** Debounced to the last size. */
   resize(rows: number, cols: number): void;
-  /** Opens the terminal again after another client took it over. */
+  /** Opens the terminal again after another client took it over, it ended, or the client gave up. */
   reopen(): void;
+  /** Retires the terminal on the server (best effort) and stops; `dispose` alone leaves it. */
+  close(): void;
   onOutput(callback: (chunk: TerminalOutput) => void): () => void;
   /** Called with the error when the bridge refuses one input call (the call is dropped). */
   onInputError(callback: (error: unknown) => void): () => void;
@@ -85,6 +100,7 @@ export type TerminalClient = {
 export function createTerminalClient(
   agentId: string,
   size: { rows: number; cols: number },
+  options: { waitForSize?: boolean } = {},
 ): TerminalClient {
   let { rows, cols } = size;
   let state: TerminalState = "connecting";
@@ -95,6 +111,8 @@ export function createTerminalClient(
   let running = false;
   let everOpened = false;
   let controller = new AbortController();
+  let sizeSeen = !options.waitForSize;
+  let sizeWake: (() => void) | undefined;
   const outputs = new Set<(chunk: TerminalOutput) => void>();
   const states = new Set<(state: TerminalState) => void>();
   const inputErrors = new Set<(error: unknown) => void>();
@@ -132,6 +150,23 @@ export function createTerminalClient(
       };
     });
 
+  /** Holds the first open for the page's size, so open carries it and no resize follows. */
+  const firstSize = () =>
+    sizeSeen
+      ? Promise.resolve()
+      : new Promise<void>((resolve) => {
+          const timer = setTimeout(() => {
+            sizeSeen = true;
+            sizeWake = undefined;
+            resolve();
+          }, FIRST_SIZE_WAIT_MS);
+          sizeWake = () => {
+            clearTimeout(timer);
+            sizeWake = undefined;
+            resolve();
+          };
+        });
+
   const settled = (next: "ended" | "taken_over") => {
     setState(next);
     controller.abort();
@@ -156,6 +191,9 @@ export function createTerminalClient(
     if (running) return;
     running = true;
     let needOpen = true;
+    // A dropped connection resubscribes the same terminal once before asking to open again:
+    // returning from the background must never take the terminal back from another client.
+    let resubscribing = false;
     let backoff = BACKOFF_MIN_MS;
     try {
       while (!disposed && !stopped()) {
@@ -166,6 +204,8 @@ export function createTerminalClient(
         try {
           if (needOpen) {
             setState("connecting");
+            await firstSize();
+            if (disposed) return;
             const asked = { rows, cols };
             const opened = await openTerminal(agentId, asked.rows, asked.cols);
             if (disposed) return;
@@ -186,17 +226,23 @@ export function createTerminalClient(
             received = true;
             onFrame(json);
           });
+          resubscribing = false;
         } catch (error) {
           if (disposed) return;
           // Opening is refused for good (unknown agent, no access): asking again changes nothing.
           if (needOpen && isFinal4xx(error)) {
             queue.length = 0;
-            return setState("error");
+            return setState("failed");
           }
           // The same terminal answering 404: another client's open retired it.
           if (!needOpen && statusOf(error) === 404) return settled("taken_over");
-          needOpen = true;
-          setState("error");
+          // A transport error (no HTTP status) on a live terminal: resubscribe it first.
+          if (!needOpen && !resubscribing && statusOf(error) === undefined) resubscribing = true;
+          else {
+            needOpen = true;
+            resubscribing = false;
+          }
+          setState(statusOf(error) === 429 ? "busy" : "error");
           queue.length = 0;
           if (!(await sleep(Math.max(backoff, retryAfterOf(error))))) return;
           backoff = nextBackoff(backoff);
@@ -283,7 +329,7 @@ export function createTerminalClient(
       at += part.length;
     }
     batch = [];
-    if (state === "error" || stopped()) return;
+    if (state === "error" || state === "busy" || state === "failed" || stopped()) return;
     for (let i = 0; i < joined.length; i += WRITE_CHUNK_BYTES) {
       queue.push({ bytes: joined.subarray(i, i + WRITE_CHUNK_BYTES), attempts: 0 });
     }
@@ -305,12 +351,13 @@ export function createTerminalClient(
 
   void run();
 
-  return {
+  const client: TerminalClient = {
     get state() {
       return state;
     },
     write(bytes) {
-      if (disposed || state === "error" || stopped() || bytes.length === 0) return;
+      if (disposed || state === "error" || state === "busy" || state === "failed") return;
+      if (stopped() || bytes.length === 0) return;
       batch.push(bytes.slice());
       batchTimer ??= setTimeout(flush, WRITE_BATCH_MS);
     },
@@ -319,6 +366,12 @@ export function createTerminalClient(
       const clamped = clampSize(nextRows, nextCols);
       if (!clamped) return;
       ({ rows, cols } = clamped);
+      if (!sizeSeen) {
+        // The first open is still waiting for this: it carries the size, no resize follows.
+        sizeSeen = true;
+        sizeWake?.();
+        return;
+      }
       clearTimeout(resizeTimer);
       resizeTimer = setTimeout(() => {
         if (disposed || state !== "live") return;
@@ -326,7 +379,7 @@ export function createTerminalClient(
       }, RESIZE_DEBOUNCE_MS);
     },
     reopen() {
-      if (disposed || running || state === "live") return;
+      if (disposed || running || state === "live" || state === "connecting") return;
       state = "connecting";
       for (const callback of states) callback(state);
       void run();
@@ -343,8 +396,15 @@ export function createTerminalClient(
       states.add(callback);
       return () => states.delete(callback);
     },
+    close() {
+      if (terminalId && !disposed && !stopped()) {
+        rpc("terminal/close", { terminalId }).catch(() => undefined);
+      }
+      client.dispose();
+    },
     dispose() {
       disposed = true;
+      sizeWake?.();
       controller.abort();
       clearTimeout(batchTimer);
       clearTimeout(pumpTimer);
@@ -353,15 +413,20 @@ export function createTerminalClient(
       pumpWake?.();
     },
   };
+  return client;
 }
 
 /**
  * The terminal of one agent: connection state, input, resize and a subscription to its output.
- * `size` only seeds the first open; after that callers report the real size with resize().
+ * `size` only seeds the first open (which waits a moment for the page's real size, reported with
+ * resize()). The terminal is closed on the server when the agent changes or the view goes away
+ * for good; backgrounding or an app kill leaves it for a reattach.
  */
 export function useTerminal(
   agentId: string,
   size: { rows: number; cols: number } = { rows: 24, cols: 80 },
+  /** Set while the view is only being rebuilt: its terminal stays open for the next one. */
+  retain?: { current: boolean },
 ) {
   const [state, setState] = useState<TerminalState>("connecting");
   const client = useRef<TerminalClient | undefined>(undefined);
@@ -371,7 +436,7 @@ export function useTerminal(
 
   useEffect(() => {
     setState("connecting");
-    const next = createTerminalClient(agentId, { rows, cols });
+    const next = createTerminalClient(agentId, { rows, cols }, { waitForSize: true });
     client.current = next;
     const stopState = next.onState(setState);
     const stopOutput = next.onOutput((chunk) => {
@@ -384,7 +449,8 @@ export function useTerminal(
       stopState();
       stopOutput();
       stopInputError();
-      next.dispose();
+      if (retain?.current) next.dispose();
+      else next.close();
       if (client.current === next) client.current = undefined;
     };
   }, [agentId]);
