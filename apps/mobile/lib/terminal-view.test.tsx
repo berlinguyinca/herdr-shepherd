@@ -19,8 +19,9 @@ const web = vi.hoisted(() => ({
 const term = vi.hoisted(() => ({
   state: "live" as string,
   setState: (_state: string) => {},
+  reason: undefined as string | undefined,
   reopen: vi.fn(),
-  resize: vi.fn(),
+  setZoom: vi.fn(),
   calls: [] as Array<{ agentId: string; retain?: { current: boolean } }>,
 }));
 const keyboard = vi.hoisted(() => ({ visible: false }));
@@ -48,8 +49,18 @@ vi.mock("react-native", () => ({
       {children}
     </span>
   ),
-  Pressable: ({ children, onPress }: { children?: ReactNode; onPress?: () => void }) => (
-    <button type="button" onClick={onPress}>
+  Pressable: ({
+    children,
+    onPress,
+    testID,
+    accessibilityLabel,
+  }: {
+    children?: ReactNode;
+    onPress?: () => void;
+    testID?: string;
+    accessibilityLabel?: string;
+  }) => (
+    <button type="button" onClick={onPress} data-testid={testID} aria-label={accessibilityLabel}>
       {children}
     </button>
   ),
@@ -75,7 +86,12 @@ vi.mock("expo-clipboard", () => ({
   getStringAsync: async () => "",
   setStringAsync: async () => {},
 }));
-vi.mock("./i18n", () => ({ useI18n: () => ({ t: (text: string) => text }) }));
+vi.mock("./i18n", () => ({
+  useI18n: () => ({
+    t: (text: string, values?: Record<string, unknown>) =>
+      text.replace(/\{(\w+)\}/g, (_, key: string) => String(values?.[key])),
+  }),
+}));
 vi.mock("./native", () => ({
   useMobileTokens: () => ({ background: "bg", border: "b", foreground: "fg" }),
   useResolvedAppearance: () => "dark",
@@ -87,8 +103,9 @@ vi.mock("./terminal", () => ({
     term.calls.push({ agentId, retain });
     return {
       state,
+      reason: state === "ended" ? term.reason : undefined,
       write: vi.fn(),
-      resize: term.resize,
+      setZoom: term.setZoom,
       reopen: term.reopen,
       onOutput: () => () => {},
       onInputError: () => () => {},
@@ -111,8 +128,25 @@ vi.mock("./terminal-bridge", async (importOriginal) => {
 });
 vi.mock("./terminal-html.generated", () => ({ terminalHtml: "<html></html>" }));
 vi.mock("../components/terminal-key-row", () => ({
-  TerminalKeyRow: ({ bottomInset, keyboardOn }: { bottomInset: number; keyboardOn: boolean }) => (
-    <div data-testid="key-row" data-inset={bottomInset} data-keyboard={String(keyboardOn)} />
+  TerminalKeyRow: ({
+    bottomInset,
+    keyboardOn,
+    zoom,
+    onToggleZoom,
+  }: {
+    bottomInset: number;
+    keyboardOn: boolean;
+    zoom: boolean;
+    onToggleZoom: () => void;
+  }) => (
+    <div
+      data-testid="key-row"
+      data-inset={bottomInset}
+      data-keyboard={String(keyboardOn)}
+      data-zoom={String(zoom)}
+    >
+      <button type="button" data-testid="zoom-toggle" onClick={onToggleZoom} />
+    </div>
   ),
 }));
 
@@ -122,6 +156,8 @@ beforeEach(() => {
   web.posted = [];
   term.state = "live";
   term.reopen.mockClear();
+  term.setZoom.mockClear();
+  term.reason = undefined;
   term.calls = [];
   batchers.options = [];
   keyboard.visible = false;
@@ -178,6 +214,7 @@ describe("the overlay", () => {
     ["error", "Connection lost. Retrying…", false],
     ["busy", "Too many open terminals, close one to continue", false],
     ["failed", "Could not open the terminal", true],
+    ["relay_down", "The host's terminal relay is not running", true],
   ] as const)("%s reads %s", async (state, text, reopen) => {
     render();
     await setState(state);
@@ -192,12 +229,35 @@ describe("the overlay", () => {
     expect(status()).toBeNull();
   });
 
-  it.each(["ended", "taken_over", "failed"] as const)("Reopen after %s reopens", async (state) => {
+  it.each([
+    ["host_offline", "The host went offline"],
+    ["input_overflow", "The terminal was reset, reopen it"],
+    ["input_gap", "The terminal was reset, reopen it"],
+    ["stale", "The terminal was reset, reopen it"],
+    ["relay_error", "The terminal was reset, reopen it"],
+    ["pane_closed", "The pane was closed"],
+    ["herdr_unavailable", "herdr is not running on the host"],
+    ["invalid_pane", "That pane cannot be opened here"],
+    ["too_many_terminals", "Too many open terminals"],
+    ["something_new", "Session ended"],
+    [undefined, "Session ended"],
+  ] as const)("an ended terminal with reason %s reads %s, with Reopen", async (reason, text) => {
+    term.reason = reason;
     render();
-    await setState(state);
-    act(() => reopenButton()?.click());
-    expect(term.reopen).toHaveBeenCalledTimes(1);
+    await setState("ended");
+    expect(status()?.textContent).toBe(text);
+    expect(reopenButton()).toBeDefined();
   });
+
+  it.each(["ended", "taken_over", "failed", "relay_down"] as const)(
+    "Reopen after %s reopens",
+    async (state) => {
+      render();
+      await setState(state);
+      act(() => reopenButton()?.click());
+      expect(term.reopen).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 describe("closing the terminal when the view goes", () => {
@@ -232,5 +292,60 @@ describe("another agent on the same view", () => {
     render("a2");
     expect(term.calls.at(-1)?.agentId).toBe("a2");
     expect(batchers.options.at(-1)?.maxPendingBytes).toBeUndefined();
+  });
+});
+
+describe("the pane size caption", () => {
+  const caption = () => host.querySelector('[data-testid="terminal-pane-size"]');
+  const fitMsg = (pct: number) => message({ t: "fit", rows: 120, cols: 97, pct });
+
+  it("shows the pane size and scale when the pane is scaled, and nothing at 100%", () => {
+    render();
+    expect(caption()).toBeNull();
+    fitMsg(62);
+    expect(caption()?.textContent).toBe("97x120 at 62%");
+    fitMsg(100);
+    expect(caption()).toBeNull();
+  });
+
+  it("is toggled by a tap between the full caption and the percent alone", () => {
+    render();
+    fitMsg(62);
+    act(() => (caption() as HTMLElement).click());
+    expect(caption()?.textContent).toBe("62%");
+    act(() => (caption() as HTMLElement).click());
+    expect(caption()?.textContent).toBe("97x120 at 62%");
+  });
+
+  it("is not shown over a status overlay", async () => {
+    render();
+    fitMsg(62);
+    await setState("ended");
+    expect(caption()).toBeNull();
+  });
+});
+
+describe("zoom pane", () => {
+  const zoomState = () => host.querySelector('[data-testid="key-row"]')?.getAttribute("data-zoom");
+  const toggle = () =>
+    act(() => (host.querySelector('[data-testid="zoom-toggle"]') as HTMLElement).click());
+
+  it("toggles through the client and shows its state in the key row", () => {
+    render();
+    expect(zoomState()).toBe("false");
+    toggle();
+    expect(term.setZoom).toHaveBeenLastCalledWith(true);
+    expect(zoomState()).toBe("true");
+    toggle();
+    expect(term.setZoom).toHaveBeenLastCalledWith(false);
+    expect(zoomState()).toBe("false");
+  });
+
+  it("starts unzoomed again when the terminal is reopened", async () => {
+    render();
+    toggle();
+    await setState("ended");
+    await setState("connecting");
+    expect(zoomState()).toBe("false");
   });
 });

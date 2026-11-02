@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 // @ts-expect-error the build script is plain JS
-import { buildTerminalHtml } from "../scripts/build-terminal-html.mjs";
+import * as build from "../scripts/build-terminal-html.mjs";
 import { terminalHtml } from "./terminal-html.generated";
 
 describe("terminal page", () => {
   it("is up to date: run `pnpm build:terminal` after changing xterm or the page script", () => {
-    expect(terminalHtml === buildTerminalHtml()).toBe(true);
+    expect(terminalHtml === build.buildTerminalHtml()).toBe(true);
   });
 
   it("is one self-contained document that loads nothing", () => {
@@ -33,5 +33,19 @@ describe("terminal page", () => {
     }
     expect(terminalHtml).toContain("term.paste(");
     expect(terminalHtml).toContain("onSelectionChange");
+  });
+
+  it("inlines the one source of the fit decisions and of the control bytes", () => {
+    const source = build.fitSource();
+    for (const name of ["validPane", "paneFit", "pinchScale", "clampPinch"]) {
+      expect(source).toContain(`function ${name}(`);
+    }
+    expect(source).not.toContain("export");
+    expect(terminalHtml).toContain(source.replaceAll("</script", "<\\/script"));
+    expect(terminalHtml).toContain(build.controlByteSource());
+  });
+
+  it("carries no fit addon: the pane, not the container, decides the grid", () => {
+    expect(terminalHtml).not.toContain("FitAddon");
   });
 });

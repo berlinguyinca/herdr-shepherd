@@ -1,5 +1,7 @@
 // The page inside the terminal WebView. Plain script, inlined by build-terminal-html.mjs;
-// every decision worth testing lives in lib/terminal-bridge.ts. Keep this small.
+// every decision worth testing lives in lib/terminal-bridge.ts and lib/terminal-fit.ts (inlined
+// too: validPane, paneFit, pinchScale). The page shows a pane it does not own: it takes the
+// pane's rows and cols from each frame and only scales the font. Keep this small.
 (() => {
   const themes = {
     dark: {
@@ -68,8 +70,11 @@
   const term = new Terminal({
     fontFamily: 'ui-monospace, Menlo, "Roboto Mono", monospace',
     fontSize: window.__fontSize || 13,
-    scrollback: 5000,
-    cursorBlink: true,
+    // The pane's own scrollback stays on the host; the page scrolls the whole pane instead.
+    scrollback: 0,
+    // The relay reports no cursor, so none is drawn (the page also writes \x1b[?25l).
+    cursorBlink: false,
+    cursorInactiveStyle: "none",
     // Option types Meta (ESC-prefixed) on the iPad hardware keyboard.
     macOptionIsMeta: true,
     theme: window.__dark === false ? themes.light : themes.dark,
@@ -77,9 +82,8 @@
     // navigation. (There is no link policy in this view yet.)
     linkHandler: { activate() {} },
   });
-  const fit = new FitAddon.FitAddon();
-  term.loadAddon(fit);
-  term.open(document.getElementById("t"));
+  const box = document.getElementById("t");
+  term.open(box);
   // The native side owns the keyboard; a tap must not raise the web one.
   term.textarea.setAttribute("inputmode", "none");
   // Whatever dismisses the keyboard, a later focus must not raise it again.
@@ -145,24 +149,84 @@
     post({ t: "appCursor", on });
   };
 
-  let last = "";
-  const sendSize = () => {
-    // Laid out at zero (hidden, or not sized yet) fits to nothing: wait for a real size.
-    if (!document.body.clientWidth || !document.body.clientHeight) return;
-    fit.fit();
-    const key = term.rows + "x" + term.cols;
-    if (key === last) return;
-    last = key;
-    post({ t: "size", rows: term.rows, cols: term.cols });
+  // The pane at its own cols x rows, its font scaled to the container width (paneFit), times
+  // the pinch scale. Vertical scroll shows the rest of the pane; horizontal only where it pans.
+  let userFont = window.__fontSize || 13;
+  let pinch = 1;
+  let pane = null;
+  let lastFit = "";
+  // The cursor row is at the bottom: stay there, unless the person scrolled up.
+  let stick = true;
+  const toBottom = () => {
+    if (stick) box.scrollTop = box.scrollHeight;
+  };
+  const applyFit = () => {
+    // Laid out at zero (hidden, or not sized yet) fits to nothing: wait for a real width.
+    if (!pane || !box.clientWidth) return;
+    const f = paneFit(box.clientWidth - 8, pane.cols, userFont, pinch);
+    term.options.fontSize = f.font;
+    box.style.overflowX = f.pan ? "auto" : "hidden";
+    box.style.overflowY = "auto";
+    const key = `${pane.rows}x${pane.cols}@${f.pct}`;
+    if (key !== lastFit) {
+      lastFit = key;
+      post({ t: "fit", rows: pane.rows, cols: pane.cols, pct: f.pct });
+    }
+    toBottom();
   };
   let queued = 0;
   const refit = () => {
     cancelAnimationFrame(queued);
-    queued = requestAnimationFrame(sendSize);
+    queued = requestAnimationFrame(applyFit);
   };
   window.addEventListener("resize", refit);
   window.addEventListener("orientationchange", refit);
   new ResizeObserver(refit).observe(document.body);
+  box.addEventListener("scroll", () => {
+    stick = box.scrollHeight - box.scrollTop - box.clientHeight < 4;
+  });
+
+  // Two fingers pinch the scale between 1x and 4x; a double tap puts it back to 1x.
+  let startDist = 0;
+  let startPinch = 1;
+  let gesture = false;
+  let lastTap = 0;
+  const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  box.addEventListener(
+    "touchstart",
+    (event) => {
+      if (event.touches.length !== 2) return;
+      gesture = true;
+      startDist = dist(event.touches);
+      startPinch = pinch;
+      event.preventDefault();
+    },
+    { passive: false },
+  );
+  box.addEventListener(
+    "touchmove",
+    (event) => {
+      if (event.touches.length !== 2) return;
+      event.preventDefault();
+      pinch = pinchScale(startPinch, startDist, dist(event.touches));
+      applyFit();
+    },
+    { passive: false },
+  );
+  box.addEventListener("touchend", (event) => {
+    if (event.touches.length) return;
+    if (gesture) {
+      gesture = false;
+      lastTap = 0;
+      return;
+    }
+    const now = Date.now();
+    if (now - lastTap < 300) {
+      pinch = 1;
+      applyFit();
+      lastTap = 0;
+    } else lastTap = now;
+  });
 
   const onMessage = (event) => {
     let msg;
@@ -172,8 +236,19 @@
       return;
     }
     if (!msg) return;
-    if (msg.t === "out" && typeof msg.b64 === "string") term.write(fromB64(msg.b64), syncMode);
-    else if (msg.t === "clear") {
+    if (msg.t === "out" && typeof msg.b64 === "string") {
+      if (validPane(msg.rows, msg.cols)) {
+        // The pane's size comes first, so the frame is written at the size it was drawn for.
+        pane = { rows: msg.rows, cols: msg.cols };
+        applyFit();
+        if (msg.rows !== term.rows || msg.cols !== term.cols) term.resize(msg.cols, msg.rows);
+      }
+      term.write("\x1b[?25l");
+      term.write(fromB64(msg.b64), () => {
+        syncMode();
+        toBottom();
+      });
+    } else if (msg.t === "clear") {
       term.reset();
       syncMode();
     } else if (msg.t === "theme") term.options.theme = msg.dark ? themes.dark : themes.light;
@@ -204,15 +279,13 @@
         term.paste(new TextDecoder().decode(fromB64(msg.b64)));
       }
     } else if (msg.t === "font" && typeof msg.size === "number" && Number.isFinite(msg.size)) {
-      // A new size changes rows and cols; refit reports them through the normal size message.
-      term.options.fontSize = Math.min(32, Math.max(8, msg.size));
-      refit();
+      userFont = Math.min(32, Math.max(8, msg.size));
+      applyFit();
     }
   };
   // iOS delivers to window, Android to document.
   window.addEventListener("message", onMessage);
   document.addEventListener("message", onMessage);
 
-  sendSize();
   post({ t: "ready" });
 })();

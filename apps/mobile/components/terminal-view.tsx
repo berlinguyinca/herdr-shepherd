@@ -26,6 +26,29 @@ const SOURCE = { html: terminalHtml };
 const ORIGINS = ["about:*"];
 const NOTICE_MS = 3000;
 
+/** What an ended terminal says; a reason this app does not know reads as the generic text. */
+function endedText(reason: string | undefined, t: (text: string) => string): string {
+  switch (reason) {
+    case "host_offline":
+      return t("The host went offline");
+    case "input_overflow":
+    case "input_gap":
+    case "stale":
+    case "relay_error":
+      return t("The terminal was reset, reopen it");
+    case "pane_closed":
+      return t("The pane was closed");
+    case "herdr_unavailable":
+      return t("herdr is not running on the host");
+    case "invalid_pane":
+      return t("That pane cannot be opened here");
+    case "too_many_terminals":
+      return t("Too many open terminals");
+    default:
+      return t("Session ended");
+  }
+}
+
 /**
  * One agent's terminal: an xterm page in a WebView, wired to the agent's terminal session. A
  * reloaded or crashed page has lost its screen, so it remounts (new key, new client, full
@@ -77,7 +100,11 @@ function TerminalPage({
   const { fontScale } = useWindowDimensions();
   // Set while this page is being rebuilt: the terminal stays open for the page that follows.
   const rebuilding = useRef(false);
-  const { state, write, resize, reopen, onOutput } = useTerminal(agentId, undefined, rebuilding);
+  const { state, reason, write, setZoom, reopen, onOutput } = useTerminal(
+    agentId,
+    undefined,
+    rebuilding,
+  );
   const web = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const page = useRef<PageState>({ generation: 0, ready: false, dropped: false, uncapped });
@@ -100,6 +127,10 @@ function TerminalPage({
   // The key row's display state; the handler owns the sticky Ctrl and the cursor mode.
   const [ctrl, setCtrl] = useState(false);
   const [hasSelection, setHasSelection] = useState(false);
+  const [zoom, setZoom_] = useState(false);
+  // How the page fits the pane (its size and the share of the font it got), for the caption.
+  const [fit, setFit] = useState<{ rows: number; cols: number; pct: number } | null>(null);
+  const [captionShort, setCaptionShort] = useState(false);
   const [notice, setNotice] = useState(false);
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
@@ -109,7 +140,9 @@ function TerminalPage({
   const deps = {
     ready: () => advance("ready"),
     write,
-    resize,
+    setZoom,
+    onZoom: setZoom_,
+    onFit: setFit,
     // Clipboard text is never logged: it can hold anything.
     readClipboard: () => Clipboard.getStringAsync(),
     writeClipboard: (text: string) => Clipboard.setStringAsync(text),
@@ -129,7 +162,9 @@ function TerminalPage({
       createTerminalHandler({
         ready: () => depsRef.current.ready(),
         write: (bytes) => depsRef.current.write(bytes),
-        resize: (rows, cols) => depsRef.current.resize(rows, cols),
+        setZoom: (on) => depsRef.current.setZoom(on),
+        onZoom: (on) => depsRef.current.onZoom(on),
+        onFit: (next) => depsRef.current.onFit(next),
         readClipboard: () => depsRef.current.readClipboard(),
         writeClipboard: (text) => depsRef.current.writeClipboard(text),
         send: (msg) => depsRef.current.send(msg),
@@ -171,6 +206,10 @@ function TerminalPage({
     // The page starts at the size injected on load; this follows a change while it is open.
     if (ready) send({ t: "font", size: fontSize });
   }, [ready, fontSize]);
+  // A new terminal starts unzoomed.
+  useEffect(() => {
+    if (state === "connecting") handler.resetZoom();
+  }, [state, handler]);
   const wasFocused = useRef(false);
   useEffect(() => {
     if (!ready) return;
@@ -185,16 +224,25 @@ function TerminalPage({
   const stateText = {
     connecting: t("Connecting…"),
     live: null,
-    ended: t("Session ended"),
+    ended: endedText(reason, t),
     taken_over: t("Opened elsewhere"),
     // Only while the client is actually backing off before another try.
     error: t("Connection lost. Retrying…"),
     busy: t("Too many open terminals, close one to continue"),
     failed: t("Could not open the terminal"),
+    relay_down: t("The host's terminal relay is not running"),
   }[state];
   const overlay = stateText ?? (notice ? t("Too large to copy or paste") : null);
   // Where nothing will happen on its own, the person can ask again.
-  const canReopen = state === "taken_over" || state === "ended" || state === "failed";
+  const canReopen =
+    state === "taken_over" || state === "ended" || state === "failed" || state === "relay_down";
+  // Only while the pane is scaled, and not under a status text.
+  const caption =
+    !overlay && fit && fit.pct !== 100
+      ? captionShort
+        ? `${fit.pct}%`
+        : t("{cols}x{rows} at {pct}%", { cols: fit.cols, rows: fit.rows, pct: fit.pct })
+      : null;
 
   return (
     <KeyboardAvoidingView
@@ -225,6 +273,20 @@ function TerminalPage({
           style={styles.web}
           containerStyle={styles.web}
         />
+        {caption ? (
+          <Pressable
+            testID="terminal-pane-size"
+            accessibilityRole="button"
+            accessibilityLabel={t("Pane size")}
+            onPress={() => setCaptionShort((short) => !short)}
+            style={[
+              styles.caption,
+              { backgroundColor: tokens.background, borderColor: tokens.border },
+            ]}
+          >
+            <Text style={[styles.captionText, { color: tokens.foreground }]}>{caption}</Text>
+          </Pressable>
+        ) : null}
         {overlay ? (
           <View
             pointerEvents="box-none"
@@ -270,6 +332,8 @@ function TerminalPage({
         onKey={handler.pressKey}
         onToggleCtrl={handler.toggleCtrl}
         onToggleKeyboard={() => send({ t: "keyboard", on: !softKeyboardVisible })}
+        zoom={zoom}
+        onToggleZoom={handler.toggleZoom}
         onPaste={() => void handler.paste()}
         onCopy={handler.copy}
       />
@@ -292,6 +356,17 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     borderWidth: StyleSheet.hairlineWidth,
   },
+  caption: {
+    position: "absolute",
+    top: 6,
+    right: 8,
+    opacity: 0.85,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  captionText: { fontSize: 11, lineHeight: 15 },
   status: { fontSize: 13, lineHeight: 18 },
   button: {
     paddingHorizontal: 10,

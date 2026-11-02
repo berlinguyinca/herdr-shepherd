@@ -1,9 +1,13 @@
 import { MAX_FONT_SCALE } from "@rakazo/ui-tokens";
 import type { TerminalOutput } from "./terminal";
+import { validPane } from "./terminal-fit";
 
-/** Native to page. `out` is terminal output; `clear` wipes the screen before a replay. */
+/**
+ * Native to page. `out` is terminal output (`rows` and `cols` are the pane's size, taken before
+ * the data is written); `clear` wipes the screen before a replay.
+ */
 export type NativeMsg =
-  | { t: "out"; b64: string }
+  | { t: "out"; b64: string; rows?: number; cols?: number }
   | { t: "clear" }
   | { t: "theme"; dark: boolean }
   | { t: "focus" }
@@ -20,12 +24,13 @@ export type NativeMsg =
   | { t: "copy" };
 
 /**
- * Page to native: typed bytes, the fitted size, load done, selected text to copy, a pending Ctrl
+ * Page to native: typed bytes, how the pane is shown (its size and the percent of the font it got:
+ * a caption, never a pty size), load done, selected text to copy, a pending Ctrl
  * used up, whether xterm has a selection, the terminal's application cursor mode, and a Cmd-V.
  */
 export type WebMsg =
   | { t: "in"; b64: string }
-  | { t: "size"; rows: number; cols: number }
+  | { t: "fit"; rows: number; cols: number; pct: number }
   | { t: "ready" }
   | { t: "copy"; text: string }
   | { t: "ctrlUsed" }
@@ -52,19 +57,6 @@ export function pasteMessage(text: string): NativeMsg | null {
   return { t: "paste", b64: bytesToBase64(new TextEncoder().encode(text)) };
 }
 
-export const MAX_ROWS = 500;
-export const MAX_COLS = 1000;
-
-const isSize = (value: unknown, max: number): value is number =>
-  typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= max;
-
-/** A size the bridge accepts, or null when either side is not a finite number. */
-export function clampSize(rows: number, cols: number): { rows: number; cols: number } | null {
-  if (!Number.isFinite(rows) || !Number.isFinite(cols)) return null;
-  const clamp = (value: number, max: number) => Math.min(max, Math.max(1, Math.round(value)));
-  return { rows: clamp(rows, MAX_ROWS), cols: clamp(cols, MAX_COLS) };
-}
-
 /** Parses what the page posted; anything malformed or unknown is null, never an exception. */
 export function decodeFromWeb(raw: string): WebMsg | null {
   let json: unknown;
@@ -78,9 +70,12 @@ export function decodeFromWeb(raw: string): WebMsg | null {
   switch (msg.t) {
     case "in":
       return typeof msg.b64 === "string" ? { t: "in", b64: msg.b64 } : null;
-    case "size":
-      return isSize(msg.rows, MAX_ROWS) && isSize(msg.cols, MAX_COLS)
-        ? { t: "size", rows: msg.rows, cols: msg.cols }
+    case "fit":
+      return validPane(msg.rows, msg.cols) &&
+        typeof msg.pct === "number" &&
+        Number.isFinite(msg.pct) &&
+        msg.pct >= 0
+        ? { t: "fit", rows: msg.rows as number, cols: msg.cols as number, pct: msg.pct }
         : null;
     case "ready":
       return { t: "ready" };
@@ -159,16 +154,24 @@ export function createOutputBatcher(
     pending = [];
     pendingBytes = 0;
     let run: Uint8Array[] = [];
+    // The pane's size goes with the first message of a run only: the page resizes before writing.
+    let size: { rows: number; cols: number } | undefined;
     const sendRun = () => {
       const bytes = concat(run);
       run = [];
       for (let at = 0; at < bytes.length; at += OUT_CHUNK_BYTES) {
-        send({ t: "out", b64: bytesToBase64(bytes.subarray(at, at + OUT_CHUNK_BYTES)) });
+        send({ t: "out", b64: bytesToBase64(bytes.subarray(at, at + OUT_CHUNK_BYTES)), ...size });
+        size = undefined;
       }
+      size = undefined;
     };
     for (const item of items) {
-      if (item.kind === "data") run.push(item.data);
-      else {
+      if (item.kind === "data") {
+        run.push(item.data);
+        if (item.rows !== undefined && item.cols !== undefined) {
+          size = { rows: item.rows, cols: item.cols };
+        }
+      } else {
         sendRun();
         send({ t: "clear" });
       }

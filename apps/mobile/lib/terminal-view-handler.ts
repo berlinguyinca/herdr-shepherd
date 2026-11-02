@@ -10,7 +10,12 @@ import { type KeyName, pressRowKey } from "./terminal-keys";
 export type TerminalHandlerDeps = {
   ready(): void;
   write(bytes: Uint8Array): void;
-  resize(rows: number, cols: number): void;
+  /** Asks the relay to zoom the pane, or to stop. */
+  setZoom(on: boolean): void;
+  /** The zoom toggle changed: show it. */
+  onZoom(on: boolean): void;
+  /** How the page fits the pane: its size and the percent of the font it got. */
+  onFit(fit: { rows: number; cols: number; pct: number }): void;
   readClipboard(): Promise<string>;
   writeClipboard(text: string): unknown;
   send(msg: NativeMsg): void;
@@ -29,6 +34,7 @@ export type TerminalHandlerDeps = {
 export function createTerminalHandler(deps: TerminalHandlerDeps) {
   let ctrl = false;
   let applicationCursor = false;
+  let zoom = false;
 
   const setCtrl = (on: boolean) => {
     ctrl = on;
@@ -61,6 +67,16 @@ export function createTerminalHandler(deps: TerminalHandlerDeps) {
     paste,
     copy: () => deps.send({ t: "copy" }),
     toggleCtrl: () => setCtrlAndPage(!ctrl),
+    toggleZoom() {
+      zoom = !zoom;
+      deps.setZoom(zoom);
+      deps.onZoom(zoom);
+    },
+    /** A new terminal starts unzoomed. */
+    resetZoom() {
+      zoom = false;
+      deps.onZoom(false);
+    },
     pressKey(key: KeyName) {
       const pressed = pressRowKey(ctrl, key, { applicationCursor });
       if (pressed.bytes.length > 0) deps.write(pressed.bytes);
@@ -80,8 +96,8 @@ export function createTerminalHandler(deps: TerminalHandlerDeps) {
             // Not base64: nothing to type.
           }
           break;
-        case "size":
-          deps.resize(msg.rows, msg.cols);
+        case "fit":
+          deps.onFit({ rows: msg.rows, cols: msg.cols, pct: msg.pct });
           break;
         case "copy":
           void deps.writeClipboard(msg.text);

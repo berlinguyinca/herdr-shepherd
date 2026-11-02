@@ -66,8 +66,8 @@ afterEach(() => {
 
 const settle = () => vi.advanceTimersByTimeAsync(0);
 
-async function start(options?: { waitForSize?: boolean }) {
-  const client = createTerminalClient("agent-1", { rows: 24, cols: 80 }, options);
+async function start() {
+  const client = createTerminalClient("agent-1", { rows: 24, cols: 80 });
   const output: TerminalOutput[] = [];
   client.onOutput((chunk) => output.push(chunk));
   await settle();
@@ -148,27 +148,98 @@ describe("write", () => {
   });
 });
 
-describe("resize", () => {
-  it("is debounced 150 ms to the last value", async () => {
-    const { client } = await start();
-    client.resize(30, 100);
-    await vi.advanceTimersByTimeAsync(100);
-    client.resize(40, 120);
-    await vi.advanceTimersByTimeAsync(149);
-    expect(call).not.toHaveBeenCalledWith("terminal/resize", expect.anything());
-    await vi.advanceTimersByTimeAsync(1);
-    const resizes = call.mock.calls.filter(([proc]) => proc === "terminal/resize");
-    expect(resizes).toEqual([["terminal/resize", { terminalId: "t1", rows: 40, cols: 120 }]]);
+describe("the pane owns its size", () => {
+  it("passes each frame's pane size on with its data", async () => {
+    const { client, output } = await start();
+    live[0]?.emit({ seq: 1, data: b64("a"), reset: true, rows: 120, cols: 97 });
+    live[0]?.emit({ seq: 2, data: b64("b") });
+    expect(output).toMatchObject([
+      { kind: "clear" },
+      { kind: "data", rows: 120, cols: 97 },
+      { kind: "data" },
+    ]);
+    expect((output[2] as { rows?: number }).rows).toBeUndefined();
     client.dispose();
   });
 
-  it("clamps a size to what the bridge accepts and ignores one that is not a number", async () => {
+  it("has no resize: the page's size never reaches the server", async () => {
     const { client } = await start();
-    client.resize(0, 5000);
-    client.resize(Number.NaN, 80);
-    await vi.advanceTimersByTimeAsync(150);
-    const resizes = call.mock.calls.filter(([proc]) => proc === "terminal/resize");
-    expect(resizes).toEqual([["terminal/resize", { terminalId: "t1", rows: 1, cols: 1000 }]]);
+    expect("resize" in client).toBe(false);
+    await vi.advanceTimersByTimeAsync(1_000);
+    expect(call).not.toHaveBeenCalledWith("terminal/resize", expect.anything());
+    client.dispose();
+  });
+
+  it("opens straight away at the seeded size", async () => {
+    const { client } = await start();
+    expect(call).toHaveBeenCalledWith("terminal/open", { id: "agent-1", rows: 24, cols: 80 });
+    client.dispose();
+  });
+});
+
+describe("setZoom", () => {
+  const resizes = () => call.mock.calls.filter(([proc]) => proc === "terminal/resize");
+
+  it("sends the zoom flag with the last pane size", async () => {
+    const { client } = await start();
+    live[0]?.emit({ seq: 1, data: b64("a"), reset: true, rows: 120, cols: 97 });
+    client.setZoom(true);
+    await settle();
+    client.setZoom(false);
+    await settle();
+    expect(resizes()).toEqual([
+      ["terminal/resize", { terminalId: "t1", rows: 120, cols: 97, zoom: true }],
+      ["terminal/resize", { terminalId: "t1", rows: 120, cols: 97, zoom: false }],
+    ]);
+    client.dispose();
+  });
+
+  it("falls back to the opened size before any frame, and does nothing once stopped", async () => {
+    const { client } = await start();
+    client.setZoom(true);
+    expect(resizes()).toEqual([
+      ["terminal/resize", { terminalId: "t1", rows: 24, cols: 80, zoom: true }],
+    ]);
+    live[0]?.emit({ seq: 9, ended: true, exit: 0 });
+    client.setZoom(false);
+    expect(resizes()).toHaveLength(1);
+    client.dispose();
+  });
+});
+
+describe("why a terminal ended or could not open", () => {
+  it("keeps the reason of an ended frame", async () => {
+    const { client } = await start();
+    expect(client.endReason).toBeUndefined();
+    live[0]?.emit({ seq: 9, ended: true, exit: null, reason: "host_offline" });
+    expect(client.state).toBe("ended");
+    expect(client.endReason).toBe("host_offline");
+    client.dispose();
+  });
+
+  it("clears the reason when the terminal opens again", async () => {
+    const { client } = await start();
+    live[0]?.emit({ seq: 9, ended: true, exit: null, reason: "stale" });
+    await settle();
+    client.reopen();
+    await settle();
+    expect(client.state).toBe("live");
+    expect(client.endReason).toBeUndefined();
+    client.dispose();
+  });
+
+  it("is relay_down for a 503 HOST_NOT_CONNECTED, and gives up until reopen", async () => {
+    call.mockImplementation(async (proc: string) => {
+      if (proc === "terminal/open") {
+        opens += 1;
+        throw Object.assign(failure(503), { code: "HOST_NOT_CONNECTED" });
+      }
+      return { ok: true };
+    });
+    const { client } = await start();
+    expect(client.state).toBe("relay_down");
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(opens).toBe(1);
     client.dispose();
   });
 });
@@ -494,24 +565,6 @@ describe("stream hygiene", () => {
     client.dispose();
   });
 
-  it("sends a resize after open when the size changed while connecting", async () => {
-    const gate = deferred();
-    call.mockImplementation(async (proc: string, body: Json) => {
-      if (proc === "terminal/open") {
-        await gate.promise;
-        return { terminalId: "t1", seq: 0, rows: body.rows, cols: body.cols };
-      }
-      return { ok: true };
-    });
-    const { client } = await start();
-    client.resize(50, 150);
-    await vi.advanceTimersByTimeAsync(200);
-    gate.resolve();
-    await vi.advanceTimersByTimeAsync(0);
-    expect(call).toHaveBeenCalledWith("terminal/resize", { terminalId: "t1", rows: 50, cols: 150 });
-    client.dispose();
-  });
-
   it("resets the backoff on the first received frame, not on open", async () => {
     const { client } = await start();
     live[0]?.fail(failure(502));
@@ -652,40 +705,5 @@ describe("what the client reports when it stops trying", () => {
     expect(opens).toBe(2);
     expect(client.state).toBe("live");
     client.dispose();
-  });
-});
-
-describe("the first open waits for the page's size", () => {
-  it("opens at the first reported size, so there is one resize, not two", async () => {
-    const { client } = await start({ waitForSize: true });
-    expect(opens).toBe(0);
-    client.resize(40, 120);
-    await settle();
-    expect(call).toHaveBeenCalledWith("terminal/open", { id: "agent-1", rows: 40, cols: 120 });
-    await vi.advanceTimersByTimeAsync(500);
-    expect(call).not.toHaveBeenCalledWith("terminal/resize", expect.anything());
-    client.dispose();
-  });
-
-  it("falls back to the seeded size after a second", async () => {
-    const { client } = await start({ waitForSize: true });
-    await vi.advanceTimersByTimeAsync(999);
-    expect(opens).toBe(0);
-    await vi.advanceTimersByTimeAsync(1);
-    expect(call).toHaveBeenCalledWith("terminal/open", { id: "agent-1", rows: 24, cols: 80 });
-    client.dispose();
-  });
-
-  it("opens straight away when not asked to wait", async () => {
-    const { client } = await start();
-    expect(opens).toBe(1);
-    client.dispose();
-  });
-
-  it("a client disposed while waiting never opens", async () => {
-    const { client } = await start({ waitForSize: true });
-    client.dispose();
-    await vi.advanceTimersByTimeAsync(5_000);
-    expect(opens).toBe(0);
   });
 });

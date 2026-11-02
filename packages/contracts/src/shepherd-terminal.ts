@@ -21,10 +21,12 @@ export const TerminalInputInputSchema = z.object({
   data: z.string(),
   n: z.number().int().min(1),
 });
+/** The pane owns its size, so `rows` and `cols` are ignored; `zoom` is forwarded to the relay. */
 export const TerminalResizeInputSchema = z.object({
   terminalId: TerminalId,
   rows: Rows,
   cols: Cols,
+  zoom: z.boolean().optional(),
 });
 export const TerminalIdInputSchema = z.object({ terminalId: TerminalId });
 export const TerminalOkOutputSchema = z.object({ ok: z.literal(true) });
@@ -36,7 +38,8 @@ export const TerminalSubscribeInputSchema = z.object({
 /**
  * One output frame. `reset` means `data` replaces what the screen holds; `ended` closes the
  * stream for good (`exit` is the status, null when closed under the client); `taken_over` means
- * another client opened the same agent.
+ * another client opened the same agent. `rows` and `cols` are the pane's own size for the screen
+ * in `data`; `reason` says why a stream ended (host_offline, stale, pane_closed, ...).
  */
 export const TerminalFrameSchema = z.object({
   seq: z.number().int(),
@@ -44,6 +47,9 @@ export const TerminalFrameSchema = z.object({
   reset: z.boolean().optional(),
   ended: z.boolean().optional(),
   exit: z.number().int().nullable().optional(),
+  reason: z.string().optional(),
+  rows: Rows.optional(),
+  cols: Cols.optional(),
   taken_over: z.boolean().optional(),
 });
 export type TerminalFrame = z.infer<typeof TerminalFrameSchema>;

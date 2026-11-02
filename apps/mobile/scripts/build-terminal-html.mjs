@@ -1,4 +1,4 @@
-// Inlines xterm.js, its fit addon and CSS, and the page script into one HTML string and writes
+// Inlines xterm.js and its CSS, and the page script into one HTML string and writes
 // lib/terminal-html.generated.ts. Run `pnpm build:terminal` after changing any of them; a test
 // fails while the committed file is stale.
 import { readFileSync, writeFileSync } from "node:fs";
@@ -8,17 +8,20 @@ import ts from "typescript";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path) => readFileSync(join(root, path), "utf8");
-// The page and the key row share one control-byte table: the page inlines it from terminal-keys.ts.
-export function controlByteSource() {
-  const source = read("lib/terminal-keys.ts");
-  const begin = source.indexOf("// control-byte:begin");
-  const end = source.indexOf("// control-byte:end");
+// The page shares two tables with the app: the control bytes with the key row (terminal-keys.ts)
+// and the fit decisions with the tests (terminal-fit.ts). It inlines the marked blocks.
+function inlined(path, name) {
+  const source = read(path);
+  const begin = source.indexOf(`// ${name}:begin`);
+  const end = source.indexOf(`// ${name}:end`);
   const body = source
     .slice(source.indexOf("\n", begin), end)
     .replace("export function", "function");
   return ts.transpileModule(body, { compilerOptions: { target: ts.ScriptTarget.ES2019 } })
     .outputText;
 }
+export const controlByteSource = () => inlined("lib/terminal-keys.ts", "control-byte");
+export const fitSource = () => inlined("lib/terminal-fit.ts", "fit");
 // A source map comment points at a file the page does not have; "</script" would end the tag.
 const inlineScript = (code) =>
   code.replace(/\n?\/\/# sourceMappingURL=.*$/m, "").replaceAll("</script", "<\\/script");
@@ -31,11 +34,10 @@ export function buildTerminalHtml() {
     '<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">',
     `<style>${css}</style>`,
     "<style>html,body{margin:0;height:100%;overflow:hidden;background:transparent}",
-    "#t{position:absolute;top:0;right:0;bottom:0;left:0;padding:4px}</style>",
+    "#t{position:absolute;top:0;right:0;bottom:0;left:0;padding:4px;overflow:auto;touch-action:pan-x pan-y}</style>",
     '</head><body><div id="t"></div>',
     `<script>${inlineScript(read("node_modules/@xterm/xterm/lib/xterm.js"))}</script>`,
-    `<script>${inlineScript(read("node_modules/@xterm/addon-fit/lib/addon-fit.js"))}</script>`,
-    `<script>${inlineScript(controlByteSource())}</script>`,
+    `<script>${inlineScript(controlByteSource() + fitSource())}</script>`,
     `<script>${inlineScript(read("scripts/terminal-page.js"))}</script>`,
     "</body></html>",
     "",

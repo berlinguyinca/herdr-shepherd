@@ -9,7 +9,9 @@ function setup(clipboard = "") {
   const deps = {
     ready: vi.fn(),
     write: vi.fn(),
-    resize: vi.fn(),
+    setZoom: vi.fn(),
+    onZoom: vi.fn(),
+    onFit: vi.fn(),
     readClipboard: vi.fn(async () => clipboard),
     writeClipboard: vi.fn(async () => {}),
     send: (msg: NativeMsg) => void sent.push(msg),
@@ -23,23 +25,49 @@ const post = (handler: { onMessage(raw: string): void }, msg: unknown) =>
   handler.onMessage(JSON.stringify(msg));
 
 describe("terminal view handler", () => {
-  it("forwards typed bytes, sizes and ready", () => {
+  it("forwards typed bytes and ready, and shows how the pane is fitted", () => {
     const { deps, handler } = setup();
     post(handler, { t: "in", b64: bytesToBase64(text("ls")) });
-    post(handler, { t: "size", rows: 24, cols: 80 });
+    post(handler, { t: "fit", rows: 120, cols: 97, pct: 62 });
     post(handler, { t: "ready" });
     expect(deps.write).toHaveBeenCalledWith(text("ls"));
-    expect(deps.resize).toHaveBeenCalledWith(24, 80);
+    expect(deps.onFit).toHaveBeenCalledWith({ rows: 120, cols: 97, pct: 62 });
     expect(deps.ready).toHaveBeenCalledTimes(1);
+  });
+
+  it("never resizes the pty for a size message from the page", () => {
+    const { deps, handler } = setup();
+    post(handler, { t: "size", rows: 24, cols: 80 });
+    expect(deps.setZoom).not.toHaveBeenCalled();
+    expect(deps.onFit).not.toHaveBeenCalled();
+  });
+
+  it("toggles the zoom: asks the client and shows the state", () => {
+    const { deps, handler } = setup();
+    handler.toggleZoom();
+    expect(deps.setZoom).toHaveBeenLastCalledWith(true);
+    expect(deps.onZoom).toHaveBeenLastCalledWith(true);
+    handler.toggleZoom();
+    expect(deps.setZoom).toHaveBeenLastCalledWith(false);
+    expect(deps.onZoom).toHaveBeenLastCalledWith(false);
+  });
+
+  it("forgets the zoom when the terminal opens again", () => {
+    const { deps, handler } = setup();
+    handler.toggleZoom();
+    handler.resetZoom();
+    expect(deps.onZoom).toHaveBeenLastCalledWith(false);
+    handler.toggleZoom();
+    expect(deps.setZoom).toHaveBeenLastCalledWith(true);
   });
 
   it("ignores malformed messages and undecodable input", () => {
     const { deps, handler } = setup();
     handler.onMessage("nope");
     post(handler, { t: "in", b64: "!!!not base64!!!" });
-    post(handler, { t: "size", rows: 0, cols: 80 });
+    post(handler, { t: "fit", rows: 0, cols: 80, pct: 50 });
     expect(deps.write).not.toHaveBeenCalled();
-    expect(deps.resize).not.toHaveBeenCalled();
+    expect(deps.onFit).not.toHaveBeenCalled();
   });
 
   it("resets the Ctrl toggle when the page used it", () => {

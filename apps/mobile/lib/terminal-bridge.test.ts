@@ -4,7 +4,6 @@ import {
   base64ToBytes,
   bytesToBase64,
   clampFontSize,
-  clampSize,
   createLoadGate,
   createOutputBatcher,
   decodeFromWeb,
@@ -28,7 +27,7 @@ describe("terminal bridge codec", () => {
   it("round-trips every web message", () => {
     for (const msg of [
       { t: "in", b64: "aGk=" },
-      { t: "size", rows: 24, cols: 80 },
+      { t: "fit", rows: 24, cols: 80, pct: 62 },
       { t: "ready" },
       { t: "copy", text: "echo hi\nsecond line" },
     ] as const) {
@@ -39,6 +38,7 @@ describe("terminal bridge codec", () => {
   it("encodes native messages as JSON the page can parse", () => {
     const msgs: NativeMsg[] = [
       { t: "out", b64: "aGk=" },
+      { t: "out", b64: "aGk=", rows: 120, cols: 97 },
       { t: "clear" },
       { t: "theme", dark: true },
       { t: "focus" },
@@ -60,9 +60,11 @@ describe("terminal bridge codec", () => {
       '{"t":"nope"}',
       '{"t":"in"}',
       '{"t":"in","b64":7}',
-      '{"t":"size","rows":"24","cols":80}',
-      '{"t":"size","rows":0,"cols":80}',
-      '{"t":"size","rows":24.5,"cols":80}',
+      '{"t":"fit","rows":"24","cols":80,"pct":50}',
+      '{"t":"fit","rows":0,"cols":80,"pct":50}',
+      '{"t":"fit","rows":24.5,"cols":80,"pct":50}',
+      '{"t":"fit","rows":24,"cols":80}',
+      '{"t":"fit","rows":24,"cols":80,"pct":-1}',
       '{"t":"copy"}',
       '{"t":"out","b64":"aGk="}',
     ]) {
@@ -71,37 +73,26 @@ describe("terminal bridge codec", () => {
     expect(decodeFromWeb(undefined as unknown as string)).toBeNull();
   });
 
-  it("rejects a size outside 1..500 rows and 1..1000 cols", () => {
-    const size = (rows: unknown, cols: unknown) =>
-      decodeFromWeb(JSON.stringify({ t: "size", rows, cols }));
-    expect(size(500, 1000)).toEqual({ t: "size", rows: 500, cols: 1000 });
-    expect(size(1, 1)).toEqual({ t: "size", rows: 1, cols: 1 });
+  it("rejects a fit outside 1..500 rows and 1..1000 cols", () => {
+    const fitMsg = (rows: unknown, cols: unknown) =>
+      decodeFromWeb(JSON.stringify({ t: "fit", rows, cols, pct: 100 }));
+    expect(fitMsg(500, 1000)).toEqual({ t: "fit", rows: 500, cols: 1000, pct: 100 });
+    expect(fitMsg(1, 1)).toEqual({ t: "fit", rows: 1, cols: 1, pct: 100 });
     for (const [rows, cols] of [
       [0, 80],
       [24, 0],
       [501, 80],
       [24, 1001],
       [1e9, 80],
-      [24, 1e9],
       [-1, 80],
-      [24, -5],
-      [24.5, 80],
       [24, null],
     ]) {
-      expect(size(rows, cols), `${rows}x${cols}`).toBeNull();
+      expect(fitMsg(rows, cols), `${rows}x${cols}`).toBeNull();
     }
-    expect(decodeFromWeb('{"t":"size","rows":NaN,"cols":80}')).toBeNull();
   });
 
-  it("clamps a size for the client", () => {
-    expect(clampSize(24, 80)).toEqual({ rows: 24, cols: 80 });
-    expect(clampSize(0, 0)).toEqual({ rows: 1, cols: 1 });
-    expect(clampSize(501, 1001)).toEqual({ rows: 500, cols: 1000 });
-    expect(clampSize(1e9, 1e9)).toEqual({ rows: 500, cols: 1000 });
-    expect(clampSize(-3, -3)).toEqual({ rows: 1, cols: 1 });
-    expect(clampSize(24.6, 80.2)).toEqual({ rows: 25, cols: 80 });
-    expect(clampSize(Number.NaN, 80)).toBeNull();
-    expect(clampSize(24, Number.POSITIVE_INFINITY)).toBeNull();
+  it("no longer knows a size message: the page does not resize the pty", () => {
+    expect(decodeFromWeb('{"t":"size","rows":24,"cols":80}')).toBeNull();
   });
 
   it("carries arbitrary bytes through base64", () => {
@@ -328,6 +319,37 @@ describe("output batcher limits", () => {
     const sizes = sent.map((msg) => (msg.t === "out" ? base64ToBytes(msg.b64).length : -1));
     expect(OUT_CHUNK_BYTES).toBe(256 * 1024);
     expect(sizes).toEqual([OUT_CHUNK_BYTES, OUT_CHUNK_BYTES, 10]);
+  });
+
+  it("tells the page the pane's size with the first message of a frame only", () => {
+    const { sent, batcher, tick } = run();
+    batcher.setReady(true);
+    batcher.push({ kind: "clear" });
+    batcher.push({
+      kind: "data",
+      data: new Uint8Array(OUT_CHUNK_BYTES + 1).fill(7),
+      rows: 120,
+      cols: 97,
+    });
+    tick();
+    expect(sent.map((msg) => msg.t)).toEqual(["clear", "out", "out"]);
+    expect(sent[1]).toMatchObject({ rows: 120, cols: 97 });
+    expect(sent[2]).not.toHaveProperty("rows");
+    expect(sent[2]).not.toHaveProperty("cols");
+  });
+
+  it("keeps each frame's own size when frames queue up behind a clear", () => {
+    const { sent, batcher, tick } = run();
+    batcher.setReady(true);
+    batcher.push({ kind: "clear" });
+    batcher.push({ kind: "data", data: bytes("a"), rows: 10, cols: 20 });
+    batcher.push({ kind: "clear" });
+    batcher.push({ kind: "data", data: bytes("b"), rows: 30, cols: 40 });
+    tick();
+    expect(sent.filter((m) => m.t === "out")).toMatchObject([
+      { rows: 10, cols: 20 },
+      { rows: 30, cols: 40 },
+    ]);
   });
 
   it("drops everything and reports it when too much waits for a page that is not ready", () => {

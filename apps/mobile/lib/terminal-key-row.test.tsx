@@ -80,6 +80,8 @@ const props = {
   onKey: noop,
   onToggleCtrl: noop,
   onToggleKeyboard: noop,
+  zoom: false,
+  onToggleZoom: noop,
   onPaste: noop,
   onCopy: noop,
   bottomInset: 0,
@@ -207,4 +209,18 @@ it("pads the bottom by the inset it is given, so the home indicator clears the k
     Record<string, unknown>
   >;
   expect(flat.some((style) => style.paddingBottom === 4)).toBe(true);
+});
+
+it("has a Zoom pane switch that shows its state and calls its handler", () => {
+  const onToggleZoom = vi.fn();
+  render({ onToggleZoom });
+  expect(byId("zoom")?.getAttribute("aria-label")).toBe("Zoom pane");
+  expect(byId("zoom")?.getAttribute("data-role")).toBe("switch");
+  expect(byId("zoom")?.getAttribute("data-checked")).toBe("false");
+  act(() => {
+    byId("zoom")?.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+  });
+  expect(onToggleZoom).toHaveBeenCalledTimes(1);
+  render({ zoom: true });
+  expect(byId("zoom")?.getAttribute("data-checked")).toBe("true");
 });

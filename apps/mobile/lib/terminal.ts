@@ -1,15 +1,12 @@
 import type { RpcOutput, TerminalFrame } from "@rakazo/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { rpc, streamRpc } from "./api";
-import {
-  clampSize,
-  base64ToBytes as fromBase64,
-  bytesToBase64 as toBase64,
-} from "./terminal-bridge";
+import { base64ToBytes as fromBase64, bytesToBase64 as toBase64 } from "./terminal-bridge";
 
 /**
  * `error` is backing off before another try; `busy` is the same after a 429 (too many open
- * terminals); `failed` means the client gave up (a refusal asking again cannot change).
+ * terminals); `failed` means the client gave up (a refusal asking again cannot change);
+ * `relay_down` is the same after a 503 HOST_NOT_CONNECTED (the host's relay is not running).
  */
 export type TerminalState =
   | "connecting"
@@ -18,18 +15,21 @@ export type TerminalState =
   | "taken_over"
   | "error"
   | "busy"
-  | "failed";
+  | "failed"
+  | "relay_down";
 
-/** Screen output: bytes to feed the emulator, or a signal to wipe it before a replay. */
-export type TerminalOutput = { kind: "data"; data: Uint8Array } | { kind: "clear" };
+/**
+ * Screen output: bytes to feed the emulator, or a signal to wipe it before a replay. A frame's
+ * data carries the pane's own size (`rows`, `cols`), which the emulator must take before writing.
+ */
+export type TerminalOutput =
+  | { kind: "data"; data: Uint8Array; rows?: number; cols?: number }
+  | { kind: "clear" };
 
 /** Batch keystrokes typed within this long into one call. */
 export const WRITE_BATCH_MS = 8;
 /** The bridge takes 64 KB per call; stay well below it. */
 export const WRITE_CHUNK_BYTES = 32 * 1024;
-export const RESIZE_DEBOUNCE_MS = 150;
-/** The first open waits this long for the page's real size before using the seeded one. */
-export const FIRST_SIZE_WAIT_MS = 1_000;
 export const BACKOFF_MIN_MS = 500;
 export const BACKOFF_MAX_MS = 8_000;
 /** A stream that closed cleanly after this long was alive (heartbeats), so it does not back off. */
@@ -69,6 +69,10 @@ const isFinal4xx = (error: unknown) => {
     typeof status === "number" && status >= 400 && status < 500 && status !== 408 && status !== 429
   );
 };
+const codeOf = (error: unknown): unknown =>
+  typeof error === "object" && error !== null && "code" in error
+    ? (error as { code?: unknown }).code
+    : undefined;
 const retryAfterOf = (error: unknown): number =>
   typeof error === "object" && error !== null && "retryAfterMs" in error
     ? Number((error as { retryAfterMs?: unknown }).retryAfterMs) || 0
@@ -78,8 +82,10 @@ export type TerminalClient = {
   readonly state: TerminalState;
   /** Types the bytes; order is kept across batching, retries and reconnects. */
   write(bytes: Uint8Array): void;
-  /** Debounced to the last size. */
-  resize(rows: number, cols: number): void;
+  /** Asks the relay to zoom the pane (or not); the pane keeps its own size. */
+  setZoom(on: boolean): void;
+  /** Why the stream ended (`ended` state), when the server said. */
+  readonly endReason: string | undefined;
   /** Opens the terminal again after another client took it over, it ended, or the client gave up. */
   reopen(): void;
   /** Retires the terminal on the server (best effort) and stops; `dispose` alone leaves it. */
@@ -100,9 +106,10 @@ export type TerminalClient = {
 export function createTerminalClient(
   agentId: string,
   size: { rows: number; cols: number },
-  options: { waitForSize?: boolean } = {},
 ): TerminalClient {
+  // The size the terminal was opened at, then the pane's own as frames report it.
   let { rows, cols } = size;
+  let endReason: string | undefined;
   let state: TerminalState = "connecting";
   let terminalId: string | undefined;
   let cursor = 0;
@@ -111,8 +118,6 @@ export function createTerminalClient(
   let running = false;
   let everOpened = false;
   let controller = new AbortController();
-  let sizeSeen = !options.waitForSize;
-  let sizeWake: (() => void) | undefined;
   const outputs = new Set<(chunk: TerminalOutput) => void>();
   const states = new Set<(state: TerminalState) => void>();
   const inputErrors = new Set<(error: unknown) => void>();
@@ -122,7 +127,6 @@ export function createTerminalClient(
   const queue: Pending[] = [];
   let pumping = false;
   let pumpTimer: ReturnType<typeof setTimeout> | undefined;
-  let resizeTimer: ReturnType<typeof setTimeout> | undefined;
   let wake: (() => void) | undefined;
   let pumpWake: (() => void) | undefined;
 
@@ -150,23 +154,6 @@ export function createTerminalClient(
       };
     });
 
-  /** Holds the first open for the page's size, so open carries it and no resize follows. */
-  const firstSize = () =>
-    sizeSeen
-      ? Promise.resolve()
-      : new Promise<void>((resolve) => {
-          const timer = setTimeout(() => {
-            sizeSeen = true;
-            sizeWake = undefined;
-            resolve();
-          }, FIRST_SIZE_WAIT_MS);
-          sizeWake = () => {
-            clearTimeout(timer);
-            sizeWake = undefined;
-            resolve();
-          };
-        });
-
   const settled = (next: "ended" | "taken_over") => {
     setState(next);
     controller.abort();
@@ -180,10 +167,16 @@ export function createTerminalClient(
     if (frame.seq <= cursor) return;
     cursor = frame.seq;
     if (frame.taken_over) return settled("taken_over");
-    if (frame.ended) return settled("ended");
+    if (frame.ended) {
+      endReason = frame.reason;
+      return settled("ended");
+    }
     if (frame.reset) emit({ kind: "clear" });
+    if (frame.rows !== undefined && frame.cols !== undefined) {
+      ({ rows, cols } = { rows: frame.rows, cols: frame.cols });
+    }
     if (typeof frame.data === "string" && frame.data) {
-      emit({ kind: "data", data: fromBase64(frame.data) });
+      emit({ kind: "data", data: fromBase64(frame.data), rows: frame.rows, cols: frame.cols });
     }
   };
 
@@ -204,10 +197,7 @@ export function createTerminalClient(
         try {
           if (needOpen) {
             setState("connecting");
-            await firstSize();
-            if (disposed) return;
-            const asked = { rows, cols };
-            const opened = await openTerminal(agentId, asked.rows, asked.cols);
+            const opened = await openTerminal(agentId, rows, cols);
             if (disposed) return;
             terminalId = opened.terminalId;
             nextN = 1;
@@ -217,7 +207,7 @@ export function createTerminalClient(
             if (everOpened) emit({ kind: "clear" });
             everOpened = true;
             needOpen = false;
-            if (asked.rows !== rows || asked.cols !== cols) sendResize();
+            endReason = undefined;
           }
           setState("live");
           void pump();
@@ -233,6 +223,11 @@ export function createTerminalClient(
           if (needOpen && isFinal4xx(error)) {
             queue.length = 0;
             return setState("failed");
+          }
+          // The host's relay is not running: it will not start by asking again.
+          if (needOpen && statusOf(error) === 503 && codeOf(error) === "HOST_NOT_CONNECTED") {
+            queue.length = 0;
+            return setState("relay_down");
           }
           // The same terminal answering 404: another client's open retired it.
           if (!needOpen && statusOf(error) === 404) return settled("taken_over");
@@ -313,12 +308,6 @@ export function createTerminalClient(
     }
   }
 
-  const sendResize = () => {
-    if (!terminalId) return;
-    // Best effort: the next open carries the size anyway.
-    rpc("terminal/resize", { terminalId, rows, cols }).catch(() => undefined);
-  };
-
   const flush = () => {
     batchTimer = undefined;
     const total = batch.reduce((sum, part) => sum + part.length, 0);
@@ -361,22 +350,13 @@ export function createTerminalClient(
       batch.push(bytes.slice());
       batchTimer ??= setTimeout(flush, WRITE_BATCH_MS);
     },
-    resize(nextRows, nextCols) {
-      // Never store a size the bridge would refuse: it would be sent again by the next open.
-      const clamped = clampSize(nextRows, nextCols);
-      if (!clamped) return;
-      ({ rows, cols } = clamped);
-      if (!sizeSeen) {
-        // The first open is still waiting for this: it carries the size, no resize follows.
-        sizeSeen = true;
-        sizeWake?.();
-        return;
-      }
-      clearTimeout(resizeTimer);
-      resizeTimer = setTimeout(() => {
-        if (disposed || state !== "live") return;
-        sendResize();
-      }, RESIZE_DEBOUNCE_MS);
+    get endReason() {
+      return endReason;
+    },
+    setZoom(on) {
+      if (!terminalId || disposed || state !== "live") return;
+      // Best effort. The relay ignores the size: the pane owns it, and the schema wants one.
+      rpc("terminal/resize", { terminalId, rows, cols, zoom: on }).catch(() => undefined);
     },
     reopen() {
       if (disposed || running || state === "live" || state === "connecting") return;
@@ -404,11 +384,9 @@ export function createTerminalClient(
     },
     dispose() {
       disposed = true;
-      sizeWake?.();
       controller.abort();
       clearTimeout(batchTimer);
       clearTimeout(pumpTimer);
-      clearTimeout(resizeTimer);
       wake?.();
       pumpWake?.();
     },
@@ -417,9 +395,8 @@ export function createTerminalClient(
 }
 
 /**
- * The terminal of one agent: connection state, input, resize and a subscription to its output.
- * `size` only seeds the first open (which waits a moment for the page's real size, reported with
- * resize()). The terminal is closed on the server when the agent changes or the view goes away
+ * The terminal of one agent: connection state, input, zoom and a subscription to its output.
+ * `size` only seeds the open: the pane owns its size and each frame reports it. The terminal is closed on the server when the agent changes or the view goes away
  * for good; backgrounding or an app kill leaves it for a reattach.
  */
 export function useTerminal(
@@ -429,6 +406,7 @@ export function useTerminal(
   retain?: { current: boolean },
 ) {
   const [state, setState] = useState<TerminalState>("connecting");
+  const [reason, setReason] = useState<string | undefined>(undefined);
   const client = useRef<TerminalClient | undefined>(undefined);
   const listeners = useRef(new Set<(chunk: TerminalOutput) => void>());
   const errorListeners = useRef(new Set<(error: unknown) => void>());
@@ -436,9 +414,13 @@ export function useTerminal(
 
   useEffect(() => {
     setState("connecting");
-    const next = createTerminalClient(agentId, { rows, cols }, { waitForSize: true });
+    setReason(undefined);
+    const next = createTerminalClient(agentId, { rows, cols });
     client.current = next;
-    const stopState = next.onState(setState);
+    const stopState = next.onState((value) => {
+      setReason(value === "ended" ? next.endReason : undefined);
+      setState(value);
+    });
     const stopOutput = next.onOutput((chunk) => {
       for (const callback of listeners.current) callback(chunk);
     });
@@ -456,10 +438,7 @@ export function useTerminal(
   }, [agentId]);
 
   const write = useCallback((bytes: Uint8Array) => client.current?.write(bytes), []);
-  const resize = useCallback(
-    (nextRows: number, nextCols: number) => client.current?.resize(nextRows, nextCols),
-    [],
-  );
+  const setZoom = useCallback((on: boolean) => client.current?.setZoom(on), []);
   const onInputError = useCallback((callback: (error: unknown) => void) => {
     errorListeners.current.add(callback);
     return () => {
@@ -474,5 +453,5 @@ export function useTerminal(
     };
   }, []);
 
-  return { state, write, resize, reopen, onOutput, onInputError };
+  return { state, reason, write, setZoom, reopen, onOutput, onInputError };
 }

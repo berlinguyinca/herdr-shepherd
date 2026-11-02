@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { base64ToBytes, bytesToBase64, MAX_CLIPBOARD_BYTES } from "./terminal-bridge";
+import { paneFit, pinchScale } from "./terminal-fit";
 import { terminalHtml } from "./terminal-html.generated";
 import { controlByte } from "./terminal-keys";
 
@@ -52,8 +53,14 @@ class FakeTerminal {
     this.pasted.push(text);
     this.onDataCb(text);
   }
-  write(_data: Uint8Array, cb?: () => void) {
+  write(data: Uint8Array | string, cb?: () => void) {
+    log.push(typeof data === "string" ? `write:${data}` : "write:data");
     cb?.();
+  }
+  resize(cols: number, rows: number) {
+    log.push(`resize:${cols}x${rows}`);
+    this.cols = cols;
+    this.rows = rows;
   }
   reset() {}
 }
@@ -62,6 +69,13 @@ let posted: Posted[];
 let log: string[];
 // Each test runs a fresh page; the earlier pages' window listeners must not answer this one.
 let listeners: Array<[string, EventListener]>;
+let observed: () => void;
+const box = () => document.getElementById("t") as HTMLElement;
+const define = (el: HTMLElement, props: Record<string, number>) => {
+  for (const [key, value] of Object.entries(props)) {
+    Object.defineProperty(el, key, { configurable: true, writable: true, value });
+  }
+};
 
 const message = (msg: unknown) =>
   window.dispatchEvent(new MessageEvent("message", { data: JSON.stringify(msg) }));
@@ -90,22 +104,17 @@ beforeEach(() => {
   });
   Object.assign(globalThis, {
     Terminal: FakeTerminal,
-    FitAddon: {
-      // Ten points a cell, so a collapsed page fits to nothing, as the real addon would.
-      FitAddon: class {
-        fit() {
-          fake.term.rows = Math.floor(document.body.clientHeight / 10);
-          fake.term.cols = Math.floor(document.body.clientWidth / 10);
-        }
-      },
-    },
     ResizeObserver: class {
+      constructor(cb: () => void) {
+        observed = cb;
+      }
       observe() {}
     },
   });
   (window as unknown as { ReactNativeWebView: unknown }).ReactNativeWebView = {
     postMessage: (raw: string) => posted.push(JSON.parse(raw)),
   };
+  define(box(), { clientWidth: 308, clientHeight: 300, scrollHeight: 1000, scrollTop: 0 });
   new Function(`${helperSource}\n${pageSource}`)();
   posted.length = 0;
   const area = fake.term.textarea;
@@ -161,22 +170,224 @@ describe("terminal page: soft keyboard Ctrl", () => {
   });
 });
 
-describe("terminal page: size", () => {
-  const resize = () => window.dispatchEvent(new Event("resize"));
-  const setBody = (width: number, height: number) => {
-    Object.defineProperty(document.body, "clientWidth", { configurable: true, value: width });
-    Object.defineProperty(document.body, "clientHeight", { configurable: true, value: height });
-  };
+const frame = (rows: number, cols: number, extra: Record<string, unknown> = {}) =>
+  message({
+    t: "out",
+    b64: bytesToBase64(new TextEncoder().encode("screen")),
+    rows,
+    cols,
+    ...extra,
+  });
+const fits = () => posted.filter((m) => m.t === "fit");
+const touch = (type: string, points: Array<[number, number]>) => {
+  const event = new Event(type, { bubbles: true, cancelable: true });
+  const list = points.map(([clientX, clientY]) => ({ clientX, clientY }));
+  Object.assign(event, { touches: type === "touchend" ? [] : list, changedTouches: list });
+  box().dispatchEvent(event);
+  return event;
+};
 
-  it("ignores a fit while the page has no width or no height, and reports once it has both", () => {
-    setBody(0, 400);
-    resize();
-    setBody(300, 0);
-    resize();
-    expect(posted.filter((m) => m.t === "size")).toEqual([]);
-    setBody(200, 100);
-    resize();
-    expect(posted.filter((m) => m.t === "size")).toEqual([{ t: "size", rows: 10, cols: 20 }]);
+describe("terminal page: the pane's size", () => {
+  it("takes the frame's size before writing the frame", () => {
+    log.length = 0;
+    frame(120, 97);
+    expect(log.filter((l) => /^(resize|write)/.test(l))).toEqual([
+      "resize:97x120",
+      "write:\x1b[?25l",
+      "write:data",
+    ]);
+    expect(fake.term.rows).toBe(120);
+    expect(fake.term.cols).toBe(97);
+  });
+
+  it("does not resize when the frame has the size the terminal already has", () => {
+    frame(120, 97);
+    log.length = 0;
+    frame(120, 97);
+    expect(log.some((l) => l.startsWith("resize"))).toBe(false);
+  });
+
+  it("ignores a size outside 1..500 rows and 1..1000 cols, and a frame without one", () => {
+    log.length = 0;
+    frame(0, 80);
+    frame(24, 1001);
+    frame(24.5, 80);
+    message({ t: "out", b64: "" });
+    expect(log.some((l) => l.startsWith("resize"))).toBe(false);
+    expect(fits()).toEqual([]);
+    expect(log.filter((l) => l === "write:data").length).toBe(4);
+  });
+
+  it("never reports a size for the pty, however the page is laid out", () => {
+    window.dispatchEvent(new Event("resize"));
+    window.dispatchEvent(new Event("orientationchange"));
+    observed();
+    frame(120, 97);
+    expect(posted.some((m) => m.t === "size")).toBe(false);
+  });
+});
+
+describe("terminal page: no cursor, no scrollback", () => {
+  it("hides the cursor in the options and in what it writes, and keeps no scrollback", () => {
+    expect(fake.term.options.cursorBlink).toBe(false);
+    expect(fake.term.options.cursorInactiveStyle).toBe("none");
+    expect(fake.term.options.scrollback).toBe(0);
+    log.length = 0;
+    message({ t: "out", b64: "" });
+    expect(log.indexOf("write:\x1b[?25l")).toBeGreaterThanOrEqual(0);
+    expect(log.indexOf("write:\x1b[?25l")).toBeLessThan(log.indexOf("write:data"));
+  });
+});
+
+describe("terminal page: fit to the width", () => {
+  it("keeps the user's font where the pane fits and says so", () => {
+    frame(24, 30);
+    expect(fake.term.options.fontSize).toBe(13);
+    expect(fits().at(-1)).toEqual({ t: "fit", rows: 24, cols: 30, pct: 100 });
+    expect(box().style.overflowX).toBe("hidden");
+    expect(box().style.overflowY).toBe("auto");
+  });
+
+  it("scales the font to the container width, using the shared decision", () => {
+    frame(120, 50);
+    const expected = paneFit(300, 50, 13, 1);
+    expect(fake.term.options.fontSize).toBe(expected.font);
+    expect(expected.font).toBeLessThan(13);
+    expect(fits().at(-1)).toEqual({ t: "fit", rows: 120, cols: 50, pct: expected.pct });
+  });
+
+  it("pans sideways only where the font would fall under 6", () => {
+    frame(24, 200);
+    expect(fake.term.options.fontSize).toBe(6);
+    expect(box().style.overflowX).toBe("auto");
+  });
+
+  it("refits when the container changes width and when the user's font changes", () => {
+    frame(120, 50);
+    define(box(), { clientWidth: 208 });
+    observed();
+    expect(fake.term.options.fontSize).toBe(paneFit(200, 50, 13, 1).font);
+    message({ t: "font", size: 10 });
+    expect(fake.term.options.fontSize).toBe(paneFit(200, 50, 10, 1).font);
+  });
+
+  it("waits for a container with a width", () => {
+    define(box(), { clientWidth: 0 });
+    frame(120, 50);
+    expect(fits()).toEqual([]);
+    define(box(), { clientWidth: 308 });
+    observed();
+    expect(fits()).toHaveLength(1);
+  });
+
+  it("reports a fit once per change", () => {
+    frame(120, 50);
+    frame(120, 50);
+    observed();
+    expect(fits()).toHaveLength(1);
+  });
+});
+
+describe("terminal page: pinch and double tap", () => {
+  it("multiplies the scale by the fingers' spread, between 1x and 4x", () => {
+    frame(24, 30);
+    touch("touchstart", [
+      [0, 0],
+      [100, 0],
+    ]);
+    touch("touchmove", [
+      [0, 0],
+      [200, 0],
+    ]);
+    expect(fake.term.options.fontSize).toBe(paneFit(300, 30, 13, pinchScale(1, 100, 200)).font);
+    touch("touchmove", [
+      [0, 0],
+      [5000, 0],
+    ]);
+    expect(fake.term.options.fontSize).toBe(13 * 4);
+    expect(fits().at(-1)).toMatchObject({ pct: 400 });
+    touch("touchmove", [
+      [0, 0],
+      [1, 0],
+    ]);
+    expect(fake.term.options.fontSize).toBe(13);
+  });
+
+  it("keeps the scale after the fingers lift, and a two-finger move is not a scroll", () => {
+    frame(24, 30);
+    touch("touchstart", [
+      [0, 0],
+      [100, 0],
+    ]);
+    const move = touch("touchmove", [
+      [0, 0],
+      [200, 0],
+    ]);
+    expect(move.defaultPrevented).toBe(true);
+    touch("touchend", [[0, 0]]);
+    expect(fake.term.options.fontSize).toBe(26);
+  });
+
+  it("a double tap resets the scale", () => {
+    frame(24, 30);
+    touch("touchstart", [
+      [0, 0],
+      [100, 0],
+    ]);
+    touch("touchmove", [
+      [0, 0],
+      [300, 0],
+    ]);
+    touch("touchend", [[0, 0]]);
+    expect(fake.term.options.fontSize).toBe(39);
+    touch("touchstart", [[10, 10]]);
+    touch("touchend", [[10, 10]]);
+    touch("touchstart", [[10, 10]]);
+    touch("touchend", [[10, 10]]);
+    expect(fake.term.options.fontSize).toBe(13);
+  });
+
+  it("a single tap does not reset it", () => {
+    frame(24, 30);
+    touch("touchstart", [
+      [0, 0],
+      [100, 0],
+    ]);
+    touch("touchmove", [
+      [0, 0],
+      [200, 0],
+    ]);
+    touch("touchend", [[0, 0]]);
+    touch("touchstart", [[10, 10]]);
+    touch("touchend", [[10, 10]]);
+    expect(fake.term.options.fontSize).toBe(26);
+  });
+});
+
+describe("terminal page: the bottom of the pane", () => {
+  it("scrolls to the last row with each frame", () => {
+    frame(120, 50);
+    expect(box().scrollTop).toBe(1000);
+  });
+
+  it("stays at the bottom when the container shrinks, as under a soft keyboard", () => {
+    frame(120, 50);
+    define(box(), { clientHeight: 150, scrollHeight: 1200 });
+    observed();
+    expect(box().scrollTop).toBe(1200);
+  });
+
+  it("leaves the place alone once the person scrolled up", () => {
+    frame(120, 50);
+    define(box(), { scrollTop: 100 });
+    box().dispatchEvent(new Event("scroll"));
+    frame(120, 50);
+    observed();
+    expect(box().scrollTop).toBe(100);
+    define(box(), { scrollTop: 700 });
+    box().dispatchEvent(new Event("scroll"));
+    frame(120, 50);
+    expect(box().scrollTop).toBe(1000);
   });
 });
 

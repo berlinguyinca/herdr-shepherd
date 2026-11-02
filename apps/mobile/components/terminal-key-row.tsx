@@ -14,7 +14,7 @@ const GLYPHS: Record<string, string> = { Left: "←", Down: "↓", Up: "↑", Ri
 
 /**
  * One line of keys above the soft keyboard: Esc, a sticky Ctrl, Tab, arrows and a few symbols,
- * plus the keyboard toggle, Paste and (while text is selected) Copy. It scrolls sideways where
+ * plus the keyboard toggle, the Zoom pane toggle, Paste and (while text is selected) Copy. It scrolls sideways where
  * the screen is narrower than the keys; every key keeps a 44 pt tap target. Held arrows repeat.
  */
 export function TerminalKeyRow({
@@ -25,6 +25,8 @@ export function TerminalKeyRow({
   onKey,
   onToggleCtrl,
   onToggleKeyboard,
+  zoom,
+  onToggleZoom,
   onPaste,
   onCopy,
   bottomInset,
@@ -36,6 +38,8 @@ export function TerminalKeyRow({
   onKey: (key: KeyName) => void;
   onToggleCtrl: () => void;
   onToggleKeyboard: () => void;
+  zoom: boolean;
+  onToggleZoom: () => void;
   onPaste: () => void;
   onCopy: () => void;
   /** Home indicator height to clear while the soft keyboard is not showing. */
@@ -154,6 +158,7 @@ export function TerminalKeyRow({
                 unstable_pressDelay: PRESS_DELAY_MS,
               }),
         )}
+        {button("zoom", t("Zoom pane"), t("Zoom pane"), { onPress: onToggleZoom }, zoom)}
         {button("paste", t("Paste"), t("Paste"), { onPress: onPaste })}
         {hasSelection ? button("copy", t("Copy"), t("Copy"), { onPress: onCopy }) : null}
       </ScrollView>
