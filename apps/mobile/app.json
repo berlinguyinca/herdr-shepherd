@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "Herdr",
-    "slug": "herdr",
+    "name": "Shepherd",
+    "slug": "shepherd",
     "owner": "inbox-zero",
     "scheme": "rakazo",
     "version": "1.0.11",
@@ -26,14 +26,14 @@
         "expo-audio",
         {
           "enableBackgroundPlayback": false,
-          "microphonePermission": "Herdr uses the microphone for voice calls with your bots."
+          "microphonePermission": "Shepherd uses the microphone for voice calls with your bots."
         }
       ],
       [
         "expo-speech-recognition",
         {
-          "speechRecognitionPermission": "Herdr turns your speech into messages during voice calls.",
-          "microphonePermission": "Herdr uses the microphone for voice calls with your bots."
+          "speechRecognitionPermission": "Shepherd turns your speech into messages during voice calls.",
+          "microphonePermission": "Shepherd uses the microphone for voice calls with your bots."
         }
       ],
       "expo-localization",
@@ -48,9 +48,9 @@
       [
         "expo-image-picker",
         {
-          "photosPermission": "Herdr uses your photo library so you can attach images to a bot message.",
-          "cameraPermission": "Herdr uses the camera so you can attach photos to a bot message.",
-          "microphonePermission": "Herdr uses the microphone for voice calls with your bots."
+          "photosPermission": "Shepherd uses your photo library so you can attach images to a bot message.",
+          "cameraPermission": "Shepherd uses the camera so you can attach photos to a bot message.",
+          "microphonePermission": "Shepherd uses the microphone for voice calls with your bots."
         }
       ],
       [
@@ -83,7 +83,7 @@
       "./plugins/with-lan-cleartext"
     ],
     "ios": {
-      "bundleIdentifier": "com.berlinguyinca.herdr",
+      "bundleIdentifier": "com.berlinguyinca.shepherd",
       "buildNumber": "1",
       "supportsTablet": false,
       "icon": "../../packages/ui-tokens/assets/Rakazo.icon",
@@ -91,16 +91,16 @@
         "usesNonExemptEncryption": false
       },
       "infoPlist": {
-        "NSCameraUsageDescription": "Herdr uses the camera so you can attach photos to a bot message.",
-        "NSPhotoLibraryUsageDescription": "Herdr uses your photo library so you can attach images to a bot message.",
-        "NSLocalNetworkUsageDescription": "Herdr connects to a self-hosted Herdr server on your local network.",
+        "NSCameraUsageDescription": "Shepherd uses the camera so you can attach photos to a bot message.",
+        "NSPhotoLibraryUsageDescription": "Shepherd uses your photo library so you can attach images to a bot message.",
+        "NSLocalNetworkUsageDescription": "Shepherd connects to a self-hosted Shepherd server on your local network.",
         "NSAppTransportSecurity": {
           "NSAllowsLocalNetworking": true
         }
       }
     },
     "android": {
-      "package": "com.berlinguyinca.herdr",
+      "package": "com.berlinguyinca.shepherd",
       "versionCode": 10,
       "softwareKeyboardLayoutMode": "resize",
       "icon": "./assets/icon.png",

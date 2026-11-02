@@ -104,8 +104,8 @@ export const NL_MESSAGES: Record<string, string> = {
   "Your model provider": "Jouw modelaanbieder",
   "Connect a model in Settings before running bots.":
     "Verbind een model in Instellingen voordat je bots uitvoert.",
-  "Connect your own API key in Models or choose Herdr credits in Billing.":
-    "Verbind je eigen API-sleutel bij Modellen of kies Herdr-tegoed bij Facturatie.",
+  "Connect your own API key in Models or choose Shepherd credits in Billing.":
+    "Verbind je eigen API-sleutel bij Modellen of kies Shepherd-tegoed bij Facturatie.",
   "The model provider returned an error.": "De modelaanbieder heeft een fout teruggegeven.",
   "{provider} is rate limiting requests. Try again shortly.":
     "{provider} beperkt het aantal verzoeken. Probeer het zo nog eens.",
@@ -171,8 +171,8 @@ export const NL_MESSAGES: Record<string, string> = {
   "Chat Settings": "Chatinstellingen",
   "Configure a plugin catalog on the server to connect apps.":
     "Configureer een plugincatalogus op de server om apps te koppelen.",
-  "Paste the OpenAI-compatible address from your server. Herdr adds /v1 if needed.":
-    "Plak het OpenAI-compatibele adres van je server. Herdr voegt zo nodig /v1 toe.",
+  "Paste the OpenAI-compatible address from your server. Shepherd adds /v1 if needed.":
+    "Plak het OpenAI-compatibele adres van je server. Shepherd voegt zo nodig /v1 toe.",
   "Settings: General": "Instellingen: algemeen",
   "Settings: Usage": "Instellingen: gebruik",
   "Sign-in did not return a session": "De aanmelding gaf geen sessie terug",
@@ -212,9 +212,9 @@ export const NL_MESSAGES: Record<string, string> = {
   "Reset your password": "Je wachtwoord opnieuw instellen",
   "Send reset link": "Herstellingslink verzenden",
   Server: "Server",
-  "Sign in to Herdr": "Aanmelden bij Herdr",
+  "Sign in to Shepherd": "Aanmelden bij Shepherd",
   "Sign up": "Registreren",
-  "Sign up for Herdr": "Registreer je voor Herdr",
+  "Sign up for Shepherd": "Registreer je voor Shepherd",
   "Use a custom server": "Gebruik een eigen server",
   "Your dashboard": "Jouw dashboard",
   "This app only connects to your personal dashboard server":
@@ -535,8 +535,8 @@ export const NL_MESSAGES: Record<string, string> = {
   "Supports images": "Ondersteunt afbeeldingen",
   "Supports thinking": "Ondersteunt denken",
   "Then paste the code here.": "Plak daarna de code hier.",
-  "This subscription sign-in is not available in Herdr yet. Use a deployment credential or choose another provider.":
-    "Deze abonnementsaanmelding is nog niet beschikbaar in Herdr. Gebruik een implementatiegegeven of kies een andere aanbieder.",
+  "This subscription sign-in is not available in Shepherd yet. Use a deployment credential or choose another provider.":
+    "Deze abonnementsaanmelding is nog niet beschikbaar in Shepherd. Gebruik een implementatiegegeven of kies een andere aanbieder.",
   "Use a found model": "Een gevonden model gebruiken",
   "Waiting for sign-in…": "Wachten op aanmelding…",
   "exact-model-id": "exact-model-id",
@@ -804,7 +804,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Enter a server URL": "Voer een server-URL in",
   "Public servers need https://. HTTP only works on your local network.":
     "Openbare servers vereisen https://. HTTP werkt alleen op je lokale netwerk.",
-  "That URL did not look like a Herdr server": "Die URL leek geen Herdr-server",
+  "That URL did not look like a Shepherd server": "Die URL leek geen Shepherd-server",
   "That URL is missing a host": "Die URL mist een host",
   "That doesn’t look like a URL": "Dat lijkt geen URL",
   "Use an http or https URL": "Gebruik een http- of https-URL",
@@ -874,7 +874,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "AI models": "AI-modellen",
   Memory: "Geheugen",
   "Privacy policies": "Privacybeleid",
-  Herdr: "Herdr",
+  Shepherd: "Shepherd",
   "Withdraw all permissions": "Alle toestemmingen intrekken",
   "Withdraw all permissions?": "Alle toestemmingen intrekken?",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":
@@ -996,13 +996,13 @@ export const NL_MESSAGES: Record<string, string> = {
   Subscribe: "Abonneren",
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "Maandelijks tegoed vervalt bij verlenging. Los gekocht tegoed verloopt niet.",
-  "Use Herdr credits": "Herdr-tegoed gebruiken",
+  "Use Shepherd credits": "Shepherd-tegoed gebruiken",
   "Choose a plan": "Kies een abonnement",
   "Change plan": "Abonnement wijzigen",
   Plan: "Abonnement",
   None: "Geen",
   "Free trial": "Gratis proefperiode",
-  "Herdr credits": "Herdr-tegoed",
+  "Shepherd credits": "Shepherd-tegoed",
   "Free until": "Gratis tot",
   Ends: "Eindigt op",
   Renews: "Verlengt op",
@@ -1031,7 +1031,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Your free trial has started": "Je gratis proefperiode is begonnen",
   "Free until {date}": "Gratis tot {date}",
   "Connect your AI": "Verbind je AI",
-  "Start using Herdr": "Aan de slag met Herdr",
+  "Start using Shepherd": "Aan de slag met Shepherd",
   "1 unread": "1 ongelezen",
   "{count} unread": "{count} ongelezen",
   "{count} need attention": "{count} vragen aandacht",
@@ -1039,11 +1039,11 @@ export const NL_MESSAGES: Record<string, string> = {
   "{label}, below": "{label}, onder",
   Work: "Werk",
   Both: "Allebei",
-  "How will you use Herdr?": "Hoe ga je Herdr gebruiken?",
-  "What do you most want Herdr to help with?": "Waarmee wil je vooral hulp van Herdr?",
+  "How will you use Shepherd?": "Hoe ga je Shepherd gebruiken?",
+  "What do you most want Shepherd to help with?": "Waarmee wil je vooral hulp van Shepherd?",
   "How big is your team?": "Hoe groot is je team?",
   "How did you hear about us?": "Hoe heb je over ons gehoord?",
-  "Welcome to Herdr": "Welkom bij Herdr",
+  "Welcome to Shepherd": "Welkom bij Shepherd",
   Messaging: "Berichten",
   Unlink: "Ontkoppelen",
   "Connect a chat app": "Chat-app koppelen",

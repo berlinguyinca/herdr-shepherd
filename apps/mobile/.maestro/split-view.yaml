@@ -1,5 +1,5 @@
 appId: com.rakazo.app
-name: Herdr split view on a wide window
+name: Shepherd split view on a wide window
 tags:
   - screenshots
 ---
@@ -9,7 +9,7 @@ tags:
     permissions:
       notifications: deny
 - extendedWaitUntil:
-    visible: "Sign up for Herdr|Pixel Launcher isn't responding"
+    visible: "Sign up for Shepherd|Pixel Launcher isn't responding"
     timeout: 30000
 - runFlow:
     when:
@@ -17,7 +17,7 @@ tags:
     commands:
       - tapOn: "Close app"
 - extendedWaitUntil:
-    visible: "Sign up for Herdr"
+    visible: "Sign up for Shepherd"
     timeout: 30000
 - tapOn: "Sign in"
 - runFlow: helpers/server.yaml

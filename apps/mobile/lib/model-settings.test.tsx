@@ -376,11 +376,11 @@ it("keeps setup help and API key collapsible for generic compatible servers", as
   const row = (name: string) =>
     [...container.querySelectorAll("button")].find((button) => button.textContent === name)!;
   expect(field("API key")).toBeNull();
-  expect(container.textContent).not.toContain("Herdr adds /v1");
+  expect(container.textContent).not.toContain("Shepherd adds /v1");
   await act(async () => row("Setup help").click());
-  expect(container.textContent).toContain("Herdr adds /v1");
+  expect(container.textContent).toContain("Shepherd adds /v1");
   await act(async () => row("Setup help").click());
-  expect(container.textContent).not.toContain("Herdr adds /v1");
+  expect(container.textContent).not.toContain("Shepherd adds /v1");
   await act(async () => row("API key").click());
   expect(field("API key")).not.toBeNull();
   await act(async () => row("API key").click());

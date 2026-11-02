@@ -405,7 +405,7 @@
   "Other model…": "Başka model…",
   "Password": "Parola",
   "Paste a replacement key": "Yeni bir anahtar yapıştır",
-  "Paste the OpenAI-compatible address from your server. Herdr adds /v1 if needed.": "Sunucundaki OpenAI uyumlu adresi yapıştır. Gerekirse Rakazo /v1 ekler.",
+  "Paste the OpenAI-compatible address from your server. Shepherd adds /v1 if needed.": "Sunucundaki OpenAI uyumlu adresi yapıştır. Gerekirse Rakazo /v1 ekler.",
   "Paste your API key": "API anahtarını yapıştır",
   "Personal credential": "Kişisel kimlik bilgisi",
   "Pick a voice": "Bir ses seç",

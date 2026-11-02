@@ -1,17 +1,17 @@
 appId: com.rakazo.app
-name: Herdr mobile smoke
+name: Shepherd mobile smoke
 ---
 - launchApp:
     clearState: true
 
-- assertVisible: "Sign up for Herdr"
+- assertVisible: "Sign up for Shepherd"
 - assertVisible: "Name"
 - tapOn: "Sign in"
 - runFlow:
     when:
       true: ${typeof RAKAZO_MOBILE_API_URL !== "undefined" && RAKAZO_MOBILE_API_URL != null && RAKAZO_MOBILE_API_URL.trim() !== ""}
     file: helpers/server.yaml
-- assertVisible: "Sign in to Herdr"
+- assertVisible: "Sign in to Shepherd"
 - tapOn: "Email"
 - inputText: ${RAKAZO_E2E_EMAIL}
 - tapOn: "Password"

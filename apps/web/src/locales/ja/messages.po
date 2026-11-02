@@ -4370,7 +4370,7 @@ msgid "Paste a replacement key"
 msgstr "新しいキーを貼り付け"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
-msgid "Paste the OpenAI-compatible address from your server. Herdr adds /v1 if needed."
+msgid "Paste the OpenAI-compatible address from your server. Shepherd adds /v1 if needed."
 msgstr "サーバーのOpenAI互換アドレスを貼り付けてください。必要に応じてRakazoが/v1を追加します。"
 
 #: src/pages/shell/agent-import.tsx

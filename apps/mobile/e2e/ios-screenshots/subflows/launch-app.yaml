@@ -4,7 +4,7 @@ appId: com.rakazo.app
 - launchApp:
     stopApp: true
 - extendedWaitUntil:
-    visible: "Account|Sign up for Herdr|Sign in to Herdr"
+    visible: "Account|Sign up for Shepherd|Sign in to Shepherd"
     timeout: 40000
 - runFlow:
     when:
@@ -17,5 +17,5 @@ appId: com.rakazo.app
           timeout: 15000
       - tapOn: "Sign out"
 - extendedWaitUntil:
-    visible: "Sign up for Herdr|Sign in to Herdr"
+    visible: "Sign up for Shepherd|Sign in to Shepherd"
     timeout: 20000

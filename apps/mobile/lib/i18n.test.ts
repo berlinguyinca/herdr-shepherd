@@ -62,7 +62,7 @@ describe("mobile i18n", () => {
     const { resetI18nForTests, t } = await import("./i18n");
     resetI18nForTests("zh-CN");
     expect(t("Account")).toBe("账户");
-    expect(t("Sign in to Herdr")).toBe("登录 Herdr");
+    expect(t("Sign in to Shepherd")).toBe("登录 Shepherd");
     expect(t("New bot")).toBe("新建 Bot");
     expect(t("{runs} runs, {tokens} tokens", { runs: 3, tokens: 12 })).toBe(
       "3 次运行，12 个 token",
@@ -71,7 +71,7 @@ describe("mobile i18n", () => {
 
     resetI18nForTests("ru");
     expect(t("Account")).toBe("Аккаунт");
-    expect(t("Sign in to Herdr")).toBe("Войти в Herdr");
+    expect(t("Sign in to Shepherd")).toBe("Войти в Shepherd");
     expect(t("New bot")).toBe("Новый бот");
     expect(t("{runs} runs, {tokens} tokens", { runs: 3, tokens: 12 })).toBe(
       "Запусков: 3, токенов: 12",
@@ -80,7 +80,7 @@ describe("mobile i18n", () => {
 
     resetI18nForTests("nl");
     expect(t("Account")).toBe("Account");
-    expect(t("Sign in to Herdr")).toBe("Aanmelden bij Herdr");
+    expect(t("Sign in to Shepherd")).toBe("Aanmelden bij Shepherd");
     expect(t("New bot")).toBe("Nieuwe bot");
     expect(t("{runs} runs, {tokens} tokens", { runs: 3, tokens: 12 })).toBe(
       "3 uitvoeringen, 12 tokens",
@@ -89,7 +89,7 @@ describe("mobile i18n", () => {
 
     resetI18nForTests("ja");
     expect(t("Account")).toBe("アカウント");
-    expect(t("Sign in to Herdr")).toBe("Herdrにログイン");
+    expect(t("Sign in to Shepherd")).toBe("Shepherdにログイン");
     expect(t("New bot")).toBe("新しいボット");
     expect(t("{runs} runs, {tokens} tokens", { runs: 3, tokens: 12 })).toBe(
       "3回の実行、12トークン",
@@ -98,7 +98,7 @@ describe("mobile i18n", () => {
 
     resetI18nForTests("de");
     expect(t("Account")).toBe("Konto");
-    expect(t("Sign in to Herdr")).toBe("Bei Herdr anmelden");
+    expect(t("Sign in to Shepherd")).toBe("Bei Shepherd anmelden");
     expect(t("New bot")).toBe("Neuer Bot");
     expect(t("{runs} runs, {tokens} tokens", { runs: 3, tokens: 12 })).toBe(
       "3 Ausführungen, 12 Token",
@@ -107,7 +107,7 @@ describe("mobile i18n", () => {
 
     resetI18nForTests("es");
     expect(t("Account")).toBe("Cuenta");
-    expect(t("Sign in to Herdr")).toBe("Inicia sesión en Herdr");
+    expect(t("Sign in to Shepherd")).toBe("Inicia sesión en Shepherd");
     expect(t("New bot")).toBe("Nuevo bot");
     expect(t("{runs} runs, {tokens} tokens", { runs: 3, tokens: 12 })).toBe(
       "3 ejecuciones, 12 tokens",
@@ -171,7 +171,7 @@ describe("mobile i18n", () => {
       "Your model provider",
       "The model provider returned an error.",
       "Connect a model in Settings before running bots.",
-      "Connect your own API key in Models or choose Herdr credits in Billing.",
+      "Connect your own API key in Models or choose Shepherd credits in Billing.",
       "{provider} is rate limiting requests. Try again shortly.",
       "{summary} Resets {date}.",
       "{provider} rejected the API key. Check your connection settings.",

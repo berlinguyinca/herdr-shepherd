@@ -258,9 +258,9 @@ export default function SignIn() {
                 {resetSent || codeStep
                   ? t("Check your email")
                   : mode === "in"
-                    ? t("Sign in to Herdr")
+                    ? t("Sign in to Shepherd")
                     : mode === "up"
-                      ? t("Sign up for Herdr")
+                      ? t("Sign up for Shepherd")
                       : t("Reset your password")}
               </Text>
               {resetSent ? (

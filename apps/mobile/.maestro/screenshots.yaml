@@ -1,5 +1,5 @@
 appId: com.rakazo.app
-name: Herdr mobile screenshots
+name: Shepherd mobile screenshots
 tags:
   - screenshots
 ---
@@ -10,7 +10,7 @@ tags:
 
 # A cold API 34 emulator can show a launcher ANR over the healthy app.
 - extendedWaitUntil:
-    visible: "Sign up for Herdr|Pixel Launcher isn't responding"
+    visible: "Sign up for Shepherd|Pixel Launcher isn't responding"
     timeout: 30000
 - runFlow:
     when:
@@ -18,7 +18,7 @@ tags:
     commands:
       - tapOn: "Close app"
 - extendedWaitUntil:
-    visible: "Sign up for Herdr"
+    visible: "Sign up for Shepherd"
     timeout: 30000
 - takeScreenshot: "02-sign-up"
 - tapOn: "Sign in"
@@ -27,7 +27,7 @@ tags:
       notVisible:
         id: "server-address"
     commands:
-      - assertVisible: "Sign in to Herdr"
+      - assertVisible: "Sign in to Shepherd"
       - takeScreenshot: "01-sign-in"
       - tapOn: "Use a custom server"
 - assertVisible: "Server"

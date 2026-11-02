@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="rakazo_call_channel">Llamada en curso</string>
-  <string name="rakazo_call_title">Llamada de Herdr</string>
+  <string name="rakazo_call_title">Llamada de Shepherd</string>
   <string name="rakazo_call_text">El micrófono está activo</string>
 </resources>
