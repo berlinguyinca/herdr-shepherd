@@ -1292,6 +1292,11 @@ export const RU_MESSAGES: Record<string, string> = {
   "Session restored": "Сеанс восстановлен",
   "Session restarted": "Сеанс перезапущен",
   "Session ended": "Сеанс завершён",
+  Chat: "Чат",
+  Terminal: "Терминал",
+  "Agent view": "Вид",
+  "Terminal unavailable: this agent has no live session":
+    "Терминал недоступен: у этого агента нет активного сеанса",
   "Opened elsewhere": "Открыто на другом устройстве",
   Reopen: "Открыть снова",
   "Connection lost. Retrying…": "Соединение потеряно. Повторная попытка…",

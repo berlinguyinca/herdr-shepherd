@@ -1203,6 +1203,11 @@ export const ES_MESSAGES: Record<string, string> = {
   "Session restored": "Sesión restaurada",
   "Session restarted": "Sesión reiniciada",
   "Session ended": "Sesión finalizada",
+  Chat: "Chat",
+  Terminal: "Terminal",
+  "Agent view": "Vista",
+  "Terminal unavailable: this agent has no live session":
+    "Terminal no disponible: este agente no tiene una sesión activa",
   "Opened elsewhere": "Abierto en otro lugar",
   Reopen: "Reabrir",
   "Connection lost. Retrying…": "Conexión perdida. Reintentando…",

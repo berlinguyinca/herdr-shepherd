@@ -1263,6 +1263,11 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Session restored": "工作階段已還原",
   "Session restarted": "工作階段已重新啟動",
   "Session ended": "工作階段已結束",
+  Chat: "聊天",
+  Terminal: "終端機",
+  "Agent view": "檢視",
+  "Terminal unavailable: this agent has no live session":
+    "無法使用終端機：此代理程式沒有進行中的工作階段",
   "Opened elsewhere": "已在其他位置開啟",
   Reopen: "重新開啟",
   "Connection lost. Retrying…": "連線已中斷，正在重試…",

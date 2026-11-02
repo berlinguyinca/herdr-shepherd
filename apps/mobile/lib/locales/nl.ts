@@ -1253,6 +1253,11 @@ export const NL_MESSAGES: Record<string, string> = {
   "Session restored": "Sessie hersteld",
   "Session restarted": "Sessie opnieuw gestart",
   "Session ended": "Sessie beëindigd",
+  Chat: "Chat",
+  Terminal: "Terminal",
+  "Agent view": "Weergave",
+  "Terminal unavailable: this agent has no live session":
+    "Terminal niet beschikbaar: deze agent heeft geen actieve sessie",
   "Opened elsewhere": "Elders geopend",
   Reopen: "Opnieuw openen",
   "Connection lost. Retrying…": "Verbinding verbroken. Opnieuw proberen…",

@@ -1263,6 +1263,11 @@ export const DE_MESSAGES: Record<string, string> = {
   "Session restored": "Sitzung wiederhergestellt",
   "Session restarted": "Sitzung neu gestartet",
   "Session ended": "Sitzung beendet",
+  Chat: "Chat",
+  Terminal: "Terminal",
+  "Agent view": "Ansicht",
+  "Terminal unavailable: this agent has no live session":
+    "Terminal nicht verfügbar: Dieser Agent hat keine laufende Sitzung",
   "Opened elsewhere": "Anderswo geöffnet",
   Reopen: "Erneut öffnen",
   "Connection lost. Retrying…": "Verbindung verloren. Neuer Versuch…",

@@ -99,6 +99,66 @@ vi.mock("react-native", () => {
     ),
   };
 });
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: vi.fn(async () => null),
+  setItemAsync: vi.fn(async () => {}),
+}));
+const terminalMounts = vi.hoisted(() => ({ count: 0 }));
+vi.mock("../components/terminal-view", async () => {
+  const { useEffect } = await import("react");
+  return {
+    TerminalView: ({
+      agentId,
+      focused,
+      keyboardOffset,
+    }: {
+      agentId: string;
+      focused: boolean;
+      keyboardOffset?: number;
+    }) => {
+      useEffect(() => {
+        terminalMounts.count += 1;
+      }, []);
+      return (
+        <div
+          data-testid="terminal"
+          data-agent={agentId}
+          data-focused={String(focused)}
+          data-offset={keyboardOffset}
+        />
+      );
+    },
+  };
+});
+vi.mock("../components/native-segmented-control", () => ({
+  NativeSegmentedControl: ({
+    accessibilityLabel,
+    disabled,
+    value,
+    onChange,
+    options,
+  }: {
+    accessibilityLabel: string;
+    disabled?: boolean;
+    value: string;
+    onChange: (value: string) => void;
+    options: { value: string; label: string }[];
+  }) => (
+    <fieldset aria-label={accessibilityLabel} data-disabled={String(!!disabled)}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={o.value === value}
+          disabled={disabled}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </fieldset>
+  ),
+}));
 vi.mock("react-native-safe-area-context", () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
@@ -205,6 +265,7 @@ beforeEach(() => {
   routeParams.decodes = 0;
   queryClient.clear();
   foreground.value = true;
+  terminalMounts.count = 0;
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   streamMock.mockImplementation(
     (_p: string, _b: unknown, signal: AbortSignal, cb: (json: unknown) => void) => {
@@ -562,3 +623,77 @@ it.each([0, 1, 2])(
     for (const [, input] of calls) expect((input as Data).id).toBe(original);
   },
 );
+
+const terminal = () => host.querySelector<HTMLElement>('[data-testid="terminal"]');
+const pane = (testID: string) => host.querySelector(`[data-testid="${testID}"]`);
+
+it("opens in Chat for a working agent and mounts the terminal only when asked", async () => {
+  serve({ messages: page([msg(1, "user", "hi")]) });
+  await render();
+  expect(terminal()).toBeNull();
+  expect(host.querySelector('[aria-label="Agent view"]')).not.toBeNull();
+  await act(async () => button("Terminal")?.click());
+  expect(terminal()?.dataset.agent).toBe("a1");
+  expect(terminal()?.dataset.focused).toBe("true");
+});
+
+it("opens in Terminal for a blocked agent, below the header inset", async () => {
+  serve({
+    messages: page([msg(1, "user", "hi")]),
+    get: { agent: { ...agent, status: "blocked" }, hasConversation: true },
+  });
+  headerInset.value = 96;
+  await render();
+  expect(terminal()?.dataset.focused).toBe("true");
+  expect(terminal()?.dataset.offset).toBe("96");
+  expect(JSON.parse(pane("agent-terminal")?.getAttribute("data-style") ?? "[]")).toEqual([
+    { flex: 1 },
+    false,
+  ]);
+});
+
+it("switching back to Chat keeps both mounted: no refetch, no new terminal, keyboard released", async () => {
+  serve({ messages: page([msg(1, "user", "hi")]) });
+  await render();
+  await act(async () => button("Terminal")?.click());
+  const fetched = rpcMock.mock.calls.length;
+  await act(async () => button("Chat")?.click());
+  await act(async () => button("Terminal")?.click());
+  await act(async () => button("Chat")?.click());
+  expect(terminalMounts.count).toBe(1);
+  expect(terminal()?.dataset.focused).toBe("false");
+  expect(host.querySelector('[data-testid="event-list"]')).not.toBeNull();
+  expect(rpcMock.mock.calls.length).toBe(fetched);
+});
+
+it("offers no Terminal for a closed agent, and says why", async () => {
+  serve({
+    messages: page([msg(1, "user", "hi")]),
+    get: { agent: { ...agent, status: "closed" }, hasConversation: true },
+  });
+  await render();
+  const group = host.querySelector("fieldset");
+  expect(group?.getAttribute("data-disabled")).toBe("true");
+  expect(group?.getAttribute("aria-label")).toBe(
+    "Terminal unavailable: this agent has no live session",
+  );
+  expect(terminal()).toBeNull();
+});
+
+it("fills the pane beside the list on an iPad as it does on a phone", async () => {
+  serve({
+    messages: page([msg(1, "user", "hi")]),
+    get: { agent: { ...agent, status: "blocked" }, hasConversation: true },
+  });
+  await render(
+    <InboxBesideContext.Provider value={true}>
+      <AgentScreen />
+    </InboxBesideContext.Provider>,
+  );
+  expect(terminal()).not.toBeNull();
+  expect(
+    JSON.parse(
+      host.querySelector('[data-testid="agent-terminal"]')?.getAttribute("data-style") ?? "[]",
+    )[0],
+  ).toEqual({ flex: 1 });
+});

@@ -1283,6 +1283,11 @@ export const JA_MESSAGES: Record<string, string> = {
   "Session restored": "セッション復元",
   "Session restarted": "セッション再開",
   "Session ended": "セッション終了",
+  Chat: "チャット",
+  Terminal: "ターミナル",
+  "Agent view": "表示",
+  "Terminal unavailable: this agent has no live session":
+    "ターミナルは利用できません: このエージェントには実行中のセッションがありません",
   "Opened elsewhere": "別の場所で開かれています",
   Reopen: "再度開く",
   "Connection lost. Retrying…": "接続が切れました。再試行しています…",

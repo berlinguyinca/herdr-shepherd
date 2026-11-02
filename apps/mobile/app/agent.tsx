@@ -1,11 +1,19 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useContext, useRef } from "react";
+import { useCallback, useContext, useRef, useState } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { AgentEvent, isRenderableEvent } from "../components/agent-event";
 import { useAgentStatus } from "../components/agent-row";
 import { glassHeaderOptions } from "../components/glass-title";
+import { NativeSegmentedControl } from "../components/native-segmented-control";
+import { TerminalView } from "../components/terminal-view";
 import { conversationColumn } from "../lib/agent-column";
 import { agentIdFromRoute } from "../lib/agent-route";
+import {
+  terminalKeyboardOffset,
+  useViewMode,
+  type ViewMode,
+  viewModeLocked,
+} from "../lib/agent-view-mode";
 import type { AgentEvent as Event } from "../lib/agents";
 import { agentEvent, isAgentGone } from "../lib/agents";
 import { useFloatingHeaderInset } from "../lib/floating-header";
@@ -40,6 +48,16 @@ export default function AgentScreen() {
     !loading && !empty && !conversation.hasMore && !events.some(isRenderableEvent);
   const list = useRef<FlatList<Event>>(null);
   const atBottom = useRef(true);
+  const [mode, setMode] = useViewMode(agentId, agent?.status);
+  // The terminal mounts on first use and then stays, hidden under Chat, so toggling does not
+  // rebuild its client; the chat list stays mounted under Terminal to keep its scroll position.
+  const [terminalUsed, setTerminalUsed] = useState(false);
+  if (mode === "terminal" && !terminalUsed) setTerminalUsed(true);
+  // Where the terminal begins in the window: the keyboard has to clear that much too.
+  const [terminalTop, setTerminalTop] = useState<number>();
+  const terminalBox = useRef<View>(null);
+  // Nothing to attach to for a closed agent; one that closes while shown still offers Chat.
+  const terminalLocked = viewModeLocked(agent?.status) && mode !== "terminal";
 
   const expand = useCallback(
     async (event: Event) => {
@@ -98,66 +116,104 @@ export default function AgentScreen() {
               {agent.machine}
             </Text>
             <StatusChip status={agent.status} />
+            <View style={styles.modeSwitch}>
+              <NativeSegmentedControl<ViewMode>
+                accessibilityLabel={
+                  terminalLocked
+                    ? t("Terminal unavailable: this agent has no live session")
+                    : t("Agent view")
+                }
+                disabled={terminalLocked}
+                value={mode}
+                onChange={setMode}
+                options={[
+                  { value: "chat", label: t("Chat") },
+                  { value: "terminal", label: t("Terminal") },
+                ]}
+              />
+            </View>
           </View>
         </View>
       ) : (
         <View style={{ height: headerInset }} />
       )}
-      {conversation.reconnecting ? (
-        <Text style={[styles.small, { color: tokens.mutedForeground }]}>{t("Reconnecting")}</Text>
-      ) : null}
-      {loading ? (
-        <View style={styles.center}>
-          <ActivityIndicator color={tokens.mutedForeground} />
-        </View>
-      ) : empty ? (
-        <View style={styles.center}>
-          <Text style={[styles.message, { color: tokens.mutedForeground }]}>
-            {t("No conversation was captured for this agent.")}
-          </Text>
-        </View>
-      ) : nothingToShow ? (
-        <View style={styles.center}>
-          <Text style={[styles.message, { color: tokens.mutedForeground }]}>
-            {t("Nothing to show yet.")}
-          </Text>
-        </View>
-      ) : (
-        <FlatList<Event>
-          ref={list}
-          style={styles.list}
-          contentContainerStyle={conversationColumn}
-          data={events}
-          keyExtractor={(event) => `${agentId}:${event.seq}`}
-          renderItem={({ item }) => <AgentEvent event={item} onExpand={expand} />}
-          maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
-          onStartReached={conversation.loadOlder}
-          onStartReachedThreshold={0.5}
-          onScroll={({ nativeEvent: n }) => {
-            atBottom.current =
-              n.contentOffset.y + n.layoutMeasurement.height >= n.contentSize.height - BOTTOM_SLACK;
-          }}
-          scrollEventThrottle={64}
-          onContentSizeChange={() => {
-            if (atBottom.current) list.current?.scrollToEnd({ animated: false });
-          }}
-          ListHeaderComponent={
-            conversation.loadingOlder ? (
-              <ActivityIndicator color={tokens.mutedForeground} style={styles.older} />
-            ) : conversation.hasMore ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={conversation.loadOlder}
-                style={styles.older}
-              >
-                <Text style={{ color: tokens.mutedForeground }}>{t("Load earlier messages")}</Text>
-              </Pressable>
-            ) : null
+      <View style={[styles.pane, mode === "terminal" && styles.hidden]}>
+        {conversation.reconnecting ? (
+          <Text style={[styles.small, { color: tokens.mutedForeground }]}>{t("Reconnecting")}</Text>
+        ) : null}
+        {loading ? (
+          <View style={styles.center}>
+            <ActivityIndicator color={tokens.mutedForeground} />
+          </View>
+        ) : empty ? (
+          <View style={styles.center}>
+            <Text style={[styles.message, { color: tokens.mutedForeground }]}>
+              {t("No conversation was captured for this agent.")}
+            </Text>
+          </View>
+        ) : nothingToShow ? (
+          <View style={styles.center}>
+            <Text style={[styles.message, { color: tokens.mutedForeground }]}>
+              {t("Nothing to show yet.")}
+            </Text>
+          </View>
+        ) : (
+          <FlatList<Event>
+            ref={list}
+            style={styles.list}
+            contentContainerStyle={conversationColumn}
+            data={events}
+            keyExtractor={(event) => `${agentId}:${event.seq}`}
+            renderItem={({ item }) => <AgentEvent event={item} onExpand={expand} />}
+            maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
+            onStartReached={conversation.loadOlder}
+            onStartReachedThreshold={0.5}
+            onScroll={({ nativeEvent: n }) => {
+              atBottom.current =
+                n.contentOffset.y + n.layoutMeasurement.height >=
+                n.contentSize.height - BOTTOM_SLACK;
+            }}
+            scrollEventThrottle={64}
+            onContentSizeChange={() => {
+              if (atBottom.current) list.current?.scrollToEnd({ animated: false });
+            }}
+            ListHeaderComponent={
+              conversation.loadingOlder ? (
+                <ActivityIndicator color={tokens.mutedForeground} style={styles.older} />
+              ) : conversation.hasMore ? (
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={conversation.loadOlder}
+                  style={styles.older}
+                >
+                  <Text style={{ color: tokens.mutedForeground }}>
+                    {t("Load earlier messages")}
+                  </Text>
+                </Pressable>
+              ) : null
+            }
+            initialNumToRender={20}
+            windowSize={9}
+          />
+        )}
+      </View>
+      {terminalUsed ? (
+        <View
+          ref={terminalBox}
+          testID="agent-terminal"
+          style={[styles.pane, mode !== "terminal" && styles.hidden]}
+          onLayout={() =>
+            // A rotation or a split-pane resize lays this out again, and the page refits to it.
+            terminalBox.current?.measureInWindow?.((_x, y) => setTerminalTop(y))
           }
-          initialNumToRender={20}
-          windowSize={9}
-        />
-      )}
+        >
+          <TerminalView
+            agentId={agentId}
+            focused={mode === "terminal"}
+            keyboardOffset={terminalKeyboardOffset(terminalTop, headerInset)}
+          />
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -165,6 +221,9 @@ export default function AgentScreen() {
 const styles = StyleSheet.create({
   screen: { flex: 1 },
   list: { flex: 1 },
+  pane: { flex: 1 },
+  hidden: { display: "none" },
+  modeSwitch: { width: 180 },
   center: {
     flex: 1,
     alignItems: "center",
