@@ -1263,6 +1263,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Too many open terminals, close one to continue":
     "Te veel open terminals, sluit er een om door te gaan",
   "Opened elsewhere": "Elders geopend",
+  "This terminal was closed or opened elsewhere": "Deze terminal is gesloten of elders geopend",
   Reopen: "Opnieuw openen",
   "Zoom pane": "Pane zoomen",
   "Pane size": "Pane-grootte",

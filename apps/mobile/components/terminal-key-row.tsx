@@ -26,6 +26,7 @@ export function TerminalKeyRow({
   onToggleCtrl,
   onToggleKeyboard,
   zoom,
+  zoomDisabled,
   onToggleZoom,
   onPaste,
   onCopy,
@@ -39,6 +40,8 @@ export function TerminalKeyRow({
   onToggleCtrl: () => void;
   onToggleKeyboard: () => void;
   zoom: boolean;
+  /** Zoom only applies to a live terminal. */
+  zoomDisabled: boolean;
   onToggleZoom: () => void;
   onPaste: () => void;
   onCopy: () => void;
@@ -75,6 +78,7 @@ export function TerminalKeyRow({
       onPress?: () => void;
       onPressIn?: () => void;
       onPressOut?: () => void;
+      disabled?: boolean;
       // Holds the press-in back, so a swipe that scrolls the row does not press the key under it.
       unstable_pressDelay?: number;
     },
@@ -87,7 +91,11 @@ export function TerminalKeyRow({
         testID={`terminal-key-${id}`}
         accessibilityRole={toggle === undefined ? "button" : "switch"}
         accessibilityLabel={accessibilityLabel}
-        accessibilityState={toggle === undefined ? undefined : { checked: selected }}
+        accessibilityState={
+          toggle === undefined
+            ? undefined
+            : { checked: selected, disabled: handlers.disabled === true }
+        }
         hitSlop={{ top: vertical, bottom: vertical }}
         {...handlers}
         style={[
@@ -96,6 +104,7 @@ export function TerminalKeyRow({
             height: compact ? COMPACT_HEIGHT : TAP,
             backgroundColor: selected ? tokens.primary : tokens.card,
             borderColor: tokens.border,
+            opacity: handlers.disabled ? 0.4 : 1,
           },
         ]}
       >
@@ -158,7 +167,13 @@ export function TerminalKeyRow({
                 unstable_pressDelay: PRESS_DELAY_MS,
               }),
         )}
-        {button("zoom", t("Zoom pane"), t("Zoom pane"), { onPress: onToggleZoom }, zoom)}
+        {button(
+          "zoom",
+          t("Zoom pane"),
+          t("Zoom pane"),
+          { onPress: onToggleZoom, disabled: zoomDisabled },
+          zoom,
+        )}
         {button("paste", t("Paste"), t("Paste"), { onPress: onPaste })}
         {hasSelection ? button("copy", t("Copy"), t("Copy"), { onPress: onCopy }) : null}
       </ScrollView>

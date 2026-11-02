@@ -14,6 +14,8 @@ export type TerminalHandlerDeps = {
   setZoom(on: boolean): void;
   /** The zoom toggle changed: show it. */
   onZoom(on: boolean): void;
+  /** The terminal is live: only then can the pane be zoomed. */
+  isLive(): boolean;
   /** How the page fits the pane: its size and the percent of the font it got. */
   onFit(fit: { rows: number; cols: number; pct: number }): void;
   readClipboard(): Promise<string>;
@@ -68,14 +70,10 @@ export function createTerminalHandler(deps: TerminalHandlerDeps) {
     copy: () => deps.send({ t: "copy" }),
     toggleCtrl: () => setCtrlAndPage(!ctrl),
     toggleZoom() {
+      if (!deps.isLive()) return;
       zoom = !zoom;
       deps.setZoom(zoom);
       deps.onZoom(zoom);
-    },
-    /** A new terminal starts unzoomed. */
-    resetZoom() {
-      zoom = false;
-      deps.onZoom(false);
     },
     pressKey(key: KeyName) {
       const pressed = pressRowKey(ctrl, key, { applicationCursor });

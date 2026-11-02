@@ -12,6 +12,7 @@ function setup(clipboard = "") {
     setZoom: vi.fn(),
     onZoom: vi.fn(),
     onFit: vi.fn(),
+    isLive: vi.fn(() => true),
     readClipboard: vi.fn(async () => clipboard),
     writeClipboard: vi.fn(async () => {}),
     send: (msg: NativeMsg) => void sent.push(msg),
@@ -52,11 +53,13 @@ describe("terminal view handler", () => {
     expect(deps.onZoom).toHaveBeenLastCalledWith(false);
   });
 
-  it("forgets the zoom when the terminal opens again", () => {
+  it("does nothing to the zoom unless the terminal is live", () => {
     const { deps, handler } = setup();
+    deps.isLive.mockReturnValue(false);
     handler.toggleZoom();
-    handler.resetZoom();
-    expect(deps.onZoom).toHaveBeenLastCalledWith(false);
+    expect(deps.setZoom).not.toHaveBeenCalled();
+    expect(deps.onZoom).not.toHaveBeenCalled();
+    deps.isLive.mockReturnValue(true);
     handler.toggleZoom();
     expect(deps.setZoom).toHaveBeenLastCalledWith(true);
   });

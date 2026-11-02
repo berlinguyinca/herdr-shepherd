@@ -103,7 +103,7 @@ vi.mock("./terminal", () => ({
     term.calls.push({ agentId, retain });
     return {
       state,
-      reason: state === "ended" ? term.reason : undefined,
+      reason: state === "ended" || state === "taken_over" ? term.reason : undefined,
       write: vi.fn(),
       setZoom: term.setZoom,
       reopen: term.reopen,
@@ -132,11 +132,13 @@ vi.mock("../components/terminal-key-row", () => ({
     bottomInset,
     keyboardOn,
     zoom,
+    zoomDisabled,
     onToggleZoom,
   }: {
     bottomInset: number;
     keyboardOn: boolean;
     zoom: boolean;
+    zoomDisabled: boolean;
     onToggleZoom: () => void;
   }) => (
     <div
@@ -144,6 +146,7 @@ vi.mock("../components/terminal-key-row", () => ({
       data-inset={bottomInset}
       data-keyboard={String(keyboardOn)}
       data-zoom={String(zoom)}
+      data-zoom-disabled={String(zoomDisabled)}
     >
       <button type="button" data-testid="zoom-toggle" onClick={onToggleZoom} />
     </div>
@@ -249,6 +252,21 @@ describe("the overlay", () => {
     expect(reopenButton()).toBeDefined();
   });
 
+  it("a takeover nobody announced says it may be closed or opened elsewhere", async () => {
+    term.reason = "gone";
+    render();
+    await setState("taken_over");
+    expect(status()?.textContent).toBe("This terminal was closed or opened elsewhere");
+    expect(reopenButton()).toBeDefined();
+  });
+
+  it("a real taken_over frame still says opened elsewhere", async () => {
+    term.reason = undefined;
+    render();
+    await setState("taken_over");
+    expect(status()?.textContent).toBe("Opened elsewhere");
+  });
+
   it.each(["ended", "taken_over", "failed", "relay_down"] as const)(
     "Reopen after %s reopens",
     async (state) => {
@@ -341,11 +359,28 @@ describe("zoom pane", () => {
     expect(zoomState()).toBe("false");
   });
 
-  it("starts unzoomed again when the terminal is reopened", async () => {
+  it("keeps its state across a reconnect: only a new page or agent starts unzoomed", async () => {
     render();
     toggle();
-    await setState("ended");
+    await setState("error");
     await setState("connecting");
+    await setState("live");
+    expect(zoomState()).toBe("true");
+    render("a2");
     expect(zoomState()).toBe("false");
+  });
+
+  it("is disabled in the key row, and does nothing, unless the terminal is live", async () => {
+    const disabled = () =>
+      host.querySelector('[data-testid="key-row"]')?.getAttribute("data-zoom-disabled");
+    render();
+    expect(disabled()).toBe("false");
+    await setState("connecting");
+    expect(disabled()).toBe("true");
+    toggle();
+    expect(term.setZoom).not.toHaveBeenCalled();
+    expect(zoomState()).toBe("false");
+    await setState("live");
+    expect(disabled()).toBe("false");
   });
 });

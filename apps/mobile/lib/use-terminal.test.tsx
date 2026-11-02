@@ -127,3 +127,24 @@ it("reports why the terminal ended, and forgets it on reopen", async () => {
   expect(api?.reason).toBeUndefined();
   await act(async () => root.unmount());
 });
+
+it("says a terminal that vanished on resubscribe is gone, not taken over", async () => {
+  call.mockImplementation(async (proc: string) =>
+    proc === "terminal/open" ? { terminalId: "t1", seq: 0, rows: 24, cols: 80 } : { ok: true },
+  );
+  let tries = 0;
+  stream.mockImplementation(async () => {
+    tries += 1;
+    throw Object.assign(new Error("gone"), { status: tries === 1 ? undefined : 404 });
+  });
+  let api: ReturnType<typeof useTerminal> | undefined;
+  function Harness() {
+    api = useTerminal("a1");
+    return null;
+  }
+  const root = createRoot(document.createElement("div"));
+  await act(async () => root.render(<Harness />));
+  await vi.waitFor(() => expect(api?.state).toBe("taken_over"), { timeout: 3000 });
+  expect(api?.reason).toBe("gone");
+  await act(async () => root.unmount());
+});

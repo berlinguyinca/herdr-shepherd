@@ -1273,6 +1273,8 @@ export const DE_MESSAGES: Record<string, string> = {
   "Too many open terminals, close one to continue":
     "Zu viele offene Terminals, schließe eines, um fortzufahren",
   "Opened elsewhere": "Anderswo geöffnet",
+  "This terminal was closed or opened elsewhere":
+    "Dieses Terminal wurde geschlossen oder anderswo geöffnet",
   Reopen: "Erneut öffnen",
   "Zoom pane": "Pane zoomen",
   "Pane size": "Pane-Größe",

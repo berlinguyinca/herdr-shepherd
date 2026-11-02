@@ -1273,6 +1273,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not open the terminal": "无法打开终端",
   "Too many open terminals, close one to continue": "打开的终端过多，请关闭一个后继续",
   "Opened elsewhere": "已在其他位置打开",
+  "This terminal was closed or opened elsewhere": "此终端已关闭或已在其他位置打开",
   Reopen: "重新打开",
   "Zoom pane": "缩放窗格",
   "Pane size": "窗格大小",

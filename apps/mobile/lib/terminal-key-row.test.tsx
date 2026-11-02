@@ -31,6 +31,7 @@ vi.mock("react-native", () => ({
     accessibilityLabel,
     accessibilityRole,
     accessibilityState,
+    disabled,
     onPress,
     onPressIn,
     onPressOut,
@@ -40,6 +41,7 @@ vi.mock("react-native", () => ({
     accessibilityLabel?: string;
     accessibilityRole?: string;
     accessibilityState?: { checked?: boolean };
+    disabled?: boolean;
     onPress?: () => void;
     onPressIn?: () => void;
     onPressOut?: () => void;
@@ -50,6 +52,7 @@ vi.mock("react-native", () => ({
       aria-label={accessibilityLabel}
       data-role={accessibilityRole}
       data-checked={String(accessibilityState?.checked)}
+      data-disabled={String(disabled ?? false)}
       onClick={onPress}
       onMouseDown={onPressIn}
       onMouseUp={onPressOut}
@@ -81,6 +84,7 @@ const props = {
   onToggleCtrl: noop,
   onToggleKeyboard: noop,
   zoom: false,
+  zoomDisabled: false,
   onToggleZoom: noop,
   onPaste: noop,
   onCopy: noop,
@@ -223,4 +227,12 @@ it("has a Zoom pane switch that shows its state and calls its handler", () => {
   expect(onToggleZoom).toHaveBeenCalledTimes(1);
   render({ zoom: true });
   expect(byId("zoom")?.getAttribute("data-checked")).toBe("true");
+});
+
+it("shows Zoom pane as disabled while the terminal is not live", () => {
+  render({ zoomDisabled: true });
+  expect(byId("zoom")?.getAttribute("data-disabled")).toBe("true");
+  expect(byId("paste")?.getAttribute("data-disabled")).toBe("false");
+  render({ zoomDisabled: false });
+  expect(byId("zoom")?.getAttribute("data-disabled")).toBe("false");
 });

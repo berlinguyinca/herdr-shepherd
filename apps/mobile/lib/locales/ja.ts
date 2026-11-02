@@ -1293,6 +1293,8 @@ export const JA_MESSAGES: Record<string, string> = {
   "Too many open terminals, close one to continue":
     "開いているターミナルが多すぎます。続けるには1つ閉じてください",
   "Opened elsewhere": "別の場所で開かれています",
+  "This terminal was closed or opened elsewhere":
+    "このターミナルは閉じられたか、別の場所で開かれました",
   Reopen: "再度開く",
   "Zoom pane": "ペインを拡大",
   "Pane size": "ペインのサイズ",

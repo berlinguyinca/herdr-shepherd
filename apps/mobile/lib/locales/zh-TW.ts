@@ -1272,6 +1272,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Could not open the terminal": "無法開啟終端機",
   "Too many open terminals, close one to continue": "開啟的終端機太多，請關閉一個後再繼續",
   "Opened elsewhere": "已在其他位置開啟",
+  "This terminal was closed or opened elsewhere": "此終端機已關閉或已在其他位置開啟",
   Reopen: "重新開啟",
   "Zoom pane": "縮放窗格",
   "Pane size": "窗格大小",

@@ -31,6 +31,8 @@ export type TerminalOutput =
 export const WRITE_BATCH_MS = 8;
 /** The bridge takes 64 KB per call; stay well below it. */
 export const WRITE_CHUNK_BYTES = 32 * 1024;
+/** Closing waits this long for the zoom-off before it retires the terminal anyway. */
+export const CLOSE_ZOOM_WAIT_MS = 500;
 export const BACKOFF_MIN_MS = 500;
 export const BACKOFF_MAX_MS = 8_000;
 /** A stream that closed cleanly after this long was alive (heartbeats), so it does not back off. */
@@ -85,7 +87,10 @@ export type TerminalClient = {
   write(bytes: Uint8Array): void;
   /** Asks the relay to zoom the pane (or not); the pane keeps its own size. */
   setZoom(on: boolean): void;
-  /** Why the stream ended (`ended` state), when the server said. */
+  /**
+   * Why the stream stopped: the server's `reason` for `ended`; "gone" for a `taken_over` nobody
+   * announced (the terminal 404ed on resubscribe: closed or opened elsewhere, unknown which).
+   */
   readonly endReason: string | undefined;
   /** Opens the terminal again after another client took it over, it ended, or the client gave up. */
   reopen(): void;
@@ -111,6 +116,7 @@ export function createTerminalClient(
   // The size the terminal was opened at, then the pane's own as frames report it.
   let { rows, cols } = size;
   let endReason: string | undefined;
+  let zoomOn = false;
   let state: TerminalState = "connecting";
   let terminalId: string | undefined;
   let cursor = 0;
@@ -236,7 +242,10 @@ export function createTerminalClient(
             return setState("relay_down");
           }
           // The same terminal answering 404: another client's open retired it.
-          if (!needOpen && statusOf(error) === 404) return settled("taken_over");
+          if (!needOpen && statusOf(error) === 404) {
+            endReason = "gone";
+            return settled("taken_over");
+          }
           // A transport error (no HTTP status) on a live terminal: resubscribe it first.
           if (!needOpen && !resubscribing && statusOf(error) === undefined) resubscribing = true;
           else {
@@ -361,6 +370,7 @@ export function createTerminalClient(
     },
     setZoom(on) {
       if (!terminalId || disposed || state !== "live") return;
+      zoomOn = on;
       // Best effort. The relay ignores the size: the pane owns it, and the schema wants one.
       rpc("terminal/resize", { terminalId, rows, cols, zoom: on }).catch(() => undefined);
     },
@@ -384,7 +394,21 @@ export function createTerminalClient(
     },
     close() {
       if (terminalId && !disposed && !stopped()) {
-        rpc("terminal/close", { terminalId }).catch(() => undefined);
+        const id = terminalId;
+        const retire = () => rpc("terminal/close", { terminalId: id }).catch(() => undefined);
+        if (zoomOn) {
+          // Leave the pane unzoomed, but never hold the close up for it.
+          let retired = false;
+          const once = () => {
+            if (retired) return;
+            retired = true;
+            void retire();
+          };
+          rpc("terminal/resize", { terminalId: id, rows, cols, zoom: false })
+            .catch(() => undefined)
+            .then(once);
+          setTimeout(once, CLOSE_ZOOM_WAIT_MS);
+        } else void retire();
       }
       client.dispose();
     },
@@ -424,7 +448,7 @@ export function useTerminal(
     const next = createTerminalClient(agentId, { rows, cols });
     client.current = next;
     const stopState = next.onState((value) => {
-      setReason(value === "ended" ? next.endReason : undefined);
+      setReason(value === "ended" || value === "taken_over" ? next.endReason : undefined);
       setState(value);
     });
     const stopOutput = next.onOutput((chunk) => {

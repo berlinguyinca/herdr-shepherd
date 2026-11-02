@@ -105,6 +105,8 @@ function TerminalPage({
     undefined,
     rebuilding,
   );
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const web = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const page = useRef<PageState>({ generation: 0, ready: false, dropped: false, uncapped });
@@ -142,6 +144,7 @@ function TerminalPage({
     write,
     setZoom,
     onZoom: setZoom_,
+    isLive: () => stateRef.current === "live",
     onFit: setFit,
     // Clipboard text is never logged: it can hold anything.
     readClipboard: () => Clipboard.getStringAsync(),
@@ -164,6 +167,7 @@ function TerminalPage({
         write: (bytes) => depsRef.current.write(bytes),
         setZoom: (on) => depsRef.current.setZoom(on),
         onZoom: (on) => depsRef.current.onZoom(on),
+        isLive: () => depsRef.current.isLive(),
         onFit: (next) => depsRef.current.onFit(next),
         readClipboard: () => depsRef.current.readClipboard(),
         writeClipboard: (text) => depsRef.current.writeClipboard(text),
@@ -206,10 +210,6 @@ function TerminalPage({
     // The page starts at the size injected on load; this follows a change while it is open.
     if (ready) send({ t: "font", size: fontSize });
   }, [ready, fontSize]);
-  // A new terminal starts unzoomed.
-  useEffect(() => {
-    if (state === "connecting") handler.resetZoom();
-  }, [state, handler]);
   const wasFocused = useRef(false);
   useEffect(() => {
     if (!ready) return;
@@ -225,7 +225,9 @@ function TerminalPage({
     connecting: t("Connecting…"),
     live: null,
     ended: endedText(reason, t),
-    taken_over: t("Opened elsewhere"),
+    // "gone": the terminal 404ed on resubscribe; nobody announced a takeover.
+    taken_over:
+      reason === "gone" ? t("This terminal was closed or opened elsewhere") : t("Opened elsewhere"),
     // Only while the client is actually backing off before another try.
     error: t("Connection lost. Retrying…"),
     busy: t("Too many open terminals, close one to continue"),
@@ -333,6 +335,7 @@ function TerminalPage({
         onToggleCtrl={handler.toggleCtrl}
         onToggleKeyboard={() => send({ t: "keyboard", on: !softKeyboardVisible })}
         zoom={zoom}
+        zoomDisabled={state !== "live"}
         onToggleZoom={handler.toggleZoom}
         onPaste={() => void handler.paste()}
         onCopy={handler.copy}

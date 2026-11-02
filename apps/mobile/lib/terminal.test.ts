@@ -608,6 +608,16 @@ describe("a transport error resubscribes the same terminal first", () => {
     await vi.advanceTimersByTimeAsync(20_000);
     expect(opens).toBe(1);
     expect(client.state).toBe("taken_over");
+    // Nobody said another client opened it: the cause is unknown, and says so.
+    expect(client.endReason).toBe("gone");
+    client.dispose();
+  });
+
+  it("a taken_over frame is a known takeover: no reason", async () => {
+    const { client } = await start();
+    live[0]?.emit({ seq: 9, taken_over: true });
+    expect(client.state).toBe("taken_over");
+    expect(client.endReason).toBeUndefined();
     client.dispose();
   });
 
@@ -633,6 +643,50 @@ describe("close", () => {
     await settle();
     expect(call).toHaveBeenCalledWith("terminal/close", { terminalId: "t1" });
     expect(live[0]?.body).toEqual({ terminalId: "t1", cursor: 0 });
+  });
+
+  describe("with the zoom on", () => {
+    const names = () =>
+      call.mock.calls.map(([proc, body]) =>
+        proc === "terminal/resize" ? `resize:${(body as Json).zoom}` : (proc as string),
+      );
+
+    it("turns it off before it retires the terminal", async () => {
+      const { client } = await start();
+      client.setZoom(true);
+      await settle();
+      client.close();
+      await settle();
+      expect(names().filter((n) => /^(resize|terminal\/close)/.test(n))).toEqual([
+        "resize:true",
+        "resize:false",
+        "terminal/close",
+      ]);
+    });
+
+    it("retires it after 500 ms even when the zoom-off is never answered", async () => {
+      const { client } = await start();
+      client.setZoom(true);
+      await settle();
+      call.mockImplementation(async (proc: string) =>
+        proc === "terminal/resize" ? new Promise(() => {}) : { ok: true },
+      );
+      client.close();
+      await vi.advanceTimersByTimeAsync(499);
+      expect(names()).not.toContain("terminal/close");
+      await vi.advanceTimersByTimeAsync(1);
+      expect(names()).toContain("terminal/close");
+    });
+
+    it("sends no zoom-off when the zoom is already off", async () => {
+      const { client } = await start();
+      client.setZoom(true);
+      client.setZoom(false);
+      await settle();
+      call.mockClear();
+      client.close();
+      expect(names()).toEqual(["terminal/close"]);
+    });
   });
 
   it("dispose alone leaves the terminal for a later reattach", async () => {

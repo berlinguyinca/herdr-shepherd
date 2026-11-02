@@ -1302,6 +1302,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Too many open terminals, close one to continue":
     "Слишком много открытых терминалов, закройте один, чтобы продолжить",
   "Opened elsewhere": "Открыто на другом устройстве",
+  "This terminal was closed or opened elsewhere":
+    "Этот терминал закрыт или открыт на другом устройстве",
   Reopen: "Открыть снова",
   "Zoom pane": "Увеличить панель",
   "Pane size": "Размер панели",
