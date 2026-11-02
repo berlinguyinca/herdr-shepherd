@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { MAX_FONT_SCALE } from "@rakazo/ui-tokens";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -6,6 +7,9 @@ import {
   AGENT_VIEW_MODES_KEY,
   createViewModeStore,
   defaultViewMode,
+  MAX_REMEMBERED_AGENTS,
+  modeSwitchWidth,
+  rememberMode,
   terminalKeyboardOffset,
   useViewMode,
   type ViewMode,
@@ -59,6 +63,52 @@ describe("terminalKeyboardOffset", () => {
     expect(terminalKeyboardOffset(0, 96)).toBe(0);
     expect(terminalKeyboardOffset(undefined, 96)).toBe(96);
     expect(terminalKeyboardOffset(Number.NaN, 96)).toBe(96);
+  });
+});
+
+describe("rememberMode", () => {
+  it("keeps only the most recently set agents", () => {
+    let all: Record<string, unknown> = {};
+    for (let i = 0; i < MAX_REMEMBERED_AGENTS + 10; i++) all = rememberMode(all, `a${i}`, "chat");
+    expect(Object.keys(all)).toHaveLength(MAX_REMEMBERED_AGENTS);
+    expect(all.a0).toBeUndefined();
+    expect(all[`a${MAX_REMEMBERED_AGENTS + 9}`]).toBe("chat");
+  });
+
+  it("setting an agent again makes it the newest, and replaces its value", () => {
+    let all: Record<string, unknown> = {};
+    for (let i = 0; i < MAX_REMEMBERED_AGENTS; i++) all = rememberMode(all, `a${i}`, "chat");
+    all = rememberMode(all, "a0", "terminal");
+    all = rememberMode(all, "new", "chat");
+    expect(all.a0).toBe("terminal");
+    expect(all.a1).toBeUndefined();
+  });
+
+  it("drops entries that are not modes", () => {
+    expect(rememberMode({ x: "banana", y: "chat" }, "z", "terminal")).toEqual({
+      y: "chat",
+      z: "terminal",
+    });
+  });
+});
+
+describe("modeSwitchWidth", () => {
+  it("is the base width at normal text and grows with large text", () => {
+    expect(modeSwitchWidth(1, 800)).toBe(180);
+    expect(modeSwitchWidth(1.2, 800)).toBe(216);
+    expect(modeSwitchWidth(0.8, 800)).toBe(180);
+  });
+
+  it("stops at the largest supported font scale and at the room there is", () => {
+    expect(modeSwitchWidth(10, 2000)).toBe(Math.ceil(180 * MAX_FONT_SCALE));
+    expect(modeSwitchWidth(10, 2000)).toBe(modeSwitchWidth(MAX_FONT_SCALE, 2000));
+    expect(modeSwitchWidth(2, 220)).toBe(220);
+    expect(modeSwitchWidth(1, 120)).toBe(120);
+  });
+
+  it("is never less than something that can be tapped when the room is unknown", () => {
+    expect(modeSwitchWidth(1, Number.NaN)).toBe(180);
+    expect(modeSwitchWidth(Number.NaN, 800)).toBe(180);
   });
 });
 
@@ -168,5 +218,35 @@ describe("useViewMode", () => {
     await view.render({ id: "a1", status: "blocked" });
     await view.render({ id: "a1", status: "closed" });
     expect(view.seen.mode).toBe("terminal");
+  });
+
+  it("reports loading until the stored choice has been read, and shows no terminal meanwhile", async () => {
+    store.set(AGENT_VIEW_MODES_KEY, JSON.stringify({ a1: "chat" }));
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    const seen: Array<[ViewMode, boolean]> = [];
+    const Probe = () => {
+      const [mode, , loading] = useViewMode("a1", "blocked");
+      seen.push([mode, loading]);
+      return null;
+    };
+    await act(async () => root.render(<Probe />));
+    expect(seen[0]).toEqual(["chat", true]);
+    expect(seen.at(-1)).toEqual(["chat", false]);
+    expect(seen.some(([mode]) => mode === "terminal")).toBe(false);
+  });
+
+  it("a blocked agent with nothing stored opens in Terminal once loaded", async () => {
+    const host = document.createElement("div");
+    const root = createRoot(host);
+    const seen: Array<[ViewMode, boolean]> = [];
+    const Probe = () => {
+      const [mode, , loading] = useViewMode("a1", "blocked");
+      seen.push([mode, loading]);
+      return null;
+    };
+    await act(async () => root.render(<Probe />));
+    expect(seen[0]).toEqual(["chat", true]);
+    expect(seen.at(-1)).toEqual(["terminal", false]);
   });
 });

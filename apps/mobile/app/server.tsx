@@ -10,12 +10,12 @@ import { cancelHeaderOptions, trailingHeaderOptions } from "../components/sheet-
 import {
   apiBaseWarning,
   currentApiBase,
-  serverNeedsSetup,
   defaultApiBase,
   normalizeApiBase,
   probeApiBase,
   resetApiBase,
   saveApiBase,
+  serverNeedsSetup,
   usesCustomApiBase,
 } from "../lib/api";
 import { useI18n } from "../lib/i18n";

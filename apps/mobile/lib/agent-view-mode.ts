@@ -1,3 +1,4 @@
+import { MAX_FONT_SCALE } from "@rakazo/ui-tokens";
 import * as SecureStore from "expo-secure-store";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -16,6 +17,33 @@ export function defaultViewMode(status: string | undefined): ViewMode {
 /** A closed agent has no live pane to attach to, so only Chat is on offer. */
 export function viewModeLocked(status: string | undefined): boolean {
   return status === "closed";
+}
+
+/** Only this many agents' choices are kept; the least recently set go first. */
+export const MAX_REMEMBERED_AGENTS = 50;
+
+/** The remembered map with one choice set: newest last, bounded, entries that are no mode gone. */
+export function rememberMode(
+  all: Record<string, unknown>,
+  agentId: string,
+  mode: ViewMode,
+): Record<string, ViewMode> {
+  const kept = Object.entries(all).filter(
+    (entry): entry is [string, ViewMode] => entry[0] !== agentId && isMode(entry[1]),
+  );
+  return Object.fromEntries([...kept, [agentId, mode]].slice(-MAX_REMEMBERED_AGENTS));
+}
+
+const SWITCH_WIDTH = 180;
+
+/**
+ * The Chat | Terminal control's width: wide enough for its labels at the user's text size, never
+ * more than the room there is. An unknown scale or room falls back to the base width.
+ */
+export function modeSwitchWidth(fontScale: number, available: number): number {
+  const scale = Number.isFinite(fontScale) ? Math.min(MAX_FONT_SCALE, Math.max(1, fontScale)) : 1;
+  const wanted = Math.ceil(SWITCH_WIDTH * scale);
+  return Number.isFinite(available) && available > 0 ? Math.min(wanted, available) : wanted;
 }
 
 /** Where the terminal starts in the window; the keyboard must also clear that much. */
@@ -94,7 +122,7 @@ const secureStorage: ViewModeStorage = {
         const all = await readAll().catch(() => ({}));
         await SecureStore.setItemAsync(
           AGENT_VIEW_MODES_KEY,
-          JSON.stringify({ ...all, [agentId]: mode }),
+          JSON.stringify(rememberMode(all, agentId, mode)),
         );
       });
     writing = next.catch(() => undefined);
@@ -102,11 +130,14 @@ const secureStorage: ViewModeStorage = {
   },
 };
 
-/** The agent screen's view and a setter that remembers the choice for that agent. */
+/**
+ * The agent screen's view, a setter that remembers the choice for that agent, and whether the
+ * stored choice is still being read.
+ */
 export function useViewMode(
   agentId: string,
   status: string | undefined,
-): [ViewMode, (mode: ViewMode) => void] {
+): [ViewMode, (mode: ViewMode) => void, boolean] {
   const store = useRef<ReturnType<typeof createViewModeStore>>(null);
   store.current ??= createViewModeStore(secureStorage);
   const [choice, setChoice] = useState<{ agentId: string; mode: ViewMode | null } | null>(null);
@@ -121,8 +152,10 @@ export function useViewMode(
       current = false;
     };
   }, [agentId]);
+  // Until the stored choice is read nothing is decided: Chat, with no default taken yet.
+  const loading = choice?.agentId !== agentId;
   const stored = choice?.agentId === agentId ? choice.mode : null;
-  const mode = store.current?.resolve(agentId, stored, status) ?? "chat";
+  const mode = loading ? "chat" : (store.current?.resolve(agentId, stored, status) ?? "chat");
   const set = useCallback(
     (next: ViewMode) => {
       setChoice({ agentId, mode: next });
@@ -130,5 +163,5 @@ export function useViewMode(
     },
     [agentId],
   );
-  return [mode, set];
+  return [mode, set, loading];
 }
