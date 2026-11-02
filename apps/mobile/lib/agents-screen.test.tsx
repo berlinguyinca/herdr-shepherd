@@ -19,10 +19,18 @@ vi.mock("react-native", () => {
   const View = ({
     children,
     accessibilityRole,
+    testID,
+    style,
   }: {
     children?: ReactNode;
     accessibilityRole?: string;
-  }) => <div data-role={accessibilityRole}>{children}</div>;
+    testID?: string;
+    style?: unknown;
+  }) => (
+    <div data-role={accessibilityRole} data-testid={testID} data-style={JSON.stringify(style)}>
+      {children}
+    </div>
+  );
   return {
     Platform: { OS: "ios" },
     StyleSheet: { create: <T,>(styles: T) => styles, hairlineWidth: 1 },
@@ -90,8 +98,9 @@ vi.mock("react-native", () => {
     ),
   };
 });
+const insets = vi.hoisted(() => ({ top: 0 }));
 vi.mock("react-native-safe-area-context", () => ({
-  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+  useSafeAreaInsets: () => ({ top: insets.top, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock("./app-foreground", () => ({ useAppForeground: () => true }));
 vi.mock("./native", () => {
@@ -297,6 +306,19 @@ it("the list highlights the open agent and reports the tapped row", async () => 
   expect(rows[0].getAttribute("data-style")).not.toContain("backgroundColor");
   await act(async () => (rows[0] as HTMLElement).click());
   expect(onSelect).toHaveBeenCalledWith("a1");
+});
+
+it("the list has a title header with the Assistant list's top inset", async () => {
+  rpcMock.mockResolvedValue(list([row("a1", "working")]));
+  const header = () => host.querySelector('[data-testid="agents-header"]');
+  await render(<AgentsList onSelect={vi.fn()} />);
+  expect(header()?.textContent).toBe("Agents");
+  // Never less than 20 points, plus the 8 the Assistant header adds.
+  expect(header()?.getAttribute("data-style")).toContain('"paddingTop":28');
+  insets.top = 59;
+  await render(<AgentsList onSelect={vi.fn()} />);
+  expect(header()?.getAttribute("data-style")).toContain('"paddingTop":67');
+  insets.top = 0;
 });
 
 it("on a wide window the Agents screen is an empty right pane without the tab bar", async () => {
