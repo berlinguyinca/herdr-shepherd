@@ -20,7 +20,7 @@ const OTHER = "https://hosted.example.test";
 let store: Map<string, string>;
 
 beforeEach(() => {
-  delete process.env.EXPO_PUBLIC_PERSONAL_SERVER_ONLY;
+  process.env.EXPO_PUBLIC_PERSONAL_SERVER_ONLY = "true";
   store = new Map();
   vi.mocked(SecureStore.getItemAsync).mockImplementation(async (key) => store.get(key) ?? null);
   vi.mocked(SecureStore.setItemAsync).mockImplementation(async (key, value) => {
@@ -31,7 +31,7 @@ beforeEach(() => {
   });
 });
 
-describe("personal-server fork", () => {
+describe("personal-server build (EXPO_PUBLIC_PERSONAL_SERVER_ONLY=true)", () => {
   it("refuses to save any server but the personal one", async () => {
     await loadApiBase();
     const before = currentApiBase();
@@ -54,12 +54,13 @@ describe("personal-server fork", () => {
     process.env.EXPO_PUBLIC_PERSONAL_SERVER_ONLY = "false";
     await saveApiBase(OTHER);
     expect(currentApiBase()).toBe(OTHER);
-    delete process.env.EXPO_PUBLIC_PERSONAL_SERVER_ONLY;
+    process.env.EXPO_PUBLIC_PERSONAL_SERVER_ONLY = "true";
     await expect(signUp("a@b.co", "pw-12345678", "A")).rejects.toThrow("personal dashboard");
   });
 
-  it("lets the lock be switched off for upstream behavior", async () => {
-    process.env.EXPO_PUBLIC_PERSONAL_SERVER_ONLY = "false";
+  it("connects to any server by default, so a public build needs no flag", async () => {
+    delete process.env.EXPO_PUBLIC_PERSONAL_SERVER_ONLY;
     await expect(saveApiBase(OTHER)).resolves.toMatchObject({ ok: true, url: OTHER });
+    expect(currentApiBase()).toBe(OTHER);
   });
 });

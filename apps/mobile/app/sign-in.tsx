@@ -29,6 +29,7 @@ import {
   signIn,
   signInWithCode,
   signUp,
+  usesCustomApiBase,
 } from "../lib/api";
 import type { AuthMode } from "../lib/auth-routing";
 import { initialAuthMode } from "../lib/auth-routing";
@@ -36,7 +37,6 @@ import { useI18n } from "../lib/i18n";
 import { hasIncomingShare } from "../lib/incoming-share";
 import { useMobileTokens } from "../lib/native";
 import { passkeysAvailable, signInWithPasskey } from "../lib/passkey";
-import { personalServerOnly } from "../lib/server-config";
 import { continueWithSso } from "../lib/sso";
 import { credentialIssueText, errorText } from "../lib/user-error";
 
@@ -69,11 +69,11 @@ export default function SignIn() {
     setPasswordVisible(false);
   }, [mode, apiBase]);
 
-  // Personal-dashboard fork: the dashboard trusts its network, so try to open a session as the owner first. A server
-  // without `open_owner` refuses, and the password form below stays available.
+  // A server that trusts its own network (`open_owner`) may open a session as its owner with no password. Any other
+  // server refuses, and the password form below stays available.
   const triedOpenSession = useRef(false);
   useEffect(() => {
-    if (!personalServerOnly() || triedOpenSession.current) return;
+    if (triedOpenSession.current) return;
     triedOpenSession.current = true;
     openOwnerSession()
       .then(() => openApp())
@@ -227,6 +227,8 @@ export default function SignIn() {
       setPending(false);
     }
   }
+
+  const custom = usesCustomApiBase(apiBase);
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: tokens.background }}>
@@ -541,21 +543,37 @@ export default function SignIn() {
                 </>
               )}
             </ScrollView>
-            <View
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={
+                custom
+                  ? t("Custom server {host}", { host: displayApiHost(apiBase) })
+                  : t("Use a custom server")
+              }
+              hitSlop={12}
+              onPress={() => router.push("/server")}
               style={{
                 alignItems: "center",
-                paddingBottom: 12,
                 paddingHorizontal: 24,
+                paddingBottom: 12,
                 paddingTop: 8,
               }}
             >
-              <Text style={{ color: tokens.mutedForeground, fontSize: 12 }}>
-                {t("Your dashboard")}
-              </Text>
-              <Text style={{ color: tokens.mutedForeground, fontSize: 13, marginTop: 2 }}>
-                {displayApiHost(apiBase)}
-              </Text>
-            </View>
+              {custom ? (
+                <>
+                  <Text style={{ color: tokens.mutedForeground, fontSize: 12 }}>
+                    {t("Custom server")}
+                  </Text>
+                  <Text style={{ color: tokens.mutedForeground, fontSize: 13, marginTop: 2 }}>
+                    {displayApiHost(apiBase)}
+                  </Text>
+                </>
+              ) : (
+                <Text style={{ color: tokens.mutedForeground, fontSize: 13 }}>
+                  {t("Use a custom server")}
+                </Text>
+              )}
+            </Pressable>
           </View>
         </TouchableWithoutFeedback>
       </KeyboardAvoidingView>
