@@ -407,7 +407,7 @@
   "Other model…": "다른 모델 직접 입력…",
   "Password": "비밀번호",
   "Paste a replacement key": "새 API 키를 붙여넣으세요",
-  "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed.": "서버의 OpenAI 호환 주소를 붙여넣으세요. 필요하면 Rakazo가 /v1을 추가합니다.",
+  "Paste the OpenAI-compatible address from your server. Herdr adds /v1 if needed.": "서버의 OpenAI 호환 주소를 붙여넣으세요. 필요하면 Herdr가 /v1을 추가합니다.",
   "Paste your API key": "API 키를 붙여넣으세요",
   "Personal credential": "내 인증 정보",
   "Pick a voice": "목소리 선택",

@@ -402,7 +402,7 @@
   "Other model…": "अन्य मॉडल…",
   "Password": "पासवर्ड",
   "Paste a replacement key": "बदलने के लिए नई कुंजी पेस्ट करें",
-  "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed.": "अपने सर्वर से OpenAI-संगत पता पेस्ट करें। ज़रूरत होने पर Rakazo /v1 जोड़ देता है।",
+  "Paste the OpenAI-compatible address from your server. Herdr adds /v1 if needed.": "अपने सर्वर से OpenAI-संगत पता पेस्ट करें। ज़रूरत होने पर Rakazo /v1 जोड़ देता है।",
   "Paste your API key": "अपनी API कुंजी पेस्ट करें",
   "Personal credential": "व्यक्तिगत क्रेडेंशियल",
   "Pick a voice": "एक आवाज़ चुनें",

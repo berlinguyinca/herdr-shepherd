@@ -492,7 +492,7 @@
   "Password updated": "Contraseña actualizada",
   "Passwords do not match": "Las contraseñas no coinciden",
   "Paste a replacement key": "Pega una clave de reemplazo",
-  "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed.": "Pega la dirección compatible con OpenAI de tu servidor. Rakazo agrega /v1 si es necesario.",
+  "Paste the OpenAI-compatible address from your server. Herdr adds /v1 if needed.": "Pega la dirección compatible con OpenAI de tu servidor. Herdr agrega /v1 si es necesario.",
   "Paste your API key": "Pega tu clave de API",
   "Paused": "En pausa",
   "Personal credential": "Credencial personal",

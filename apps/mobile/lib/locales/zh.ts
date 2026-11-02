@@ -98,8 +98,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Your Anthropic": "你的 Anthropic",
   "Your model provider": "你的模型提供商",
   "Connect a model in Settings before running bots.": "运行机器人前，请先在设置中连接模型。",
-  "Connect your own API key in Models or choose Rakazo credits in Billing.":
-    "请在“模型”中连接你自己的 API 密钥，或在“账单”中选择 Rakazo 额度。",
+  "Connect your own API key in Models or choose Herdr credits in Billing.":
+    "请在“模型”中连接你自己的 API 密钥，或在“账单”中选择 Herdr 额度。",
   "The model provider returned an error.": "模型提供商返回了错误。",
   "{provider} is rate limiting requests. Try again shortly.":
     "{provider}正在限制请求频率。请稍后重试。",
@@ -580,8 +580,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Photo library": "相册",
   Pin: "置顶",
   "Please try again.": "请重试。",
-  "Point this app at your self-hosted Rakazo origin, the same HTTPS URL you open in a browser.":
-    "将此应用指向你自托管的 Rakazo 源站，地址与你在浏览器中打开的 HTTPS URL 相同。",
+  "Point this app at your self-hosted Herdr origin, the same HTTPS URL you open in a browser.":
+    "将此应用指向你自托管的 Herdr 源站，地址与你在浏览器中打开的 HTTPS URL 相同。",
   Private: "私有",
   Profile: "资料",
   Providers: "提供商",
@@ -645,10 +645,10 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Show more": "显示更多",
   "Show {label}": "显示 {label}",
   "Sign in": "登录",
-  "Sign in to Rakazo": "登录 Rakazo",
+  "Sign in to Herdr": "登录 Herdr",
   "Sign out": "退出登录",
   "Sign up": "注册",
-  "Sign up for Rakazo": "注册 Rakazo",
+  "Sign up for Herdr": "注册 Herdr",
   "Sign-in": "登录",
   "Sign-up": "注册",
   "Sign-in did not return a session": "登录未返回会话",
@@ -686,7 +686,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   Team: "团队",
   "Team Computer": "团队电脑",
   "That doesn’t look like a URL": "这看起来不像 URL",
-  "That URL did not look like a Rakazo server": "该地址看起来不是 Rakazo 服务器",
+  "That URL did not look like a Herdr server": "该地址看起来不是 Herdr 服务器",
   "That URL is missing a host": "该地址缺少主机名",
   "The server changed while starting the request": "请求开始时服务器已更改",
   "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.":
@@ -774,8 +774,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Open conversation": "打开对话",
   "Open in full window": "在全窗口中打开",
   "OpenAPI JSON": "OpenAPI JSON",
-  "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed.":
-    "粘贴你服务器的 OpenAI 兼容地址。如有需要，Rakazo 会自动补上 /v1。",
+  "Paste the OpenAI-compatible address from your server. Herdr adds /v1 if needed.":
+    "粘贴你服务器的 OpenAI 兼容地址。如有需要，Herdr 会自动补上 /v1。",
   Paused: "已暂停",
   Prompt: "提示词",
   "Recording a live demonstration needs desktop or web with the full computer view. You can still ask this bot to run saved skills from chat.":
@@ -788,8 +788,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Teach a task": "教一个任务",
   "This removes every message and stops current work. The bot, computer, memory, and routines are kept.":
     "这将删除所有消息并停止当前工作。Bot、电脑、记忆和例行任务会保留。",
-  "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider.":
-    "Rakazo 暂不支持此订阅登录。请使用部署凭据或选择其他提供商。",
+  "This subscription sign-in is not available in Herdr yet. Use a deployment credential or choose another provider.":
+    "Herdr 暂不支持此订阅登录。请使用部署凭据或选择其他提供商。",
   Tools: "工具",
   Uninstall: "卸载",
   "Verify and add": "验证并添加",
@@ -897,7 +897,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "AI models": "AI 模型",
   Memory: "记忆",
   "Privacy policies": "隐私政策",
-  Rakazo: "Rakazo",
+  Herdr: "Herdr",
   "Withdraw all permissions": "撤销所有权限",
   "Withdraw all permissions?": "撤销所有权限？",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":
@@ -1015,13 +1015,13 @@ export const ZH_MESSAGES: Record<string, string> = {
   Subscribe: "订阅",
   "Monthly credits expire at renewal. Top-ups do not expire.":
     "每月额度在续费时到期。单次充值额度不会过期。",
-  "Use Rakazo credits": "使用 Rakazo 额度",
+  "Use Herdr credits": "使用 Herdr 额度",
   "Choose a plan": "选择方案",
   "Change plan": "更改方案",
   Plan: "方案",
   None: "无",
   "Free trial": "免费试用",
-  "Rakazo credits": "Rakazo 额度",
+  "Herdr credits": "Herdr 额度",
   "Free until": "免费至",
   Ends: "结束于",
   Renews: "续费日期",
@@ -1049,7 +1049,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Your free trial has started": "你的免费试用已开始",
   "Free until {date}": "{date} 前免费",
   "Connect your AI": "连接你的 AI",
-  "Start using Rakazo": "开始使用 Rakazo",
+  "Start using Herdr": "开始使用 Herdr",
   "1 unread": "1 条未读",
   "{count} unread": "{count} 条未读",
   "{count} need attention": "{count} 个需要处理",
@@ -1057,11 +1057,11 @@ export const ZH_MESSAGES: Record<string, string> = {
   "{label}, below": "{label}，下方",
   Work: "工作",
   Both: "两者都有",
-  "How will you use Rakazo?": "你会如何使用 Rakazo？",
-  "What do you most want Rakazo to help with?": "你最希望 Rakazo 帮你做什么？",
+  "How will you use Herdr?": "你会如何使用 Herdr？",
+  "What do you most want Herdr to help with?": "你最希望 Herdr 帮你做什么？",
   "How big is your team?": "你的团队有多大？",
   "How did you hear about us?": "你是如何知道我们的？",
-  "Welcome to Rakazo": "欢迎使用 Rakazo",
+  "Welcome to Herdr": "欢迎使用 Herdr",
   Messaging: "消息",
   Unlink: "取消关联",
   "Connect a chat app": "连接聊天应用",
