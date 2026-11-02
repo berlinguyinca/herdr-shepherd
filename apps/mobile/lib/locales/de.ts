@@ -1231,6 +1231,45 @@ export const DE_MESSAGES: Record<string, string> = {
   "1 free month earned": "1 Gratismonat verdient",
   "{count} free months earned": "{count} Gratismonate verdient",
   "Submit a plugin": "Plugin einreichen",
+  Assistant: "Assistent",
+  Agents: "Agenten",
+  Blocked: "Blockiert",
+  Idle: "Inaktiv",
+  Unknown: "Unbekannt",
+  Closed: "Geschlossen",
+  "Show older": "Ältere anzeigen",
+  "Select an agent": "Wähle einen Agenten",
+  "No agents yet": "Noch keine Agenten",
+  "This server does not offer the Agents view yet":
+    "Dieser Server bietet die Agentenansicht noch nicht an",
+  "Could not load agents": "Agenten konnten nicht geladen werden",
+  "Back to agents": "Zurück zu den Agenten",
+  "Could not load this conversation": "Diese Unterhaltung konnte nicht geladen werden",
+  "No conversation was captured for this agent.":
+    "Für diesen Agenten wurde keine Unterhaltung aufgezeichnet.",
+  "This agent is no longer available": "Dieser Agent ist nicht mehr verfügbar",
+  Withheld: "Zurückgehalten",
+  "Empty message": "Leere Nachricht",
+  Loading: "Wird geladen",
+  "Show full message": "Ganze Nachricht anzeigen",
+  Succeeded: "Erfolgreich",
+  Interrupted: "Unterbrochen",
+  Tool: "Werkzeug",
+  "No output": "Keine Ausgabe",
+  "Reasoning requires a higher role": "Für die Begründung ist eine höhere Rolle erforderlich",
+  "Sensitive output requires a higher role":
+    "Für sensible Ausgaben ist eine höhere Rolle erforderlich",
+  "Session started": "Sitzung gestartet",
+  "Session restored": "Sitzung wiederhergestellt",
+  "Session restarted": "Sitzung neu gestartet",
+  "Session ended": "Sitzung beendet",
+  "Session interrupted": "Sitzung unterbrochen",
+  "Session update": "Sitzungsupdate",
+  "Nothing to show yet.": "Noch nichts anzuzeigen.",
+  "Couldn't load the full text. Tap to retry.":
+    "Der vollständige Text konnte nicht geladen werden. Zum Wiederholen tippen.",
+  "Couldn't load the full output. Tap to retry.":
+    "Die vollständige Ausgabe konnte nicht geladen werden. Zum Wiederholen tippen.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

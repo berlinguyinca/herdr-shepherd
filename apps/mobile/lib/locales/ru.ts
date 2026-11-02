@@ -1262,6 +1262,43 @@ export const RU_MESSAGES: Record<string, string> = {
   "1 free month earned": "Получен 1 бесплатный месяц",
   "{count} free months earned": "Бесплатных месяцев получено: {count}",
   "Submit a plugin": "Предложить плагин",
+  Assistant: "Ассистент",
+  Agents: "Агенты",
+  Blocked: "Заблокирован",
+  Idle: "Простаивает",
+  Unknown: "Неизвестно",
+  Closed: "Закрыт",
+  "Show older": "Показать старые",
+  "Select an agent": "Выберите агента",
+  "No agents yet": "Агентов пока нет",
+  "This server does not offer the Agents view yet":
+    "Этот сервер пока не поддерживает раздел агентов",
+  "Could not load agents": "Не удалось загрузить агентов",
+  "Back to agents": "Назад к агентам",
+  "Could not load this conversation": "Не удалось загрузить эту беседу",
+  "No conversation was captured for this agent.": "Для этого агента беседа не записана.",
+  "This agent is no longer available": "Этот агент больше недоступен",
+  Withheld: "Скрыто",
+  "Empty message": "Пустое сообщение",
+  "Show full message": "Показать сообщение целиком",
+  Succeeded: "Успешно",
+  Interrupted: "Прервано",
+  Tool: "Инструмент",
+  "No output": "Нет вывода",
+  "Reasoning requires a higher role": "Для просмотра рассуждений нужна более высокая роль",
+  "Sensitive output requires a higher role":
+    "Для просмотра конфиденциального вывода нужна более высокая роль",
+  "Session started": "Сеанс начат",
+  "Session restored": "Сеанс восстановлен",
+  "Session restarted": "Сеанс перезапущен",
+  "Session ended": "Сеанс завершён",
+  "Session interrupted": "Сеанс прерван",
+  "Session update": "Обновление сеанса",
+  "Nothing to show yet.": "Пока нечего показать.",
+  "Couldn't load the full text. Tap to retry.":
+    "Не удалось загрузить полный текст. Нажмите, чтобы повторить.",
+  "Couldn't load the full output. Tap to retry.":
+    "Не удалось загрузить полный вывод. Нажмите, чтобы повторить.",
 };
 
 export const PEER_MESSAGE_FORMS: Partial<Record<Intl.LDMLPluralRule, string>> = {

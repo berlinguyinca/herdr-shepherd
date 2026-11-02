@@ -1337,20 +1337,24 @@ function httpError(message: string, res: Response, code?: string): Error {
   });
 }
 
-export async function subscribeThread(
-  target: { botId: string } | { groupId: string },
-  cursor: number,
-  onEvent: (event: ThreadEvent) => void,
+/**
+ * Reads one rpc event stream, calling `onFrame` with each parsed `data:` payload until it ends,
+ * idles past IDLE_TIMEOUT_MS, or aborts. `release` runs on every exit, including a failed open.
+ * `current` tells a frame whether the server and session it was opened for are still active.
+ */
+async function readRpcStream(
+  context: ApiRequestContext,
+  proc: RpcPath,
+  body: unknown,
   signal: AbortSignal,
+  onFrame: (frame: { json?: unknown }, current: () => boolean) => void,
+  release: () => void,
 ) {
-  const context = await captureApiRequestContext();
-  syncMobileAvatarSession(currentApiBase(), currentSessionGeneration());
-  const activityFeed = beginMobileAvatarFeed(target, cursor);
   const current = () =>
     context.apiBase === currentApiBase() &&
     context.sessionGeneration === currentSessionGeneration();
   const res = await fetchServer(
-    `${context.apiBase}/rpc/threads/subscribe`,
+    `${context.apiBase}/rpc/${proc}`,
     {
       method: "POST",
       headers: {
@@ -1359,20 +1363,20 @@ export async function subscribeThread(
         origin: "rakazo://",
         ...context.headers,
       },
-      body: JSON.stringify({ json: { ...target, cursor } }),
+      body: JSON.stringify({ json: body }),
       signal,
     },
     context.apiBase,
   ).catch((error: unknown) => {
-    mobileLogoAvatarActivity.resetSource(activityFeed.source);
+    release();
     if (current() && !signal.aborted && isServerUnreachable(error)) noteServerReachable(false);
     throw error;
   });
   if (current()) noteServerReachable(!isUnreachableStatus(res.status));
   if (!res.ok || !res.body) {
-    mobileLogoAvatarActivity.resetSource(activityFeed.source);
+    release();
     cancelResponseBody(res);
-    throw httpError(`rpc threads/subscribe failed (${res.status})`, res);
+    throw httpError(`rpc ${proc} failed (${res.status})`, res);
   }
   const reader = res.body.getReader();
   let finished = false;
@@ -1404,26 +1408,7 @@ export async function subscribeThread(
         .join("");
       if (!data || data === "[DONE]") return;
       try {
-        const parsed = JSON.parse(data) as { json?: ThreadEvent; error?: { message?: string } };
-        // Heartbeats prove liveness only; forwarding one would advance the caller's cursor.
-        if (parsed.json?.type && parsed.json.type !== "heartbeat") {
-          if (!current()) {
-            mobileLogoAvatarActivity.resetSource(activityFeed.source);
-            return;
-          }
-          const event = parsed.json;
-          const threadId = event.threadId ?? activityFeed.threadId;
-          if (threadId && typeof event.seq === "number" && event.seq > cursor)
-            mobileLogoAvatarActivity.apply(activityFeed.source, {
-              threadId,
-              seq: event.seq,
-              botId: event.botId,
-              runId: event.runId,
-              type: event.type,
-              payload: event.payload ?? {},
-            });
-          onEvent(displayIdentityEvent(event, identityLabels()));
-        }
+        onFrame(JSON.parse(data) as { json?: unknown }, current);
       } catch {
         // Malformed frames and callback errors do not interrupt the subscription.
       }
@@ -1457,7 +1442,7 @@ export async function subscribeThread(
       let start = 0;
       for (let index = 0; index < value.byteLength; index += 1) {
         if (used + index - start >= MAX_MOBILE_RPC_RESPONSE_BYTES) {
-          throw new RangeError(`Thread SSE frame exceeds ${MAX_MOBILE_RPC_RESPONSE_BYTES} bytes`);
+          throw new RangeError(`SSE frame exceeds ${MAX_MOBILE_RPC_RESPONSE_BYTES} bytes`);
         }
         const isLf = value[index] === 10;
         if (previousLf && isLf) {
@@ -1477,7 +1462,7 @@ export async function subscribeThread(
       if (start < value.byteLength) appendFrameBytes(value.subarray(start));
     }
   } finally {
-    mobileLogoAvatarActivity.resetSource(activityFeed.source);
+    release();
     if (!finished) {
       try {
         void Promise.resolve(reader.cancel()).catch(() => undefined);
@@ -1487,6 +1472,67 @@ export async function subscribeThread(
     }
     reader.releaseLock();
   }
+}
+
+/** Opens an rpc event stream on the current server and session; frames arrive as `json`. */
+export async function streamRpc(
+  proc: RpcPath,
+  body: unknown,
+  signal: AbortSignal,
+  onJson: (json: unknown) => void,
+) {
+  const context = await captureApiRequestContext();
+  await readRpcStream(
+    context,
+    proc,
+    body,
+    signal,
+    (frame, current) => {
+      if (frame.json !== undefined && current()) onJson(frame.json);
+    },
+    () => undefined,
+  );
+}
+
+export async function subscribeThread(
+  target: { botId: string } | { groupId: string },
+  cursor: number,
+  onEvent: (event: ThreadEvent) => void,
+  signal: AbortSignal,
+) {
+  const context = await captureApiRequestContext();
+  syncMobileAvatarSession(currentApiBase(), currentSessionGeneration());
+  const activityFeed = beginMobileAvatarFeed(target, cursor);
+  const release = () => mobileLogoAvatarActivity.resetSource(activityFeed.source);
+  await readRpcStream(
+    context,
+    "threads/subscribe",
+    { ...target, cursor },
+    signal,
+    (parsed, current) => {
+      const event = (parsed.json as ThreadEvent | undefined)?.type
+        ? (parsed.json as ThreadEvent)
+        : undefined;
+      // Heartbeats prove liveness only; forwarding one would advance the caller's cursor.
+      if (!event || event.type === "heartbeat") return;
+      if (!current()) {
+        release();
+        return;
+      }
+      const threadId = event.threadId ?? activityFeed.threadId;
+      if (threadId && typeof event.seq === "number" && event.seq > cursor)
+        mobileLogoAvatarActivity.apply(activityFeed.source, {
+          threadId,
+          seq: event.seq,
+          botId: event.botId,
+          runId: event.runId,
+          type: event.type,
+          payload: event.payload ?? {},
+        });
+      onEvent(displayIdentityEvent(event, identityLabels()));
+    },
+    release,
+  );
 }
 
 /** Mirrors the web reducer so group member status matches across surfaces. */

@@ -11,6 +11,20 @@ import {
   AgentImportPreviewInput,
 } from "./agent-import.js";
 import { AgentImportSetupStateInput, AgentImportSetupStateSchema } from "./agent-import-setup.js";
+import {
+  AgentEventInputSchema,
+  AgentEventSchema,
+  AgentGetOutputSchema,
+  AgentIdInputSchema,
+  AgentListFrameSchema,
+  AgentListInputSchema,
+  AgentListOutputSchema,
+  AgentMessagesInputSchema,
+  AgentMessagesOutputSchema,
+  AgentStreamFrameSchema,
+  AgentSubscribeInputSchema,
+  AgentSubscribeListInputSchema,
+} from "./agents.js";
 import { AiConsentQuerySchema, AiConsentStatusSchema } from "./ai-consent.js";
 import { AnalyticsScreenInput } from "./analytics.js";
 import {
@@ -479,6 +493,17 @@ export const appContract = {
         releasedGroups: z.number().int().nonnegative(),
       }),
     ),
+  },
+  /** Shepherd Agents tab; served by the bridge, so an older server answers 404. */
+  agents: {
+    list: oc.input(AgentListInputSchema).output(AgentListOutputSchema),
+    get: oc.input(AgentIdInputSchema).output(AgentGetOutputSchema),
+    messages: oc.input(AgentMessagesInputSchema).output(AgentMessagesOutputSchema),
+    event: oc.input(AgentEventInputSchema).output(AgentEventSchema),
+    subscribe: oc.input(AgentSubscribeInputSchema).output(eventIterator(AgentStreamFrameSchema)),
+    subscribeList: oc
+      .input(AgentSubscribeListInputSchema)
+      .output(eventIterator(AgentListFrameSchema)),
   },
   threads: {
     head: oc.input(threadTarget).output(
