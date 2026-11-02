@@ -8,6 +8,8 @@ export const PAGE_SIZE = 50;
 export const POLL_MS = 5_000;
 /** How often an open stream is cross-checked with a read of the newest page. */
 export const RECONCILE_MS = 15_000;
+/** After the stream fell back, a poll that works this long afterwards tries the stream again. */
+export const STREAM_RETRY_MS = 60_000;
 
 /**
  * Merges events by seq, oldest first. A same-seq event replaces the loaded one only when its rev
@@ -21,6 +23,20 @@ export function mergeEvents(current: AgentEvent[], incoming: AgentEvent[]): Agen
     if (!existing || event.rev >= existing.rev) bySeq.set(event.seq, event);
   }
   return [...bySeq.values()].sort((a, b) => a.seq - b.seq);
+}
+
+/**
+ * True when a newest page leaves a hole after the loaded events: more history sits before it and
+ * its oldest seq is past the newest loaded seq + 1. Merging would hide the gap for good, so the
+ * page replaces what is loaded.
+ */
+export function pageLeavesGap(
+  loaded: AgentEvent[],
+  page: { events: AgentEvent[]; hasMore: boolean },
+): boolean {
+  const newest = loaded.at(-1);
+  if (!newest || !page.hasMore || page.events.length === 0) return false;
+  return Math.min(...page.events.map((event) => event.seq)) > newest.seq + 1;
 }
 
 export type AgentConversation = {
@@ -94,6 +110,7 @@ export function useAgentConversation(
   const olderBusy = useRef<string | null>(null);
   const subscribedRev = useRef<number | null>(null);
   const fresh = useRef(false);
+  const fellBackAt = useRef(0);
 
   /** Applies a change to this id's state; a continuation of a previous id changes nothing. */
   const patch = useCallback((forId: string, change: (state: State) => Partial<State>) => {
@@ -120,15 +137,18 @@ export function useAgentConversation(
         ]);
         if (cancelled) return;
         subscribedRev.current = page.rev;
-        patch(id, (s) => ({
-          agent: info.agent,
-          hasConversation: info.hasConversation,
-          events: replaceAll ? mergeEvents([], page.events) : mergeEvents(s.events, page.events),
-          hasMore: s.loaded && !replaceAll ? s.hasMore : page.hasMore,
-          loaded: true,
-          loading: false,
-          reconnecting: false,
-        }));
+        patch(id, (s) => {
+          const replace = replaceAll || pageLeavesGap(s.events, page);
+          return {
+            agent: info.agent,
+            hasConversation: info.hasConversation,
+            events: replace ? mergeEvents([], page.events) : mergeEvents(s.events, page.events),
+            hasMore: s.loaded && !replace ? s.hasMore : page.hasMore,
+            loaded: true,
+            loading: false,
+            reconnecting: false,
+          };
+        });
         unsubscribe = subscribeAgent(
           id,
           page.rev,
@@ -136,7 +156,9 @@ export function useAgentConversation(
             if (!cancelled) patch(id, (s) => ({ events: mergeEvents(s.events, [event]) }));
           },
           () => {
-            if (!cancelled) patch(id, () => ({ polling: true }));
+            if (cancelled) return;
+            fellBackAt.current = Date.now();
+            patch(id, () => ({ polling: true }));
           },
         );
       } catch (error) {
@@ -171,8 +193,15 @@ export function useAgentConversation(
               setAttempt((value) => value + 1);
               return;
             }
-            patch(id, (s) => ({ events: mergeEvents(s.events, page.events) }));
-            if (stateRef.current.reconnecting) setAttempt((value) => value + 1);
+            patch(id, (s) =>
+              pageLeavesGap(s.events, page)
+                ? { events: mergeEvents([], page.events), hasMore: page.hasMore }
+                : { events: mergeEvents(s.events, page.events) },
+            );
+            // A poll that worked means the server is reachable: try the stream again.
+            const s = stateRef.current;
+            if (s.reconnecting || (s.polling && Date.now() - fellBackAt.current >= STREAM_RETRY_MS))
+              setAttempt((value) => value + 1);
           })
           .catch((error) => {
             if (!cancelled && isAgentGone(error)) patch(id, () => ({ gone: true }));

@@ -1278,7 +1278,6 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not load this conversation": "Не удалось загрузить эту беседу",
   "No conversation was captured for this agent.": "Для этого агента беседа не записана.",
   "This agent is no longer available": "Этот агент больше недоступен",
-  "Withheld: {reason}": "Скрыто: {reason}",
   Withheld: "Скрыто",
   "Empty message": "Пустое сообщение",
   "Show full message": "Показать сообщение целиком",
@@ -1286,7 +1285,16 @@ export const RU_MESSAGES: Record<string, string> = {
   Interrupted: "Прервано",
   Tool: "Инструмент",
   "No output": "Нет вывода",
-  "Session {phase}": "Сеанс {phase}",
+  "Reasoning requires a higher role": "Для просмотра рассуждений нужна более высокая роль",
+  "Sensitive output requires a higher role":
+    "Для просмотра конфиденциального вывода нужна более высокая роль",
+  "Session started": "Сеанс начат",
+  "Session restored": "Сеанс восстановлен",
+  "Session restarted": "Сеанс перезапущен",
+  "Session ended": "Сеанс завершён",
+  "Session interrupted": "Сеанс прерван",
+  "Session update": "Обновление сеанса",
+  "Nothing to show yet.": "Пока нечего показать.",
   "Couldn't load the full text. Tap to retry.":
     "Не удалось загрузить полный текст. Нажмите, чтобы повторить.",
   "Couldn't load the full output. Tap to retry.":

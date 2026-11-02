@@ -26,12 +26,24 @@ export function compareAgents(a: AgentRow, b: AgentRow): number {
   return rank !== 0 ? rank : time(b) - time(a);
 }
 
+/** The server hides an idle agent that has been quiet this long (its `visible()`). */
+const STALE_IDLE_SECONDS = 7 * 86_400;
+
+/** A row the default list no longer shows: closed, or idle and quiet for over seven days. */
+export function leftDefaultList(row: AgentRow, now = Date.now()): boolean {
+  if (row.status === "closed") return true;
+  const updated = Date.parse(row.updated_at);
+  return (
+    row.status === "idle" && !Number.isNaN(updated) && now - updated > STALE_IDLE_SECONDS * 1000
+  );
+}
+
 /**
  * Puts a live row in the list: it replaces the row with the same id and the list is re-sorted. A
- * closed row is dropped unless `keepClosed` (the "Show older" list still shows closed agents).
+ * closed or stale-idle row is dropped unless `keepClosed` (the "Show older" list still shows them).
  */
 export function applyAgentRow(rows: AgentRow[], row: AgentRow, keepClosed: boolean): AgentRow[] {
   const rest = rows.filter((existing) => existing.id !== row.id);
-  if (row.status === "closed" && !keepClosed) return rest;
+  if (leftDefaultList(row) && !keepClosed) return rest;
   return [...rest, row].sort(compareAgents);
 }

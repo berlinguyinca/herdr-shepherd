@@ -1,7 +1,7 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
 import { useCallback, useRef } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
-import { AgentEvent } from "../components/agent-event";
+import { AgentEvent, isRenderableEvent } from "../components/agent-event";
 import { useAgentStatus } from "../components/agent-row";
 import type { AgentEvent as Event } from "../lib/agents";
 import { agentEvent, isAgentGone } from "../lib/agents";
@@ -25,6 +25,9 @@ export default function AgentScreen() {
   const agentId = typeof id === "string" ? id : "";
   const conversation = useAgentConversation(agentId);
   const { agent, events, loading, gone, failed, empty, markGone } = conversation;
+  // Usage and other quiet events draw nothing; a conversation of only those gets a calm message.
+  const nothingToShow =
+    !loading && !empty && !conversation.hasMore && !events.some(isRenderableEvent);
   const list = useRef<FlatList<Event>>(null);
   const atBottom = useRef(true);
 
@@ -88,6 +91,12 @@ export default function AgentScreen() {
         <View style={styles.center}>
           <Text style={[styles.message, { color: tokens.mutedForeground }]}>
             {t("No conversation was captured for this agent.")}
+          </Text>
+        </View>
+      ) : nothingToShow ? (
+        <View style={styles.center}>
+          <Text style={[styles.message, { color: tokens.mutedForeground }]}>
+            {t("Nothing to show yet.")}
           </Text>
         </View>
       ) : (

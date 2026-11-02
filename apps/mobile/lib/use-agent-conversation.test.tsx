@@ -331,3 +331,81 @@ it("reconciles an open stream every 15s and resubscribes when the rev dropped (s
   expect(subscribeMock).toHaveBeenCalledTimes(2);
   expect(subscribeMock.mock.calls[1]?.[1]).toBe(7);
 });
+
+it("a reconnect page that starts beyond the loaded events replaces them, and loadOlder pages before it", async () => {
+  messagesMock.mockResolvedValueOnce({
+    events: [ev(10), ev(9)],
+    hasMore: false,
+    newestSeq: 10,
+    rev: 10,
+  });
+  await act(async () => root.render(<Probe />));
+  await flush();
+  foreground.value = false;
+  await act(async () => root.render(<Probe />));
+  const newest = Array.from({ length: 50 }, (_, i) => ev(110 - i));
+  messagesMock.mockResolvedValueOnce({ events: newest, hasMore: true, newestSeq: 110, rev: 110 });
+  foreground.value = true;
+  await act(async () => root.render(<Probe />));
+  await flush();
+  expect(latest.events.map((e) => e.seq)[0]).toBe(61);
+  expect(latest.events).toHaveLength(50);
+  expect(latest.hasMore).toBe(true);
+  messagesMock.mockResolvedValueOnce({ events: [ev(60)], hasMore: true, newestSeq: 110, rev: 110 });
+  await act(async () => latest.loadOlder());
+  await flush();
+  expect(messagesMock).toHaveBeenLastCalledWith({ id: "a1", beforeSeq: 61, limit: 50 });
+});
+
+it("a poll page with hasMore that skips past the loaded events replaces them", async () => {
+  vi.useFakeTimers();
+  messagesMock.mockResolvedValueOnce({ events: [ev(10)], hasMore: false, newestSeq: 10, rev: 10 });
+  await act(async () => root.render(<Probe />));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  const newest = Array.from({ length: 50 }, (_, i) => ev(110 - i));
+  messagesMock.mockResolvedValue({ events: newest, hasMore: true, newestSeq: 110, rev: 110 });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000);
+  });
+  expect(latest.events.map((e) => e.seq)[0]).toBe(61);
+  expect(latest.events).toHaveLength(50);
+  expect(latest.hasMore).toBe(true);
+});
+
+it("a contiguous page with hasMore still merges and keeps the loaded older events", async () => {
+  vi.useFakeTimers();
+  messagesMock.mockResolvedValueOnce({ events: [ev(54)], hasMore: false, newestSeq: 54, rev: 1 });
+  await act(async () => root.render(<Probe />));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  const newest = Array.from({ length: 50 }, (_, i) => ev(104 - i));
+  messagesMock.mockResolvedValue({ events: newest, hasMore: true, newestSeq: 104, rev: 2 });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(15_000);
+  });
+  expect(latest.events).toHaveLength(51);
+  expect(latest.events[0]?.seq).toBe(54);
+});
+
+it("after a fallback a successful poll tries the stream again", async () => {
+  vi.useFakeTimers();
+  messagesMock.mockResolvedValue({ events: [ev(1)], hasMore: false, newestSeq: 1, rev: 1 });
+  await act(async () => root.render(<Probe />));
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(1);
+  });
+  expect(subscribeMock).toHaveBeenCalledTimes(1);
+  const onFallback = subscribeMock.mock.calls[0]?.[3] as () => void;
+  await act(async () => onFallback());
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(55_000);
+  });
+  expect(subscribeMock).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10_000);
+  });
+  expect(subscribeMock).toHaveBeenCalledTimes(2);
+});

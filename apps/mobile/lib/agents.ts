@@ -77,6 +77,8 @@ type FollowOptions = {
   reconnectMs?: number;
   /** Streams that end without delivering a frame this many times in a row fall back to polling. */
   maxIdleReconnects?: number;
+  /** A stream that ended cleanly after at least this long was alive (heartbeats), not idle. */
+  minLiveMs?: number;
 };
 
 /**
@@ -91,7 +93,7 @@ function follow<F extends { seq: number }>(
   startCursor: number,
   onFrame: (frame: F) => void,
   onFallback: () => void,
-  { reconnectMs = 1_000, maxIdleReconnects = 3 }: FollowOptions = {},
+  { reconnectMs = 1_000, maxIdleReconnects = 3, minLiveMs = 5_000 }: FollowOptions = {},
 ): () => void {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -105,6 +107,7 @@ function follow<F extends { seq: number }>(
   };
   const run = async () => {
     let received = false;
+    const started = Date.now();
     try {
       await streamRpc(proc, bodyFor(cursor), controller.signal, (json) => {
         const frame = parse(json);
@@ -120,7 +123,9 @@ function follow<F extends { seq: number }>(
       if (status === 429 || status === 404) return fallback();
     }
     if (controller.signal.aborted) return;
-    idle = received ? 0 : idle + 1;
+    // The server closes a healthy quiet stream after its time limit with no frames: that is not
+    // idle. Only errors and streams that close at once count.
+    idle = received || Date.now() - started >= minLiveMs ? 0 : idle + 1;
     if (idle >= maxIdleReconnects) return fallback();
     timer = setTimeout(run, reconnectMs);
   };

@@ -15,7 +15,13 @@ import { InboxBesideContext } from "./side-insets";
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), dismissTo: vi.fn() }));
 vi.mock("expo-router", () => ({ useRouter: () => router }));
 vi.mock("react-native", () => {
-  const View = ({ children }: { children?: ReactNode }) => <div>{children}</div>;
+  const View = ({
+    children,
+    accessibilityRole,
+  }: {
+    children?: ReactNode;
+    accessibilityRole?: string;
+  }) => <div data-role={accessibilityRole}>{children}</div>;
   return {
     Platform: { OS: "ios" },
     StyleSheet: { create: <T,>(styles: T) => styles, hairlineWidth: 1 },
@@ -30,15 +36,18 @@ vi.mock("react-native", () => {
       onPress,
       accessibilityLabel,
       accessibilityState,
+      accessibilityRole,
     }: {
       children?: ReactNode;
       onPress?: () => void;
+      accessibilityRole?: string;
       accessibilityLabel?: string;
       accessibilityState?: { selected?: boolean };
     }) => (
       <button
         type="button"
         aria-label={accessibilityLabel}
+        data-role={accessibilityRole}
         data-selected={accessibilityState?.selected}
         onClick={onPress}
       >
@@ -348,4 +357,37 @@ it("never commits the empty state while the list holds agents", async () => {
   observer.disconnect();
   expect(names()).toEqual(["agent-1"]);
   expect(empties).toEqual([]);
+});
+
+it("after the stream fell back a successful poll subscribes again from the fresh cursor", async () => {
+  vi.useFakeTimers();
+  rpcMock.mockResolvedValue(list([row("1", "working")]));
+  streamMock.mockRejectedValueOnce(Object.assign(new Error("busy"), { status: 429 }));
+  await render();
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10);
+  });
+  expect(streamMock).toHaveBeenCalledTimes(1);
+  rpcMock.mockResolvedValue({ ...list([row("1", "working")]), cursor: 20 });
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(55_000);
+  });
+  expect(streamMock).toHaveBeenCalledTimes(1);
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(10_000);
+  });
+  expect(streamMock).toHaveBeenCalledTimes(2);
+  expect(streamMock.mock.calls[1]?.[1]).toEqual({ cursor: 20 });
+});
+
+it("the tab bar is a tablist of tabs with the selected state", async () => {
+  await render(<HomeTabBar active="agents" />);
+  expect(host.querySelector('[data-role="tablist"]')).not.toBeNull();
+  const tabs = [...host.querySelectorAll('button[data-role="tab"]')];
+  expect(
+    tabs.map((tab) => [tab.getAttribute("aria-label"), tab.getAttribute("data-selected")]),
+  ).toEqual([
+    ["Assistant", "false"],
+    ["Agents", "true"],
+  ]);
 });

@@ -18,6 +18,7 @@ export function HomeTabBar({ active }: { active: HomeTab }) {
   ];
   return (
     <View
+      accessibilityRole="tablist"
       style={[
         styles.bar,
         {

@@ -127,3 +127,28 @@ describe("subscribeAgent", () => {
     expect(onFallback).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("follow idle accounting", () => {
+  it("a clean end after a long quiet stream reconnects without falling back", async () => {
+    stream.mockImplementation(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 15));
+    });
+    const onFallback = vi.fn();
+    const stop = subscribeAgentList(0, vi.fn(), onFallback, {
+      reconnectMs: 0,
+      minLiveMs: 5,
+    });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    stop();
+    expect(stream.mock.calls.length).toBeGreaterThan(4);
+    expect(onFallback).not.toHaveBeenCalled();
+  });
+
+  it("streams that close at once without frames still fall back", async () => {
+    stream.mockImplementation(async () => undefined);
+    const onFallback = vi.fn();
+    subscribeAgentList(0, vi.fn(), onFallback, { reconnectMs: 0, minLiveMs: 1_000 });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(onFallback).toHaveBeenCalledTimes(1);
+  });
+});

@@ -12,6 +12,8 @@ import { queryClient } from "../lib/query";
 import { AgentRow } from "./agent-row";
 
 const POLL_MS = 5_000;
+/** After the stream fell back, a poll that works this long afterwards tries the stream again. */
+const STREAM_RETRY_MS = 60_000;
 
 /** The agents list, for the full-screen Agents tab and the left pane of a wide window. */
 export function AgentsList({
@@ -26,6 +28,7 @@ export function AgentsList({
   const insets = useSafeAreaInsets();
   const [showOlder, setShowOlder] = useState(false);
   const [polling, setPolling] = useState(false);
+  const fellBackAt = useRef(0);
   const [pulling, setPulling] = useState(false);
   // Rows changed by the stream, kept only for the list they were applied to.
   const [live, setLive] = useState<{ source: unknown; rows: Row[] } | null>(null);
@@ -52,11 +55,20 @@ export function AgentsList({
           const base = current && current.source === source ? current.rows : (source?.agents ?? []);
           return { source, rows: applyAgentRow(base, row, showOlder) };
         }),
-      () => setPolling(true),
+      () => {
+        fellBackAt.current = Date.now();
+        setPolling(true);
+      },
     );
   }, [startCursor, showOlder, polling]);
 
-  const poll = useCallback(() => refetch(), [refetch]);
+  // A poll that worked means the server is reachable: try the stream again.
+  const poll = useCallback(async () => {
+    const result = await refetch();
+    if (result.isError || !result.data || Date.now() - fellBackAt.current < STREAM_RETRY_MS) return;
+    cursor.current = { showOlder, value: result.data.cursor };
+    setPolling(false);
+  }, [refetch, showOlder]);
   useForegroundPoll(poll, POLL_MS, polling);
 
   const unsupported = query.isError && isAgentsUnsupported(query.error);

@@ -51,7 +51,7 @@ it("wide window shows list and open agent side by side", async () => {
   // The open agent is no longer a full-window screen on a wide window.
   expect(fullWindowRoute("/agent", true)).toBe(false);
   expect(fullWindowRoute("/agents", true)).toBe(false);
-  expect(tabFor("/agent")).toBe("agents");
+  expect(tabFor("/agent", "agents")).toBe("agents");
   const onSelect = vi.fn();
   await act(async () =>
     root.render(
@@ -86,8 +86,11 @@ it("Assistant tab on a wide window still shows the chat inbox", async () => {
   expect(leftPaneFor("/chat", true, true)).toBe("inbox");
   expect(leftPaneFor("/chat", true, false)).toBeNull();
   expect(leftPaneFor("/server", true, true)).toBeNull();
-  expect(tabFor("/")).toBe("assistant");
-  expect(tabFor("/chat")).toBeNull();
+  expect(tabFor("/", "inbox")).toBe("assistant");
+  // A chat open beside the inbox keeps the bar; on a narrow window there is no left pane.
+  expect(tabFor("/thread", leftPaneFor("/thread", true, true))).toBe("assistant");
+  expect(tabFor("/thread", leftPaneFor("/thread", false, true))).toBeNull();
+  expect(tabFor("/server", leftPaneFor("/server", true, true))).toBeNull();
   await act(async () =>
     root.render(
       <SplitLeftPane

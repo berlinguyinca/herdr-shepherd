@@ -8,6 +8,40 @@ import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 type Data = Record<string, unknown>;
 const str = (value: unknown): string => (typeof value === "string" ? value : "");
 
+/** The two reasons the server gives for withholding an event, translated; anything else is generic. */
+function withheldLabel(reason: string, t: (text: string) => string): string {
+  if (reason === "reasoning requires a higher role") return t("Reasoning requires a higher role");
+  if (reason === "sensitive output requires a higher role")
+    return t("Sensitive output requires a higher role");
+  return t("Withheld");
+}
+
+function phaseLabel(phase: string, t: (text: string) => string): string {
+  switch (phase) {
+    case "started":
+      return t("Session started");
+    case "restored":
+      return t("Session restored");
+    case "restarted":
+      return t("Session restarted");
+    case "ended":
+      return t("Session ended");
+    case "interrupted":
+      return t("Session interrupted");
+    default:
+      return t("Session update");
+  }
+}
+
+/** Whether an event draws anything, so the screen can tell an empty conversation from a full one. */
+export function isRenderableEvent(event: Event): boolean {
+  const data: Data = event.data;
+  if (event.kind === "message" || event.kind === "tool") return true;
+  if (data.withheld === true) return event.kind !== "reasoning";
+  if (event.kind === "lifecycle") return str(data.phase) !== "";
+  return event.kind === "file" && str(data.path) !== "";
+}
+
 function duration(ms: unknown): string {
   if (typeof ms !== "number" || !Number.isFinite(ms) || ms < 0) return "";
   return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(ms < 10_000 ? 1 : 0)} s`;
@@ -56,14 +90,15 @@ export function AgentEvent({
     }
   };
 
+  // Reasoning the viewer's role may not see is not shown at all.
+  if (withheld && event.kind === "reasoning") return null;
+
   const chip = withheld ? (
     <Text
       testID="withheld"
       style={[styles.chip, { color: tokens.warning, borderColor: tokens.warning }]}
     >
-      {str(data.withheld_reason)
-        ? t("Withheld: {reason}", { reason: str(data.withheld_reason) })
-        : t("Withheld")}
+      {withheldLabel(str(data.withheld_reason), t)}
     </Text>
   ) : null;
 
@@ -173,7 +208,7 @@ export function AgentEvent({
   const phase = str(data.phase);
   const line =
     event.kind === "lifecycle" && phase
-      ? t("Session {phase}", { phase })
+      ? phaseLabel(phase, t)
       : event.kind === "file" && str(data.path)
         ? str(data.path)
         : "";

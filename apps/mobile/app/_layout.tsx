@@ -162,7 +162,7 @@ function SplitFrame({ children }: { children: ReactNode }) {
         >
           <SplitLeftPane
             pane={leftPane}
-            tab={tabFor(pathname)}
+            tab={tabFor(pathname, leftPane)}
             selectedAgentId={typeof params.id === "string" ? params.id : undefined}
             onSelectAgent={(id) => {
               // The open agent is replaced, so picking through the list never grows the stack.

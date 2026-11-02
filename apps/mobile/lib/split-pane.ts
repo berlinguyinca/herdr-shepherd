@@ -29,8 +29,11 @@ export function leftPaneFor(
   return inboxVisible ? "inbox" : null;
 }
 
-/** The home tab bar sits under the left pane on the two home screens and the open agent. */
-export function tabFor(pathname: string): HomeTab | null {
-  if (pathname === "/") return "assistant";
-  return isAgentsRoute(pathname) ? "agents" : null;
+/**
+ * The home tab bar stays under the left pane whatever it holds: Agents on the Agents screens,
+ * Assistant beside any chat. Nothing on a narrow window.
+ */
+export function tabFor(pathname: string, leftPane: LeftPane | null): HomeTab | null {
+  if (leftPane === null) return null;
+  return isAgentsRoute(pathname) ? "agents" : "assistant";
 }

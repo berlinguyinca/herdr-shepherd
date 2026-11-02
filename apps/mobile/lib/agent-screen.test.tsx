@@ -304,16 +304,51 @@ it("shows This agent is no longer available on 404 and returns to the list", asy
   expect(rpcMock.mock.calls.length).toBe(calls);
 });
 
-it("withheld events render a chip with the reason, never blank text", async () => {
+it("withheld events render a translated reason chip, never blank text; reasoning is not rendered", async () => {
   serve({
     messages: page([
-      msg(2, "assistant", "", { withheld: true, withheld_reason: "secret" }),
-      tool(1, { withheld: true, withheld_reason: "sensitive command", output: "" }),
+      ev(4, "reasoning", { withheld: true, withheld_reason: "reasoning requires a higher role" }),
+      msg(3, "assistant", "", { withheld: true, withheld_reason: "something new" }),
+      msg(2, "assistant", "", {
+        withheld: true,
+        withheld_reason: "sensitive output requires a higher role",
+      }),
+      tool(1, { withheld: true, withheld_reason: "sensitive output requires a higher role" }),
     ]),
   });
   await render();
   const chips = [...host.querySelectorAll('[data-testid="withheld"]')].map((n) => n.textContent);
-  expect(chips).toEqual(["Withheld: sensitive command", "Withheld: secret"]);
+  expect(chips).toEqual([
+    "Sensitive output requires a higher role",
+    "Sensitive output requires a higher role",
+    "Withheld",
+  ]);
+  expect(host.textContent).not.toContain("Reasoning requires");
+});
+
+it("maps known lifecycle phases to words and an unknown one to a neutral line", async () => {
+  serve({
+    messages: page([
+      ev(4, "lifecycle", { phase: "teleported" }),
+      ev(3, "lifecycle", { phase: "interrupted" }),
+      ev(2, "lifecycle", { phase: "restored" }),
+      ev(1, "lifecycle", { phase: "started" }),
+    ]),
+  });
+  await render();
+  expect(host.textContent).toContain("Session started");
+  expect(host.textContent).toContain("Session restored");
+  expect(host.textContent).toContain("Session interrupted");
+  expect(host.textContent).toContain("Session update");
+  expect(host.textContent).not.toContain("teleported");
+});
+
+it("shows a calm message when the conversation has nothing renderable", async () => {
+  serve({
+    messages: page([ev(2, "usage", { input_tokens: 5 }), ev(1, "usage", { input_tokens: 1 })]),
+  });
+  await render();
+  expect(host.textContent).toContain("Nothing to show yet.");
 });
 
 it("on reconnect it re-reads agentMessages and subscribes from the returned rev, not the old cursor", async () => {

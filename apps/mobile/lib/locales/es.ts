@@ -1190,7 +1190,6 @@ export const ES_MESSAGES: Record<string, string> = {
   "No conversation was captured for this agent.":
     "No se capturó ninguna conversación para este agente.",
   "This agent is no longer available": "Este agente ya no está disponible",
-  "Withheld: {reason}": "Retenido: {reason}",
   Withheld: "Retenido",
   "Empty message": "Mensaje vacío",
   "Show full message": "Mostrar el mensaje completo",
@@ -1198,7 +1197,15 @@ export const ES_MESSAGES: Record<string, string> = {
   Interrupted: "Interrumpido",
   Tool: "Herramienta",
   "No output": "Sin salida",
-  "Session {phase}": "Sesión {phase}",
+  "Reasoning requires a higher role": "El razonamiento requiere un rol superior",
+  "Sensitive output requires a higher role": "La salida sensible requiere un rol superior",
+  "Session started": "Sesión iniciada",
+  "Session restored": "Sesión restaurada",
+  "Session restarted": "Sesión reiniciada",
+  "Session ended": "Sesión finalizada",
+  "Session interrupted": "Sesión interrumpida",
+  "Session update": "Actualización de la sesión",
+  "Nothing to show yet.": "Aún no hay nada que mostrar.",
   "Couldn't load the full text. Tap to retry.":
     "No se pudo cargar el texto completo. Toca para reintentar.",
   "Couldn't load the full output. Tap to retry.":
