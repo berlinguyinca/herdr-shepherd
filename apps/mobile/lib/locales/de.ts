@@ -1272,6 +1272,7 @@ export const DE_MESSAGES: Record<string, string> = {
   Slash: "Schrägstrich",
   Dash: "Bindestrich",
   "Terminal keys": "Terminal-Tasten",
+  "Too large to copy or paste": "Zu groß zum Kopieren oder Einfügen",
   "Session interrupted": "Sitzung unterbrochen",
   "Session update": "Sitzungsupdate",
   "Nothing to show yet.": "Noch nichts anzuzeigen.",

@@ -1292,6 +1292,7 @@ export const JA_MESSAGES: Record<string, string> = {
   Slash: "スラッシュ",
   Dash: "ハイフン",
   "Terminal keys": "ターミナルキー",
+  "Too large to copy or paste": "大きすぎてコピーも貼り付けもできません",
   "Session interrupted": "セッション中断",
   "Session update": "セッションの更新",
   "Nothing to show yet.": "表示できるものはまだありません。",

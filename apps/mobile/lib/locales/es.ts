@@ -1212,6 +1212,7 @@ export const ES_MESSAGES: Record<string, string> = {
   Slash: "Barra diagonal",
   Dash: "Guion",
   "Terminal keys": "Teclas del terminal",
+  "Too large to copy or paste": "Demasiado grande para copiar o pegar",
   "Session interrupted": "Sesión interrumpida",
   "Session update": "Actualización de la sesión",
   "Nothing to show yet.": "Aún no hay nada que mostrar.",

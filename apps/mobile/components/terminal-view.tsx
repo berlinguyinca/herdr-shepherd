@@ -7,37 +7,46 @@ import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useTerminal } from "../lib/terminal";
 import {
-  base64ToBytes,
   createLoadGate,
   createOutputBatcher,
-  decodeFromWeb,
   encodeToWeb,
   type NativeMsg,
   type PageState,
   pageReducer,
-  pasteMessage,
   terminalFontSize,
 } from "../lib/terminal-bridge";
 import { terminalHtml } from "../lib/terminal-html.generated";
-import { compactKeyRow, type KeyName, pressRowKey } from "../lib/terminal-keys";
+import { compactKeyRow } from "../lib/terminal-keys";
+import { createTerminalHandler } from "../lib/terminal-view-handler";
 import { TerminalKeyRow } from "./terminal-key-row";
 
 const SOURCE = { html: terminalHtml };
 // Nothing but the inline page may load.
 const ORIGINS = ["about:*"];
+const NOTICE_MS = 3000;
 
 /**
  * One agent's terminal: an xterm page in a WebView, wired to the agent's terminal session. A
  * reloaded or crashed page has lost its screen, so it remounts (new key, new client, full
  * replay); so does another agent.
  */
-export function TerminalView({ agentId, focused }: { agentId: string; focused: boolean }) {
+export function TerminalView({
+  agentId,
+  focused,
+  keyboardOffset = 0,
+}: {
+  agentId: string;
+  focused: boolean;
+  /** The height above this view that the keyboard must also clear; the parent knows it. */
+  keyboardOffset?: number;
+}) {
   const [mount, setMount] = useState({ generation: 0, uncapped: false });
   return (
     <TerminalPage
       key={`${agentId}:${mount.generation}`}
       agentId={agentId}
       focused={focused}
+      keyboardOffset={keyboardOffset}
       uncapped={mount.uncapped}
       onReload={(next) =>
         setMount((m) => ({ generation: m.generation + 1, uncapped: next.uncapped }))
@@ -49,11 +58,13 @@ export function TerminalView({ agentId, focused }: { agentId: string; focused: b
 function TerminalPage({
   agentId,
   focused,
+  keyboardOffset,
   uncapped,
   onReload,
 }: {
   agentId: string;
   focused: boolean;
+  keyboardOffset: number;
   uncapped: boolean;
   onReload: (next: PageState) => void;
 }) {
@@ -79,29 +90,47 @@ function TerminalPage({
   const sendRef = useRef(send);
   sendRef.current = send;
 
-  // The key row's state. Ctrl is held here and in the page, which spends it on a soft key.
+  // The key row's display state; the handler owns the sticky Ctrl and the cursor mode.
   const [ctrl, setCtrl] = useState(false);
-  const ctrlRef = useRef(false);
   const [hasSelection, setHasSelection] = useState(false);
-  const applicationCursor = useRef(false);
+  const [notice, setNotice] = useState(false);
+  const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  useEffect(() => () => clearTimeout(noticeTimer.current), []);
   const softKeyboardVisible = useKeyboardState((state) => state.isVisible);
-  const setCtrlOn = (on: boolean) => {
-    ctrlRef.current = on;
-    setCtrl(on);
-    send({ t: "ctrl", on });
+  // The handler is made once; what it calls is always the latest render's.
+  const deps = {
+    ready: () => advance("ready"),
+    write,
+    resize,
+    // Clipboard text is never logged: it can hold anything.
+    readClipboard: () => Clipboard.getStringAsync(),
+    writeClipboard: (text: string) => Clipboard.setStringAsync(text),
+    send,
+    onCtrl: setCtrl,
+    onSelection: setHasSelection,
+    onNotice: () => {
+      setNotice(true);
+      clearTimeout(noticeTimer.current);
+      noticeTimer.current = setTimeout(() => setNotice(false), NOTICE_MS);
+    },
   };
-  const pressKey = (key: KeyName) => {
-    const pressed = pressRowKey(ctrlRef.current, key, {
-      applicationCursor: applicationCursor.current,
-    });
-    if (pressed.bytes.length > 0) write(pressed.bytes);
-    if (ctrlRef.current) setCtrlOn(pressed.ctrl);
-  };
-  const pasteClipboard = async () => {
-    // Never logged: the clipboard can hold anything.
-    const message = pasteMessage(await Clipboard.getStringAsync());
-    if (message) sendRef.current(message);
-  };
+  const depsRef = useRef(deps);
+  depsRef.current = deps;
+  const handler = useMemo(
+    () =>
+      createTerminalHandler({
+        ready: () => depsRef.current.ready(),
+        write: (bytes) => depsRef.current.write(bytes),
+        resize: (rows, cols) => depsRef.current.resize(rows, cols),
+        readClipboard: () => depsRef.current.readClipboard(),
+        writeClipboard: (text) => depsRef.current.writeClipboard(text),
+        send: (msg) => depsRef.current.send(msg),
+        onCtrl: (on) => depsRef.current.onCtrl(on),
+        onSelection: (has) => depsRef.current.onSelection(has),
+        onNotice: () => depsRef.current.onNotice(),
+      }),
+    [],
+  );
 
   const batcher = useMemo(
     () =>
@@ -138,20 +167,7 @@ function TerminalPage({
     if (ready && focused) send({ t: "focus" });
   }, [ready, focused]);
 
-  const onMessage = (event: WebViewMessageEvent) => {
-    const msg = decodeFromWeb(event.nativeEvent.data);
-    if (!msg) return;
-    if (msg.t === "ready") advance("ready");
-    else if (msg.t === "in") write(base64ToBytes(msg.b64));
-    else if (msg.t === "size") resize(msg.rows, msg.cols);
-    else if (msg.t === "copy") void Clipboard.setStringAsync(msg.text);
-    else if (msg.t === "ctrlUsed") {
-      ctrlRef.current = false;
-      setCtrl(false);
-    } else if (msg.t === "selection") setHasSelection(msg.has);
-    else if (msg.t === "appCursor") applicationCursor.current = msg.on;
-    else if (msg.t === "pasteRequest") void pasteClipboard();
-  };
+  const onMessage = (event: WebViewMessageEvent) => handler.onMessage(event.nativeEvent.data);
 
   const overlay =
     state === "connecting"
@@ -162,10 +178,16 @@ function TerminalPage({
           ? t("Opened elsewhere")
           : state === "error"
             ? t("Connection lost. Retrying…")
-            : null;
+            : notice
+              ? t("Too large to copy or paste")
+              : null;
 
   return (
-    <KeyboardAvoidingView behavior="padding" style={styles.fill}>
+    <KeyboardAvoidingView
+      behavior="padding"
+      keyboardVerticalOffset={keyboardOffset}
+      style={styles.fill}
+    >
       <View style={styles.fill}>
         <WebView
           ref={web}
@@ -217,15 +239,18 @@ function TerminalPage({
         ctrl={ctrl}
         keyboardOn={softKeyboardVisible}
         hasSelection={hasSelection}
+        // An iPad with no soft keyboard showing is taken to have a hardware keyboard, so the row
+        // shrinks. An iPad whose keyboard is only hidden gets the compact row too, and the
+        // toggle then reads "Show keyboard".
         compact={compactKeyRow({
           isPad: Platform.OS === "ios" && Platform.isPad,
           softKeyboardVisible,
         })}
-        onKey={pressKey}
-        onToggleCtrl={() => setCtrlOn(!ctrlRef.current)}
+        onKey={handler.pressKey}
+        onToggleCtrl={handler.toggleCtrl}
         onToggleKeyboard={() => send({ t: "keyboard", on: !softKeyboardVisible })}
-        onPaste={() => void pasteClipboard()}
-        onCopy={() => send({ t: "copy" })}
+        onPaste={() => void handler.paste()}
+        onCopy={handler.copy}
       />
     </KeyboardAvoidingView>
   );

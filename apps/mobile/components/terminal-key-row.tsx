@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useRef } from "react";
+import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { createKeyRepeater, KEY_ROW, type KeyName } from "../lib/terminal-keys";
+import { NativeSymbol } from "./native-symbol";
 
 const TAP = 44;
 const PRESS_DELAY_MS = 60;
@@ -61,7 +62,7 @@ export function TerminalKeyRow({
 
   const button = (
     id: string,
-    label: string,
+    label: ReactNode,
     accessibilityLabel: string,
     handlers: {
       onPress?: () => void;
@@ -70,32 +71,42 @@ export function TerminalKeyRow({
       // Holds the press-in back, so a swipe that scrolls the row does not press the key under it.
       unstable_pressDelay?: number;
     },
-    selected = false,
-  ) => (
-    <Pressable
-      key={id}
-      testID={`terminal-key-${id}`}
-      accessibilityRole="button"
-      accessibilityLabel={accessibilityLabel}
-      accessibilityState={{ selected }}
-      hitSlop={{ top: vertical, bottom: vertical }}
-      {...handlers}
-      style={[
-        styles.key,
-        {
-          height: compact ? COMPACT_HEIGHT : TAP,
-          backgroundColor: selected ? tokens.primary : tokens.card,
-          borderColor: tokens.border,
-        },
-      ]}
-    >
-      <Text
-        style={[styles.label, { color: selected ? tokens.primaryForeground : tokens.foreground }]}
+    toggle?: boolean,
+  ) => {
+    const selected = toggle === true;
+    return (
+      <Pressable
+        key={id}
+        testID={`terminal-key-${id}`}
+        accessibilityRole={toggle === undefined ? "button" : "switch"}
+        accessibilityLabel={accessibilityLabel}
+        accessibilityState={toggle === undefined ? undefined : { checked: selected }}
+        hitSlop={{ top: vertical, bottom: vertical }}
+        {...handlers}
+        style={[
+          styles.key,
+          {
+            height: compact ? COMPACT_HEIGHT : TAP,
+            backgroundColor: selected ? tokens.primary : tokens.card,
+            borderColor: tokens.border,
+          },
+        ]}
       >
-        {label}
-      </Text>
-    </Pressable>
-  );
+        {typeof label === "string" ? (
+          <Text
+            style={[
+              styles.label,
+              { color: selected ? tokens.primaryForeground : tokens.foreground },
+            ]}
+          >
+            {label}
+          </Text>
+        ) : (
+          label
+        )}
+      </Pressable>
+    );
+  };
 
   return (
     <View
@@ -110,7 +121,12 @@ export function TerminalKeyRow({
       >
         {button(
           "keyboard",
-          "⌨",
+          <NativeSymbol
+            ios="keyboard"
+            android="keypad-outline"
+            size={20}
+            color={keyboardOn ? tokens.primaryForeground : tokens.foreground}
+          />,
           keyboardOn ? t("Hide keyboard") : t("Show keyboard"),
           { onPress: onToggleKeyboard },
           keyboardOn,

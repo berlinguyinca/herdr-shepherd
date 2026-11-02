@@ -29,7 +29,9 @@ export type WebMsg =
   | { t: "ctrlUsed" }
   | { t: "selection"; has: boolean }
   | { t: "appCursor"; on: boolean }
-  | { t: "pasteRequest" };
+  | { t: "pasteRequest" }
+  // The page refused a selection over the cap.
+  | { t: "tooLarge" };
 
 export const encodeToWeb = (msg: NativeMsg): string => JSON.stringify(msg);
 
@@ -38,11 +40,13 @@ export const MAX_CLIPBOARD_BYTES = 1024 * 1024;
 
 const utf8Length = (text: string) => new TextEncoder().encode(text).length;
 
+/** True for text over the cap; the length check first keeps a huge string from being encoded. */
+export const exceedsClipboardCap = (text: string): boolean =>
+  text.length > MAX_CLIPBOARD_BYTES || utf8Length(text) > MAX_CLIPBOARD_BYTES;
+
 /** The `paste` message for clipboard text; null for nothing to paste or more than the cap. */
 export function pasteMessage(text: string): NativeMsg | null {
-  if (!text || text.length > MAX_CLIPBOARD_BYTES || utf8Length(text) > MAX_CLIPBOARD_BYTES) {
-    return null;
-  }
+  if (!text || exceedsClipboardCap(text)) return null;
   return { t: "paste", b64: bytesToBase64(new TextEncoder().encode(text)) };
 }
 
@@ -79,11 +83,11 @@ export function decodeFromWeb(raw: string): WebMsg | null {
     case "ready":
       return { t: "ready" };
     case "copy":
-      return typeof msg.text === "string" &&
-        msg.text.length <= MAX_CLIPBOARD_BYTES &&
-        utf8Length(msg.text) <= MAX_CLIPBOARD_BYTES
+      return typeof msg.text === "string" && !exceedsClipboardCap(msg.text)
         ? { t: "copy", text: msg.text }
         : null;
+    case "tooLarge":
+      return { t: "tooLarge" };
     case "ctrlUsed":
       return { t: "ctrlUsed" };
     case "selection":

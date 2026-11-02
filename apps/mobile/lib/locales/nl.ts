@@ -1262,6 +1262,7 @@ export const NL_MESSAGES: Record<string, string> = {
   Slash: "Schuine streep",
   Dash: "Streepje",
   "Terminal keys": "Terminaltoetsen",
+  "Too large to copy or paste": "Te groot om te kopiëren of te plakken",
   "Session interrupted": "Sessie onderbroken",
   "Session update": "Sessie-update",
   "Nothing to show yet.": "Nog niets om te tonen.",

@@ -9,6 +9,7 @@ import {
   createOutputBatcher,
   decodeFromWeb,
   encodeToWeb,
+  exceedsClipboardCap,
   MAX_CLIPBOARD_BYTES,
   MAX_FONT_PX,
   MIN_FONT_PX,
@@ -368,6 +369,7 @@ describe("key row messages", () => {
       { t: "selection", has: false },
       { t: "appCursor", on: true },
       { t: "pasteRequest" },
+      { t: "tooLarge" },
     ] as const) {
       expect(decodeFromWeb(JSON.stringify(msg))).toEqual(msg);
     }
@@ -411,5 +413,14 @@ describe("key row messages", () => {
     const atCap = "a".repeat(MAX_CLIPBOARD_BYTES);
     expect(pasteMessage(atCap)).not.toBeNull();
     expect(pasteMessage(`${atCap}a`)).toBeNull();
+  });
+});
+
+describe("clipboard cap", () => {
+  it("measures UTF-8 bytes, not characters", () => {
+    expect(exceedsClipboardCap("a".repeat(MAX_CLIPBOARD_BYTES))).toBe(false);
+    expect(exceedsClipboardCap("a".repeat(MAX_CLIPBOARD_BYTES + 1))).toBe(true);
+    expect(exceedsClipboardCap("€".repeat(Math.floor(MAX_CLIPBOARD_BYTES / 3) + 1))).toBe(true);
+    expect(exceedsClipboardCap("")).toBe(false);
   });
 });

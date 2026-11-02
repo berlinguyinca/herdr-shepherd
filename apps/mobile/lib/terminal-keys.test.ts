@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   compactKeyRow,
+  controlByte,
   createKeyRepeater,
   isRepeatable,
   KEY_ROW,
@@ -50,6 +51,13 @@ describe("keyBytes table", () => {
     expect(key("End")).toEqual(Array.from(text("\x1b[F")));
     expect(key("PgUp")).toEqual(Array.from(text("\x1b[5~")));
     expect(key("PgDn")).toEqual(Array.from(text("\x1b[6~")));
+  });
+
+  it("sends Home and End as SS3 in application cursor mode, like xterm", () => {
+    expect(key("Home", none, { applicationCursor: true })).toEqual(Array.from(text("\x1bOH")));
+    expect(key("End", none, { applicationCursor: true })).toEqual(Array.from(text("\x1bOF")));
+    // PgUp and PgDn do not change with the mode.
+    expect(key("PgUp", none, { applicationCursor: true })).toEqual(Array.from(text("\x1b[5~")));
   });
 
   it("sends the literal symbols and any single character as UTF-8", () => {
@@ -190,5 +198,20 @@ describe("compact key row", () => {
     expect(compactKeyRow({ isPad: true, softKeyboardVisible: true })).toBe(false);
     expect(compactKeyRow({ isPad: false, softKeyboardVisible: false })).toBe(false);
     expect(compactKeyRow({ isPad: false, softKeyboardVisible: true })).toBe(false);
+  });
+});
+
+describe("controlByte", () => {
+  it("is the one table: single code points only, everything else is undefined", () => {
+    expect(controlByte("c")).toBe(0x03);
+    expect(controlByte("C")).toBe(0x03);
+    expect(controlByte("[")).toBe(0x1b);
+    expect(controlByte(" ")).toBe(0x00);
+    expect(controlByte("?")).toBe(0x7f);
+    expect(controlByte("é")).toBeUndefined();
+    expect(controlByte("😀")).toBeUndefined();
+    expect(controlByte("ab")).toBeUndefined();
+    expect(controlByte("")).toBeUndefined();
+    expect(controlByte("1")).toBeUndefined();
   });
 });

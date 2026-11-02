@@ -1301,6 +1301,7 @@ export const RU_MESSAGES: Record<string, string> = {
   Slash: "Косая черта",
   Dash: "Дефис",
   "Terminal keys": "Клавиши терминала",
+  "Too large to copy or paste": "Слишком большой объём для копирования или вставки",
   "Session interrupted": "Сеанс прерван",
   "Session update": "Обновление сеанса",
   "Nothing to show yet.": "Пока нечего показать.",

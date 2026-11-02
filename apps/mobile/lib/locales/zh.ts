@@ -1274,6 +1274,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   Slash: "斜杠",
   Dash: "连字符",
   "Terminal keys": "终端按键",
+  "Too large to copy or paste": "太大，无法复制或粘贴",
   "Session interrupted": "会话已中断",
   "Session update": "会话更新",
   "Nothing to show yet.": "暂无可显示的内容。",

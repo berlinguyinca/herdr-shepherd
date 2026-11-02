@@ -4,9 +4,21 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import ts from "typescript";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const read = (path) => readFileSync(join(root, path), "utf8");
+// The page and the key row share one control-byte table: the page inlines it from terminal-keys.ts.
+export function controlByteSource() {
+  const source = read("lib/terminal-keys.ts");
+  const begin = source.indexOf("// control-byte:begin");
+  const end = source.indexOf("// control-byte:end");
+  const body = source
+    .slice(source.indexOf("\n", begin), end)
+    .replace("export function", "function");
+  return ts.transpileModule(body, { compilerOptions: { target: ts.ScriptTarget.ES2019 } })
+    .outputText;
+}
 // A source map comment points at a file the page does not have; "</script" would end the tag.
 const inlineScript = (code) =>
   code.replace(/\n?\/\/# sourceMappingURL=.*$/m, "").replaceAll("</script", "<\\/script");
@@ -23,6 +35,7 @@ export function buildTerminalHtml() {
     '</head><body><div id="t"></div>',
     `<script>${inlineScript(read("node_modules/@xterm/xterm/lib/xterm.js"))}</script>`,
     `<script>${inlineScript(read("node_modules/@xterm/addon-fit/lib/addon-fit.js"))}</script>`,
+    `<script>${inlineScript(controlByteSource())}</script>`,
     `<script>${inlineScript(read("scripts/terminal-page.js"))}</script>`,
     "</body></html>",
     "",

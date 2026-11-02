@@ -82,16 +82,25 @@
   term.open(document.getElementById("t"));
   // The native side owns the keyboard; a tap must not raise the web one.
   term.textarea.setAttribute("inputmode", "none");
+  // Whatever dismisses the keyboard, a later focus must not raise it again.
+  term.textarea.addEventListener("blur", () => term.textarea.setAttribute("inputmode", "none"));
 
   const encoder = new TextEncoder();
-  // A Ctrl pending from the key row turns the next typed letter into its control byte; any
-  // input spends it, and the toggle in the key row is told.
+  // A Ctrl pending from the key row applies to the next input: a single character goes through
+  // controlByte (the key row's own table, inlined at build time), anything else passes through
+  // unchanged. Either way Ctrl is spent and native is told. An IME word arriving in one onData
+  // spends Ctrl without applying it; that fails visibly, the word types as it is.
   let ctrl = false;
+  const spendCtrl = () => {
+    if (!ctrl) return;
+    ctrl = false;
+    post({ t: "ctrlUsed" });
+  };
   term.onData((data) => {
     if (ctrl) {
-      ctrl = false;
-      post({ t: "ctrlUsed" });
-      if (/^[a-zA-Z]$/.test(data)) data = String.fromCharCode(data.charCodeAt(0) & 31);
+      spendCtrl();
+      const byte = controlByte(data);
+      if (byte !== undefined) data = String.fromCharCode(byte);
     }
     post({ t: "in", b64: toB64(encoder.encode(data)) });
   });
@@ -100,8 +109,17 @@
     for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i) & 255;
     post({ t: "in", b64: toB64(bytes) });
   });
+  // Clipboard text is capped at 1 MB of UTF-8 (MAX_CLIPBOARD_BYTES in terminal-bridge.ts); a
+  // larger selection never crosses the bridge.
+  const MAX_CLIPBOARD = 1048576;
   const copySelection = () => {
-    if (term.hasSelection()) post({ t: "copy", text: term.getSelection() });
+    if (!term.hasSelection()) return;
+    const text = term.getSelection();
+    if (text.length > MAX_CLIPBOARD || encoder.encode(text).length > MAX_CLIPBOARD) {
+      post({ t: "tooLarge" });
+      return;
+    }
+    post({ t: "copy", text });
   };
   term.attachCustomKeyEventHandler((event) => {
     if (event.type !== "keydown" || !event.metaKey) return true;
@@ -161,11 +179,24 @@
     else if (msg.t === "copy") copySelection();
     else if (msg.t === "ctrl") ctrl = msg.on === true;
     else if (msg.t === "keyboard") {
-      term.textarea.setAttribute("inputmode", msg.on ? "text" : "none");
-      if (msg.on) term.focus();
-      else term.textarea.blur();
+      if (msg.on) {
+        // Blur first: iOS only reloads the input view for a changed input mode on a fresh focus.
+        term.textarea.blur();
+        term.textarea.setAttribute("inputmode", "text");
+        term.focus();
+      } else {
+        // Stay focused with no soft keyboard, so a hardware keyboard keeps typing.
+        term.textarea.setAttribute("inputmode", "none");
+        term.textarea.blur();
+        term.focus();
+      }
     } else if (msg.t === "paste" && typeof msg.b64 === "string") {
-      term.paste(new TextDecoder().decode(fromB64(msg.b64)));
+      if (msg.b64.length > Math.ceil((MAX_CLIPBOARD * 4) / 3) + 4) post({ t: "tooLarge" });
+      else {
+        // Pasted text is never a control byte: a pending Ctrl is dropped first.
+        spendCtrl();
+        term.paste(new TextDecoder().decode(fromB64(msg.b64)));
+      }
     } else if (msg.t === "font" && typeof msg.size === "number" && Number.isFinite(msg.size)) {
       // A new size changes rows and cols; refit reports them through the normal size message.
       term.options.fontSize = Math.min(32, Math.max(8, msg.size));

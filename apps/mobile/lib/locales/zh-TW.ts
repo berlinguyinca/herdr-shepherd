@@ -1272,6 +1272,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   Slash: "斜線",
   Dash: "連字號",
   "Terminal keys": "終端機按鍵",
+  "Too large to copy or paste": "太大，無法複製或貼上",
   "Session interrupted": "工作階段已中斷",
   "Session update": "工作階段更新",
   "Nothing to show yet.": "目前沒有可顯示的內容。",

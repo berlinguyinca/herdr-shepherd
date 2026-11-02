@@ -49,8 +49,9 @@ const FIXED: Record<string, Uint8Array> = {
   PgDn: ascii("\x1b[6~"),
 };
 
-/** The control byte for a character, or undefined when Ctrl does nothing to it. */
-function controlByte(char: string): number | undefined {
+// control-byte:begin (the page inlines this function: see scripts/build-terminal-html.mjs)
+/** The control byte for one character, or undefined when Ctrl does nothing to it. */
+export function controlByte(char: string): number | undefined {
   if (char === "?") return 0x7f;
   if (char === " " || char === "@") return 0x00;
   if (char.length !== 1) return undefined;
@@ -58,10 +59,14 @@ function controlByte(char: string): number | undefined {
   const folded = code >= 0x61 && code <= 0x7a ? code - 0x20 : code;
   return folded >= 0x40 && folded <= 0x5f ? folded & 0x1f : undefined;
 }
+// control-byte:end
 
 function plainBytes(key: string, shift: boolean, applicationCursor: boolean): Uint8Array {
   const arrow = ARROW_LETTER[key];
   if (arrow) return ascii(`${applicationCursor ? "\x1bO" : "\x1b["}${arrow}`);
+  if (applicationCursor && (key === "Home" || key === "End")) {
+    return ascii(key === "Home" ? "\x1bOH" : "\x1bOF");
+  }
   if (key === "Tab" && shift) return ascii("\x1b[Z");
   const fixed = FIXED[key];
   if (fixed) return fixed;
@@ -71,7 +76,9 @@ function plainBytes(key: string, shift: boolean, applicationCursor: boolean): Ui
 /**
  * The bytes one key sends. Ctrl turns a letter or one of `[ \ ] ^ _ @ space ?` into its control
  * byte, Alt puts ESC in front, Shift only changes Tab; any other modifier combination sends the
- * plain key. An unknown name sends nothing.
+ * plain key. An unknown name sends nothing. In application cursor mode Home and End are SS3
+ * like the arrows. Alt+arrow is ESC before the arrow; xterm sends ESC [ 1 ; 3 D instead, which
+ * the row does not expose.
  */
 export function keyBytes(
   key: KeyName,
