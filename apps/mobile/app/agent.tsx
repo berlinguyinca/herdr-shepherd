@@ -1,5 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useRef } from "react";
+import { useCallback, useContext, useRef } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { AgentEvent, isRenderableEvent } from "../components/agent-event";
 import { useAgentStatus } from "../components/agent-row";
@@ -10,6 +10,8 @@ import { agentEvent, isAgentGone } from "../lib/agents";
 import { useFloatingHeaderInset } from "../lib/floating-header";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
+import { iosAtLeast } from "../lib/native-controls";
+import { InboxBesideContext } from "../lib/side-insets";
 import { useAgentConversation } from "../lib/use-agent-conversation";
 
 /** Within this many points of the end counts as "at the bottom". */
@@ -24,6 +26,8 @@ export default function AgentScreen() {
   const { t } = useI18n();
   const tokens = useMobileTokens();
   const router = useRouter();
+  // With the list beside it there is nothing to go back to: picking another agent replaces this one.
+  const beside = useContext(InboxBesideContext);
   // The glass header floats over the screen on iOS 26, so fixed content starts below it.
   const headerInset = useFloatingHeaderInset();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -69,7 +73,13 @@ export default function AgentScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.background }]}>
-      <Stack.Screen options={glassHeaderOptions(name || t("Agent"))} />
+      <Stack.Screen
+        options={{
+          ...glassHeaderOptions(name || t("Agent")),
+          headerBackVisible: !beside,
+          ...(beside && iosAtLeast(26) ? { unstable_headerLeftItems: () => [] } : {}),
+        }}
+      />
       {agent ? (
         <View
           testID="agent-subheader"
