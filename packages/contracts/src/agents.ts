@@ -10,7 +10,8 @@ export const AgentRowSchema = z.object({
   id: z.string(),
   name: z.string(),
   machine: z.string().nullable(),
-  status: AgentStatusSchema,
+  /** A status this app does not know yet reads as unknown rather than failing the list. */
+  status: AgentStatusSchema.catch("unknown"),
   summary: z.string(),
   updated_at: z.string(),
   has_conversation: z.boolean(),

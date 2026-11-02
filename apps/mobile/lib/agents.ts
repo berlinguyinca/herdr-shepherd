@@ -1,25 +1,71 @@
-import type { AgentEvent, AgentRow } from "@rakazo/contracts";
-import { streamRpc } from "./api";
+import type { AgentEvent, AgentRow, RpcInput } from "@rakazo/contracts";
+import { rpc, streamRpc } from "./api";
 import { rpcQuery } from "./query";
 
 export type { AgentEvent, AgentRow };
 
-/** The list of agents; `showOlder` also returns the ones hidden as closed or stale. */
-export function agentListQuery(showOlder: boolean) {
-  return rpcQuery("agents/list", { showOlder });
+const statusOf = (error: unknown): unknown =>
+  typeof error === "object" && error !== null && "status" in error
+    ? (error as { status?: unknown }).status
+    : undefined;
+
+/** The server has no Agents procedures at all, so it is too old for the tab. */
+export class AgentsUnsupportedError extends Error {
+  constructor(options?: { cause?: unknown }) {
+    super("This server does not support agents", options);
+    this.name = "AgentsUnsupportedError";
+  }
+}
+
+/** The agent id is unknown or closed (a 404 from get, messages or event). */
+export class AgentGoneError extends Error {
+  constructor(options?: { cause?: unknown }) {
+    super("This agent is no longer available", options);
+    this.name = "AgentGoneError";
+  }
 }
 
 /**
- * True when the server does not have the Agents procedures at all (an unknown-procedure 404),
- * so the tab can say the server is too old. Network failures and other statuses are not that.
+ * True for the error `agents/list` raises when the server lacks the Agents view. Only the list
+ * call can say so: a 404 there is always an unknown procedure, while a 404 from get, messages
+ * or event can also mean an unknown agent id (see isAgentGone).
  */
 export function isAgentsUnsupported(error: unknown): boolean {
-  return (
-    typeof error === "object" &&
-    error !== null &&
-    "status" in error &&
-    (error as { status?: unknown }).status === 404
-  );
+  return error instanceof AgentsUnsupportedError;
+}
+
+/** True when get, messages or event answered 404 because the agent no longer exists. */
+export function isAgentGone(error: unknown): boolean {
+  return error instanceof AgentGoneError;
+}
+
+async function classify<T>(call: () => Promise<T>, wrap: (cause: unknown) => Error): Promise<T> {
+  try {
+    return await call();
+  } catch (error) {
+    throw statusOf(error) === 404 ? wrap(error) : error;
+  }
+}
+
+const unsupported = (cause: unknown) => new AgentsUnsupportedError({ cause });
+const gone = (cause: unknown) => new AgentGoneError({ cause });
+
+/** The list of agents; `showOlder` also returns the ones hidden as closed or stale. */
+export function agentListQuery(showOlder: boolean) {
+  const query = rpcQuery("agents/list", { showOlder });
+  return { ...query, queryFn: (ctx: never) => classify(async () => query.queryFn(ctx), unsupported) };
+}
+
+export function getAgent(id: string) {
+  return classify(() => rpc("agents/get", { id }), gone);
+}
+
+export function agentMessages(input: RpcInput<"agents/messages">) {
+  return classify(() => rpc("agents/messages", input), gone);
+}
+
+export function agentEvent(id: string, seq: number) {
+  return classify(() => rpc("agents/event", { id, seq }), gone);
 }
 
 type FollowOptions = {
@@ -66,7 +112,8 @@ function follow<F extends { seq: number }>(
     } catch (error) {
       if (controller.signal.aborted) return;
       const status = (error as { status?: unknown } | null)?.status;
-      if (status === 429 || isAgentsUnsupported(error)) return fallback();
+      // A 404 on a stream is an unknown procedure (too old) or a vanished agent: stop either way.
+      if (status === 429 || status === 404) return fallback();
     }
     if (controller.signal.aborted) return;
     idle = received ? 0 : idle + 1;

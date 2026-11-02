@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { AGENT_STATUSES, AgentEventSchema, AgentRowSchema } from "./agents.js";
+import { AGENT_STATUSES, AgentEventSchema, AgentRowSchema, AgentStatusSchema } from "./agents.js";
 
 const row = {
   id: "a1",
@@ -12,7 +12,7 @@ const row = {
 };
 
 describe("AgentRowSchema", () => {
-  it("accepts the six statuses and rejects others", () => {
+  it("accepts the six statuses and the status schema rejects others", () => {
     expect([...AGENT_STATUSES]).toEqual([
       "blocked",
       "done",
@@ -23,7 +23,11 @@ describe("AgentRowSchema", () => {
     ]);
     for (const status of AGENT_STATUSES)
       expect(AgentRowSchema.safeParse({ ...row, status }).success).toBe(true);
-    expect(AgentRowSchema.safeParse({ ...row, status: "paused" }).success).toBe(false);
+    expect(AgentStatusSchema.safeParse("paused").success).toBe(false);
+  });
+
+  it("reads a status from a newer server as unknown", () => {
+    expect(AgentRowSchema.parse({ ...row, status: "paused" }).status).toBe("unknown");
   });
 
   it("allows a null or string machine", () => {
