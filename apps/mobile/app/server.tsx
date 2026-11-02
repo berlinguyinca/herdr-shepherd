@@ -10,6 +10,7 @@ import { cancelHeaderOptions, trailingHeaderOptions } from "../components/sheet-
 import {
   apiBaseWarning,
   currentApiBase,
+  serverNeedsSetup,
   defaultApiBase,
   normalizeApiBase,
   probeApiBase,
@@ -29,7 +30,8 @@ export default function ServerScreen() {
   const tokens = useMobileTokens();
   const router = useRouter();
   const current = currentApiBase();
-  const [draft, setDraft] = useState(current);
+  // First launch of a build with no server of its own: nothing to prefill, the user types their server's address.
+  const [draft, setDraft] = useState(() => (serverNeedsSetup() ? "" : current));
   const [headerRows, setHeaderRows] = useState<ModelHeaderRow[]>(() =>
     Object.entries(serverHeaders(current)).map(([name, value]) => ({ name, value })),
   );
@@ -139,7 +141,7 @@ export default function ServerScreen() {
               setError(null);
             }}
             onSubmitEditing={() => void save()}
-            placeholder={defaultApiBase()}
+            placeholder={serverNeedsSetup() ? "https://your-server.example.com" : defaultApiBase()}
             placeholderTextColor={tokens.mutedForeground}
             returnKeyType="go"
             style={{
@@ -166,7 +168,7 @@ export default function ServerScreen() {
             disabled={pending}
           />
           {error ? <Text style={{ color: tokens.destructive, marginTop: 12 }}>{error}</Text> : null}
-          {usesCustomApiBase(current) || draft.trim() !== current ? (
+          {!serverNeedsSetup() && (usesCustomApiBase(current) || draft.trim() !== current) ? (
             <NativeActionButton
               disabled={pending}
               label={t("Use default server")}
