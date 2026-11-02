@@ -1,6 +1,7 @@
 import * as Clipboard from "expo-clipboard";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
 import WebView, { type WebViewMessageEvent } from "react-native-webview";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
@@ -14,9 +15,12 @@ import {
   type NativeMsg,
   type PageState,
   pageReducer,
+  pasteMessage,
   terminalFontSize,
 } from "../lib/terminal-bridge";
 import { terminalHtml } from "../lib/terminal-html.generated";
+import { compactKeyRow, type KeyName, pressRowKey } from "../lib/terminal-keys";
+import { TerminalKeyRow } from "./terminal-key-row";
 
 const SOURCE = { html: terminalHtml };
 // Nothing but the inline page may load.
@@ -75,6 +79,30 @@ function TerminalPage({
   const sendRef = useRef(send);
   sendRef.current = send;
 
+  // The key row's state. Ctrl is held here and in the page, which spends it on a soft key.
+  const [ctrl, setCtrl] = useState(false);
+  const ctrlRef = useRef(false);
+  const [hasSelection, setHasSelection] = useState(false);
+  const applicationCursor = useRef(false);
+  const softKeyboardVisible = useKeyboardState((state) => state.isVisible);
+  const setCtrlOn = (on: boolean) => {
+    ctrlRef.current = on;
+    setCtrl(on);
+    send({ t: "ctrl", on });
+  };
+  const pressKey = (key: KeyName) => {
+    const pressed = pressRowKey(ctrlRef.current, key, {
+      applicationCursor: applicationCursor.current,
+    });
+    if (pressed.bytes.length > 0) write(pressed.bytes);
+    if (ctrlRef.current) setCtrlOn(pressed.ctrl);
+  };
+  const pasteClipboard = async () => {
+    // Never logged: the clipboard can hold anything.
+    const message = pasteMessage(await Clipboard.getStringAsync());
+    if (message) sendRef.current(message);
+  };
+
   const batcher = useMemo(
     () =>
       createOutputBatcher(
@@ -117,6 +145,12 @@ function TerminalPage({
     else if (msg.t === "in") write(base64ToBytes(msg.b64));
     else if (msg.t === "size") resize(msg.rows, msg.cols);
     else if (msg.t === "copy") void Clipboard.setStringAsync(msg.text);
+    else if (msg.t === "ctrlUsed") {
+      ctrlRef.current = false;
+      setCtrl(false);
+    } else if (msg.t === "selection") setHasSelection(msg.has);
+    else if (msg.t === "appCursor") applicationCursor.current = msg.on;
+    else if (msg.t === "pasteRequest") void pasteClipboard();
   };
 
   const overlay =
@@ -131,51 +165,69 @@ function TerminalPage({
             : null;
 
   return (
-    <View style={styles.fill}>
-      <WebView
-        ref={web}
-        source={SOURCE}
-        originWhitelist={ORIGINS}
-        javaScriptEnabled
-        injectedJavaScriptBeforeContentLoaded={`window.__fontSize=${fontSize};window.__dark=${dark};true;`}
-        onContentProcessDidTerminate={() => advance("gone")}
-        onRenderProcessGone={() => advance("gone")}
-        onMessage={onMessage}
-        onShouldStartLoadWithRequest={allowLoad}
-        setSupportMultipleWindows={false}
-        bounces={false}
-        scrollEnabled={false}
-        overScrollMode="never"
-        textZoom={100}
-        automaticallyAdjustContentInsets={false}
-        hideKeyboardAccessoryView
-        keyboardDisplayRequiresUserAction
-        style={styles.web}
-        containerStyle={styles.web}
+    <KeyboardAvoidingView behavior="padding" style={styles.fill}>
+      <View style={styles.fill}>
+        <WebView
+          ref={web}
+          source={SOURCE}
+          originWhitelist={ORIGINS}
+          javaScriptEnabled
+          injectedJavaScriptBeforeContentLoaded={`window.__fontSize=${fontSize};window.__dark=${dark};true;`}
+          onContentProcessDidTerminate={() => advance("gone")}
+          onRenderProcessGone={() => advance("gone")}
+          onMessage={onMessage}
+          onShouldStartLoadWithRequest={allowLoad}
+          setSupportMultipleWindows={false}
+          bounces={false}
+          scrollEnabled={false}
+          overScrollMode="never"
+          textZoom={100}
+          automaticallyAdjustContentInsets={false}
+          hideKeyboardAccessoryView
+          keyboardDisplayRequiresUserAction={false}
+          style={styles.web}
+          containerStyle={styles.web}
+        />
+        {overlay ? (
+          <View
+            pointerEvents="box-none"
+            style={[
+              styles.overlay,
+              { backgroundColor: tokens.background, borderColor: tokens.border },
+            ]}
+          >
+            <Text testID="terminal-status" style={[styles.status, { color: tokens.foreground }]}>
+              {overlay}
+            </Text>
+            {state === "taken_over" ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={reopen}
+                style={[styles.button, { borderColor: tokens.border }]}
+              >
+                <Text style={[styles.buttonLabel, { color: tokens.foreground }]}>
+                  {t("Reopen")}
+                </Text>
+              </Pressable>
+            ) : null}
+          </View>
+        ) : null}
+      </View>
+      <TerminalKeyRow
+        ctrl={ctrl}
+        keyboardOn={softKeyboardVisible}
+        hasSelection={hasSelection}
+        compact={compactKeyRow({
+          isPad: Platform.OS === "ios" && Platform.isPad,
+          softKeyboardVisible,
+        })}
+        onKey={pressKey}
+        onToggleCtrl={() => setCtrlOn(!ctrlRef.current)}
+        onToggleKeyboard={() => send({ t: "keyboard", on: !softKeyboardVisible })}
+        onPaste={() => void pasteClipboard()}
+        onCopy={() => send({ t: "copy" })}
       />
-      {overlay ? (
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.overlay,
-            { backgroundColor: tokens.background, borderColor: tokens.border },
-          ]}
-        >
-          <Text testID="terminal-status" style={[styles.status, { color: tokens.foreground }]}>
-            {overlay}
-          </Text>
-          {state === "taken_over" ? (
-            <Pressable
-              accessibilityRole="button"
-              onPress={reopen}
-              style={[styles.button, { borderColor: tokens.border }]}
-            >
-              <Text style={[styles.buttonLabel, { color: tokens.foreground }]}>{t("Reopen")}</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
-    </View>
+    </KeyboardAvoidingView>
   );
 }
 

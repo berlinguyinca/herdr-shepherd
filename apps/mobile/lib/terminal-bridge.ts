@@ -7,16 +7,44 @@ export type NativeMsg =
   | { t: "clear" }
   | { t: "theme"; dark: boolean }
   | { t: "focus" }
-  | { t: "font"; size: number };
+  | { t: "font"; size: number }
+  // A pending Ctrl for the next character typed on the soft keyboard.
+  | { t: "ctrl"; on: boolean }
+  // Show or hide the soft keyboard: the input mode of xterm's textarea, and its focus.
+  | { t: "keyboard"; on: boolean }
+  // Clipboard text for xterm's paste path, so bracketed paste applies.
+  | { t: "paste"; b64: string }
+  // The Copy button: answer with a `copy` of the selection.
+  | { t: "copy" };
 
-/** Page to native: typed bytes, the fitted size, load done, and selected text to copy. */
+/**
+ * Page to native: typed bytes, the fitted size, load done, selected text to copy, a pending Ctrl
+ * used up, whether xterm has a selection, the terminal's application cursor mode, and a Cmd-V.
+ */
 export type WebMsg =
   | { t: "in"; b64: string }
   | { t: "size"; rows: number; cols: number }
   | { t: "ready" }
-  | { t: "copy"; text: string };
+  | { t: "copy"; text: string }
+  | { t: "ctrlUsed" }
+  | { t: "selection"; has: boolean }
+  | { t: "appCursor"; on: boolean }
+  | { t: "pasteRequest" };
 
 export const encodeToWeb = (msg: NativeMsg): string => JSON.stringify(msg);
+
+/** Pasted or copied text is cut off here: it is held whole in memory and sent in one message. */
+export const MAX_CLIPBOARD_BYTES = 1024 * 1024;
+
+const utf8Length = (text: string) => new TextEncoder().encode(text).length;
+
+/** The `paste` message for clipboard text; null for nothing to paste or more than the cap. */
+export function pasteMessage(text: string): NativeMsg | null {
+  if (!text || text.length > MAX_CLIPBOARD_BYTES || utf8Length(text) > MAX_CLIPBOARD_BYTES) {
+    return null;
+  }
+  return { t: "paste", b64: bytesToBase64(new TextEncoder().encode(text)) };
+}
 
 export const MAX_ROWS = 500;
 export const MAX_COLS = 1000;
@@ -51,7 +79,19 @@ export function decodeFromWeb(raw: string): WebMsg | null {
     case "ready":
       return { t: "ready" };
     case "copy":
-      return typeof msg.text === "string" ? { t: "copy", text: msg.text } : null;
+      return typeof msg.text === "string" &&
+        msg.text.length <= MAX_CLIPBOARD_BYTES &&
+        utf8Length(msg.text) <= MAX_CLIPBOARD_BYTES
+        ? { t: "copy", text: msg.text }
+        : null;
+    case "ctrlUsed":
+      return { t: "ctrlUsed" };
+    case "selection":
+      return typeof msg.has === "boolean" ? { t: "selection", has: msg.has } : null;
+    case "appCursor":
+      return typeof msg.on === "boolean" ? { t: "appCursor", on: msg.on } : null;
+    case "pasteRequest":
+      return { t: "pasteRequest" };
     default:
       return null;
   }

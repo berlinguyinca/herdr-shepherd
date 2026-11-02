@@ -9,12 +9,14 @@ import {
   createOutputBatcher,
   decodeFromWeb,
   encodeToWeb,
+  MAX_CLIPBOARD_BYTES,
   MAX_FONT_PX,
   MIN_FONT_PX,
   type NativeMsg,
   OUT_CHUNK_BYTES,
   type PageState,
   pageReducer,
+  pasteMessage,
   TERMINAL_FONT_SIZE,
   terminalFontSize,
 } from "./terminal-bridge";
@@ -355,5 +357,59 @@ describe("font message", () => {
     expect(clampFontSize(400)).toBe(32);
     expect(clampFontSize(12.6)).toBe(13);
     expect(clampFontSize(Number.NaN)).toBe(TERMINAL_FONT_SIZE);
+  });
+});
+
+describe("key row messages", () => {
+  it("round-trips the new web messages", () => {
+    for (const msg of [
+      { t: "ctrlUsed" },
+      { t: "selection", has: true },
+      { t: "selection", has: false },
+      { t: "appCursor", on: true },
+      { t: "pasteRequest" },
+    ] as const) {
+      expect(decodeFromWeb(JSON.stringify(msg))).toEqual(msg);
+    }
+  });
+
+  it("encodes the new native messages as JSON the page can parse", () => {
+    const msgs: NativeMsg[] = [
+      { t: "ctrl", on: true },
+      { t: "keyboard", on: false },
+      { t: "paste", b64: "aGk=" },
+      { t: "copy" },
+    ];
+    for (const msg of msgs) expect(JSON.parse(encodeToWeb(msg))).toEqual(msg);
+  });
+
+  it("rejects malformed new web messages", () => {
+    for (const raw of [
+      '{"t":"selection"}',
+      '{"t":"selection","has":"yes"}',
+      '{"t":"appCursor","on":1}',
+      '{"t":"appCursor"}',
+    ]) {
+      expect(decodeFromWeb(raw), raw).toBeNull();
+    }
+  });
+
+  it("caps copied text at 1 MB of UTF-8", () => {
+    expect(MAX_CLIPBOARD_BYTES).toBe(1024 * 1024);
+    const copy = (text: string) => decodeFromWeb(JSON.stringify({ t: "copy", text }));
+    const atCap = "a".repeat(MAX_CLIPBOARD_BYTES);
+    expect(copy(atCap)).toEqual({ t: "copy", text: atCap });
+    expect(copy(`${atCap}a`)).toBeNull();
+    // 3 bytes per character: under the cap in characters, over it in bytes.
+    expect(copy("€".repeat(Math.floor(MAX_CLIPBOARD_BYTES / 3) + 1))).toBeNull();
+  });
+
+  it("builds a paste message from clipboard text, or nothing when it is empty or over the cap", () => {
+    expect(pasteMessage("hi")).toEqual({ t: "paste", b64: "aGk=" });
+    expect(pasteMessage("é")).toEqual({ t: "paste", b64: bytesToBase64(bytes("é")) });
+    expect(pasteMessage("")).toBeNull();
+    const atCap = "a".repeat(MAX_CLIPBOARD_BYTES);
+    expect(pasteMessage(atCap)).not.toBeNull();
+    expect(pasteMessage(`${atCap}a`)).toBeNull();
   });
 });

@@ -23,4 +23,15 @@ describe("terminal page", () => {
     expect(terminalHtml).toMatch(/Number\.isFinite\(msg\.size\)/);
     expect(terminalHtml).toMatch(/typeof msg\.b64 === "string"/);
   });
+
+  it("applies option as meta and answers the key row messages", () => {
+    expect(terminalHtml).toMatch(/macOptionIsMeta:\s*true/);
+    for (const t of ["ctrl", "keyboard", "paste"])
+      expect(terminalHtml).toContain(`msg.t === "${t}"`);
+    for (const t of ["ctrlUsed", "selection", "appCursor", "pasteRequest"]) {
+      expect(terminalHtml).toContain(`t: "${t}"`);
+    }
+    expect(terminalHtml).toContain("term.paste(");
+    expect(terminalHtml).toContain("onSelectionChange");
+  });
 });

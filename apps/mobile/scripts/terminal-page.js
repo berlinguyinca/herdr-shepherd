@@ -70,6 +70,8 @@
     fontSize: window.__fontSize || 13,
     scrollback: 5000,
     cursorBlink: true,
+    // Option types Meta (ESC-prefixed) on the iPad hardware keyboard.
+    macOptionIsMeta: true,
     theme: window.__dark === false ? themes.light : themes.dark,
     // Remote output can carry OSC 8 hyperlinks. Activating one must do nothing: no dialog, no
     // navigation. (There is no link policy in this view yet.)
@@ -82,7 +84,15 @@
   term.textarea.setAttribute("inputmode", "none");
 
   const encoder = new TextEncoder();
+  // A Ctrl pending from the key row turns the next typed letter into its control byte; any
+  // input spends it, and the toggle in the key row is told.
+  let ctrl = false;
   term.onData((data) => {
+    if (ctrl) {
+      ctrl = false;
+      post({ t: "ctrlUsed" });
+      if (/^[a-zA-Z]$/.test(data)) data = String.fromCharCode(data.charCodeAt(0) & 31);
+    }
     post({ t: "in", b64: toB64(encoder.encode(data)) });
   });
   term.onBinary((data) => {
@@ -90,13 +100,32 @@
     for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i) & 255;
     post({ t: "in", b64: toB64(bytes) });
   });
+  const copySelection = () => {
+    if (term.hasSelection()) post({ t: "copy", text: term.getSelection() });
+  };
   term.attachCustomKeyEventHandler((event) => {
-    if (event.type === "keydown" && event.metaKey && event.key === "c" && term.hasSelection()) {
-      post({ t: "copy", text: term.getSelection() });
-      return false;
-    }
-    return true;
+    if (event.type !== "keydown" || !event.metaKey) return true;
+    if (event.key === "c" && term.hasSelection()) copySelection();
+    else if (event.key === "v") {
+      // Native reads the clipboard and answers with a paste message.
+      event.preventDefault();
+      post({ t: "pasteRequest" });
+    } else return true;
+    return false;
   });
+  let selected = false;
+  term.onSelectionChange(() => {
+    if (term.hasSelection() === selected) return;
+    selected = !selected;
+    post({ t: "selection", has: selected });
+  });
+  let appCursor = false;
+  const syncMode = () => {
+    const on = term.modes.applicationCursorKeysMode;
+    if (on === appCursor) return;
+    appCursor = on;
+    post({ t: "appCursor", on });
+  };
 
   let last = "";
   const sendSize = () => {
@@ -123,11 +152,21 @@
       return;
     }
     if (!msg) return;
-    if (msg.t === "out" && typeof msg.b64 === "string") term.write(fromB64(msg.b64));
-    else if (msg.t === "clear") term.reset();
-    else if (msg.t === "theme") term.options.theme = msg.dark ? themes.dark : themes.light;
+    if (msg.t === "out" && typeof msg.b64 === "string") term.write(fromB64(msg.b64), syncMode);
+    else if (msg.t === "clear") {
+      term.reset();
+      syncMode();
+    } else if (msg.t === "theme") term.options.theme = msg.dark ? themes.dark : themes.light;
     else if (msg.t === "focus") term.focus();
-    else if (msg.t === "font" && typeof msg.size === "number" && Number.isFinite(msg.size)) {
+    else if (msg.t === "copy") copySelection();
+    else if (msg.t === "ctrl") ctrl = msg.on === true;
+    else if (msg.t === "keyboard") {
+      term.textarea.setAttribute("inputmode", msg.on ? "text" : "none");
+      if (msg.on) term.focus();
+      else term.textarea.blur();
+    } else if (msg.t === "paste" && typeof msg.b64 === "string") {
+      term.paste(new TextDecoder().decode(fromB64(msg.b64)));
+    } else if (msg.t === "font" && typeof msg.size === "number" && Number.isFinite(msg.size)) {
       // A new size changes rows and cols; refit reports them through the normal size message.
       term.options.fontSize = Math.min(32, Math.max(8, msg.size));
       refit();
