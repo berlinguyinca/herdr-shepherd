@@ -29,7 +29,15 @@ export function useAgentStatus(raw: Row["status"]) {
 }
 
 /** One agent: name and machine, a status chip, and a one-line summary. Never shows the id. */
-export function AgentRow({ row, onPress }: { row: Row; onPress?: () => void }) {
+export function AgentRow({
+  row,
+  onPress,
+  selected = false,
+}: {
+  row: Row;
+  onPress?: () => void;
+  selected?: boolean;
+}) {
   const { t } = useI18n();
   const tokens = useMobileTokens();
   const { status, label, color } = useAgentStatus(row.status);
@@ -38,12 +46,14 @@ export function AgentRow({ row, onPress }: { row: Row; onPress?: () => void }) {
   return (
     <Pressable
       accessibilityRole={onPress ? "button" : undefined}
+      accessibilityState={{ selected }}
       disabled={!onPress}
       onPress={onPress}
       style={[
         styles.row,
         { borderBottomColor: tokens.border },
         needsYou ? { borderLeftColor: color, borderLeftWidth: 3 } : null,
+        selected ? { backgroundColor: tokens.sidebarAccent } : null,
       ]}
     >
       <View style={styles.top}>

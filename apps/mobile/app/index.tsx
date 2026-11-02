@@ -117,7 +117,8 @@ export default function HomeRoute() {
   return (
     <View style={{ flex: 1 }}>
       <View style={{ flex: 1 }}>{split ? <PickChatPane /> : <HomeSession />}</View>
-      <HomeTabBar active="assistant" />
+      {/* On a wide window the tab bar sits under the list instead, not under the open chat. */}
+      {split ? null : <HomeTabBar active="assistant" />}
     </View>
   );
 }

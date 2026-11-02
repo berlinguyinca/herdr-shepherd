@@ -1261,6 +1261,7 @@ export const JA_MESSAGES: Record<string, string> = {
   Unknown: "不明",
   Closed: "終了",
   "Show older": "以前のものを表示",
+  "Select an agent": "エージェントを選択",
   "No agents yet": "エージェントはまだありません",
   "This server does not offer the Agents view yet":
     "このサーバーはまだエージェント表示に対応していません",

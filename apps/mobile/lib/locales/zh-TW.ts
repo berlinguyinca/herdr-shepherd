@@ -1242,6 +1242,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   Unknown: "未知",
   Closed: "已關閉",
   "Show older": "顯示較舊的",
+  "Select an agent": "選擇智慧代理",
   "No agents yet": "尚無智慧代理",
   "This server does not offer the Agents view yet": "此伺服器尚未提供智慧代理檢視",
   "Could not load agents": "無法載入智慧代理",

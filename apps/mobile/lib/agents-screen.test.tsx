@@ -6,9 +6,11 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import Agents from "../app/agents";
+import { AgentsList } from "../components/agents-list";
 import { HomeTabBar } from "../components/home-tab-bar";
 import { rpc, streamRpc } from "./api";
 import { queryClient } from "./query";
+import { InboxBesideContext } from "./side-insets";
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn(), dismissTo: vi.fn() }));
 vi.mock("expo-router", () => ({ useRouter: () => router }));
@@ -27,12 +29,19 @@ vi.mock("react-native", () => {
       children,
       onPress,
       accessibilityLabel,
+      accessibilityState,
     }: {
       children?: ReactNode;
       onPress?: () => void;
       accessibilityLabel?: string;
+      accessibilityState?: { selected?: boolean };
     }) => (
-      <button type="button" aria-label={accessibilityLabel} onClick={onPress}>
+      <button
+        type="button"
+        aria-label={accessibilityLabel}
+        data-selected={accessibilityState?.selected}
+        onClick={onPress}
+      >
         {children}
       </button>
     ),
@@ -262,6 +271,35 @@ it("tapping the Agents tab from home navigates to /agents and back", async () =>
   router.push.mockClear();
   await act(async () => button("Agents")!.click());
   expect(router.push).not.toHaveBeenCalled();
+});
+
+it("the list highlights the open agent and reports the tapped row", async () => {
+  rpcMock.mockResolvedValue(list([row("a1", "working"), row("a2", "idle")]));
+  const onSelect = vi.fn();
+  await render(<AgentsList selectedId="a2" onSelect={onSelect} />);
+  const rows = [...host.querySelectorAll("button[data-selected]")];
+  expect(rows.map((r) => r.getAttribute("data-selected"))).toEqual(["false", "true"]);
+  await act(async () => (rows[0] as HTMLElement).click());
+  expect(onSelect).toHaveBeenCalledWith("a1");
+});
+
+it("on a wide window the Agents screen is an empty right pane without the tab bar", async () => {
+  rpcMock.mockResolvedValue(list([row("a1", "working")]));
+  await render(
+    <InboxBesideContext.Provider value>
+      <Agents />
+    </InboxBesideContext.Provider>,
+  );
+  expect(host.textContent).toContain("Select an agent");
+  expect(host.textContent).not.toContain("agent-a1");
+  expect(button("Agents")).toBeUndefined();
+});
+
+it("on a narrow window tapping a row pushes the agent over the list", async () => {
+  rpcMock.mockResolvedValue(list([row("a1", "working")]));
+  await render(<Agents />);
+  await act(async () => (host.querySelector("button[data-selected]") as HTMLElement).click());
+  expect(router.push).toHaveBeenCalledWith({ pathname: "/agent", params: { id: "a1" } });
 });
 
 const refreshing = () => host.querySelector("[data-refreshing]")?.getAttribute("data-refreshing");

@@ -1230,6 +1230,7 @@ export const NL_MESSAGES: Record<string, string> = {
   Unknown: "Onbekend",
   Closed: "Gesloten",
   "Show older": "Oudere tonen",
+  "Select an agent": "Kies een agent",
   "No agents yet": "Nog geen agents",
   "This server does not offer the Agents view yet":
     "Deze server biedt de Agents-weergave nog niet aan",

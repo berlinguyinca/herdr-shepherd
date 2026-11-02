@@ -1269,6 +1269,7 @@ export const RU_MESSAGES: Record<string, string> = {
   Unknown: "Неизвестно",
   Closed: "Закрыт",
   "Show older": "Показать старые",
+  "Select an agent": "Выберите агента",
   "No agents yet": "Агентов пока нет",
   "This server does not offer the Agents view yet":
     "Этот сервер пока не поддерживает раздел агентов",

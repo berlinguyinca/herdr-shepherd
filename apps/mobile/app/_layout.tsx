@@ -34,6 +34,7 @@ import { MermaidDiagram } from "../components/mermaid-diagram";
 import { MessageMenuHost } from "../components/message-action-menu";
 import { MessageActionSheetHost } from "../components/message-action-sheet-host";
 import { NativeSymbol } from "../components/native-symbol";
+import { SplitLeftPane } from "../components/split-left-pane";
 import { VoicePlayerBar } from "../components/voice-player-bar";
 import {
   currentApiBase,
@@ -72,6 +73,7 @@ import {
   subscribeSessionGeneration,
 } from "../lib/session";
 import { InboxBesideContext } from "../lib/side-insets";
+import { leftPaneFor, tabFor } from "../lib/split-pane";
 import {
   chooseInboxWidth,
   closesSplitPane,
@@ -105,18 +107,11 @@ registerSessionDiskCache(() => void clearAppBadge());
 void SplashScreen.preventAutoHideAsync().catch(() => undefined);
 
 const DIVIDER_GRAB_WIDTH = 24;
-// Screens that take the whole window even when it is wide enough for the chat list beside them.
-const FULL_WINDOW_ROUTES = new Set([
-  "/sign-in",
-  "/server",
-  "/image",
-  "/computer",
-  "/share",
-  "/agents",
-  "/agent",
-]);
 
-/** On a wide window the chat list stays on the left and the stack shows the open chat beside it. */
+/**
+ * On a wide window a list stays on the left and the stack shows the open screen beside it: the chat
+ * list, or the agents list on the Agents screens.
+ */
 function SplitFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -133,7 +128,8 @@ function SplitFrame({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (home) setInboxHidden(false);
   }, [home]);
-  const showsInbox = split && (home || inboxShown) && !FULL_WINDOW_ROUTES.has(pathname);
+  const leftPane = leftPaneFor(pathname, split, home || inboxShown);
+  const showsInbox = leftPane !== null;
   // Dragging resizes the list natively; the width is kept when the finger lifts.
   const paneWidth = useSharedValue(inboxWidth);
   const dragStart = useRef(inboxWidth);
@@ -164,12 +160,25 @@ function SplitFrame({ children }: { children: ReactNode }) {
             { borderRightWidth: StyleSheet.hairlineWidth, borderRightColor: tokens.border },
           ]}
         >
-          <InboxPane
-            onSelectSpace={(spaceId) => {
-              if (closesSplitPane(pathname, paneSpace.current, spaceId)) {
-                router.dismissTo("/");
-              }
+          <SplitLeftPane
+            pane={leftPane}
+            tab={tabFor(pathname)}
+            selectedAgentId={typeof params.id === "string" ? params.id : undefined}
+            onSelectAgent={(id) => {
+              // The open agent is replaced, so picking through the list never grows the stack.
+              const target = { pathname: "/agent", params: { id } } as const;
+              if (pathname === "/agent") router.replace(target);
+              else router.push(target);
             }}
+            inbox={
+              <InboxPane
+                onSelectSpace={(spaceId) => {
+                  if (closesSplitPane(pathname, paneSpace.current, spaceId)) {
+                    router.dismissTo("/");
+                  }
+                }}
+              />
+            }
           />
         </Animated.View>
       ) : null}

@@ -1180,6 +1180,7 @@ export const ES_MESSAGES: Record<string, string> = {
   Unknown: "Desconocido",
   Closed: "Cerrado",
   "Show older": "Mostrar anteriores",
+  "Select an agent": "Elige un agente",
   "No agents yet": "Aún no hay agentes",
   "This server does not offer the Agents view yet":
     "Este servidor aún no ofrece la vista de agentes",

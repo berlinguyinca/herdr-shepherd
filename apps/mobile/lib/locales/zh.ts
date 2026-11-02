@@ -1244,6 +1244,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   Unknown: "未知",
   Closed: "已关闭",
   "Show older": "显示更早的",
+  "Select an agent": "选择智能体",
   "No agents yet": "暂无智能体",
   "This server does not offer the Agents view yet": "此服务器暂不支持智能体视图",
   "Could not load agents": "无法加载智能体",
