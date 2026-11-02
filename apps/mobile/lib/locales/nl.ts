@@ -1258,6 +1258,10 @@ export const NL_MESSAGES: Record<string, string> = {
   "Agent view": "Weergave",
   "Terminal unavailable: this agent has no live session":
     "Terminal niet beschikbaar: deze agent heeft geen actieve sessie",
+  Keyboard: "Toetsenbord",
+  "Could not open the terminal": "Kan de terminal niet openen",
+  "Too many open terminals, close one to continue":
+    "Te veel open terminals, sluit er een om door te gaan",
   "Opened elsewhere": "Elders geopend",
   Reopen: "Opnieuw openen",
   "Connection lost. Retrying…": "Verbinding verbroken. Opnieuw proberen…",

@@ -1297,6 +1297,10 @@ export const RU_MESSAGES: Record<string, string> = {
   "Agent view": "Вид",
   "Terminal unavailable: this agent has no live session":
     "Терминал недоступен: у этого агента нет активного сеанса",
+  Keyboard: "Клавиатура",
+  "Could not open the terminal": "Не удалось открыть терминал",
+  "Too many open terminals, close one to continue":
+    "Слишком много открытых терминалов, закройте один, чтобы продолжить",
   "Opened elsewhere": "Открыто на другом устройстве",
   Reopen: "Открыть снова",
   "Connection lost. Retrying…": "Соединение потеряно. Повторная попытка…",

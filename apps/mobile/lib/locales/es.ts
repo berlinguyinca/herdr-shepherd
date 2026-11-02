@@ -1208,6 +1208,10 @@ export const ES_MESSAGES: Record<string, string> = {
   "Agent view": "Vista",
   "Terminal unavailable: this agent has no live session":
     "Terminal no disponible: este agente no tiene una sesión activa",
+  Keyboard: "Teclado",
+  "Could not open the terminal": "No se pudo abrir el terminal",
+  "Too many open terminals, close one to continue":
+    "Demasiados terminales abiertos, cierra uno para continuar",
   "Opened elsewhere": "Abierto en otro lugar",
   Reopen: "Reabrir",
   "Connection lost. Retrying…": "Conexión perdida. Reintentando…",

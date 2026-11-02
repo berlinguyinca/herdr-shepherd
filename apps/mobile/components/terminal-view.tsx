@@ -2,6 +2,7 @@ import * as Clipboard from "expo-clipboard";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import WebView, { type WebViewMessageEvent } from "react-native-webview";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
@@ -40,7 +41,9 @@ export function TerminalView({
   /** The height above this view that the keyboard must also clear; the parent knows it. */
   keyboardOffset?: number;
 }) {
-  const [mount, setMount] = useState({ generation: 0, uncapped: false });
+  const [saved, setMount] = useState({ agentId, generation: 0, uncapped: false });
+  // Another agent starts clean: a remount count or an uncapped page belongs to the one before.
+  const mount = saved.agentId === agentId ? saved : { agentId, generation: 0, uncapped: false };
   return (
     <TerminalPage
       key={`${agentId}:${mount.generation}`}
@@ -49,7 +52,7 @@ export function TerminalView({
       keyboardOffset={keyboardOffset}
       uncapped={mount.uncapped}
       onReload={(next) =>
-        setMount((m) => ({ generation: m.generation + 1, uncapped: next.uncapped }))
+        setMount({ agentId, generation: mount.generation + 1, uncapped: next.uncapped })
       }
     />
   );
@@ -72,7 +75,9 @@ function TerminalPage({
   const tokens = useMobileTokens();
   const dark = useResolvedAppearance() === "dark";
   const { fontScale } = useWindowDimensions();
-  const { state, write, resize, reopen, onOutput } = useTerminal(agentId);
+  // Set while this page is being rebuilt: the terminal stays open for the page that follows.
+  const rebuilding = useRef(false);
+  const { state, write, resize, reopen, onOutput } = useTerminal(agentId, undefined, rebuilding);
   const web = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
   const page = useRef<PageState>({ generation: 0, ready: false, dropped: false, uncapped });
@@ -80,8 +85,10 @@ function TerminalPage({
     const next = pageReducer(page.current, event);
     const reload = next.generation !== page.current.generation;
     page.current = next;
-    if (reload) onReload(next);
-    else setReady(next.ready);
+    if (reload) {
+      rebuilding.current = true;
+      onReload(next);
+    } else setReady(next.ready);
   };
   const advanceRef = useRef(advance);
   advanceRef.current = advance;
@@ -97,6 +104,7 @@ function TerminalPage({
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   useEffect(() => () => clearTimeout(noticeTimer.current), []);
   const softKeyboardVisible = useKeyboardState((state) => state.isVisible);
+  const insets = useSafeAreaInsets();
   // The handler is made once; what it calls is always the latest render's.
   const deps = {
     ready: () => advance("ready"),
@@ -163,24 +171,30 @@ function TerminalPage({
     // The page starts at the size injected on load; this follows a change while it is open.
     if (ready) send({ t: "font", size: fontSize });
   }, [ready, fontSize]);
+  const wasFocused = useRef(false);
   useEffect(() => {
-    if (ready && focused) send({ t: "focus" });
+    if (!ready) return;
+    if (focused) send({ t: "focus" });
+    // Hidden under Chat: no soft keyboard and no focus left to raise one.
+    else if (wasFocused.current) send({ t: "blur" });
+    wasFocused.current = focused;
   }, [ready, focused]);
 
   const onMessage = (event: WebViewMessageEvent) => handler.onMessage(event.nativeEvent.data);
 
-  const overlay =
-    state === "connecting"
-      ? t("Connecting…")
-      : state === "ended"
-        ? t("Session ended")
-        : state === "taken_over"
-          ? t("Opened elsewhere")
-          : state === "error"
-            ? t("Connection lost. Retrying…")
-            : notice
-              ? t("Too large to copy or paste")
-              : null;
+  const stateText = {
+    connecting: t("Connecting…"),
+    live: null,
+    ended: t("Session ended"),
+    taken_over: t("Opened elsewhere"),
+    // Only while the client is actually backing off before another try.
+    error: t("Connection lost. Retrying…"),
+    busy: t("Too many open terminals, close one to continue"),
+    failed: t("Could not open the terminal"),
+  }[state];
+  const overlay = stateText ?? (notice ? t("Too large to copy or paste") : null);
+  // Where nothing will happen on its own, the person can ask again.
+  const canReopen = state === "taken_over" || state === "ended" || state === "failed";
 
   return (
     <KeyboardAvoidingView
@@ -205,6 +219,7 @@ function TerminalPage({
           overScrollMode="never"
           textZoom={100}
           automaticallyAdjustContentInsets={false}
+          dataDetectorTypes="none"
           hideKeyboardAccessoryView
           keyboardDisplayRequiresUserAction={false}
           style={styles.web}
@@ -218,10 +233,14 @@ function TerminalPage({
               { backgroundColor: tokens.background, borderColor: tokens.border },
             ]}
           >
-            <Text testID="terminal-status" style={[styles.status, { color: tokens.foreground }]}>
+            <Text
+              testID="terminal-status"
+              accessibilityLiveRegion="polite"
+              style={[styles.status, { color: tokens.foreground }]}
+            >
               {overlay}
             </Text>
-            {state === "taken_over" ? (
+            {canReopen ? (
               <Pressable
                 accessibilityRole="button"
                 onPress={reopen}
@@ -239,9 +258,11 @@ function TerminalPage({
         ctrl={ctrl}
         keyboardOn={softKeyboardVisible}
         hasSelection={hasSelection}
+        // The home indicator is only in the way while no keyboard covers it.
+        bottomInset={softKeyboardVisible ? 0 : insets.bottom}
         // An iPad with no soft keyboard showing is taken to have a hardware keyboard, so the row
         // shrinks. An iPad whose keyboard is only hidden gets the compact row too, and the
-        // toggle then reads "Show keyboard".
+        // toggle is then off.
         compact={compactKeyRow({
           isPad: Platform.OS === "ios" && Platform.isPad,
           softKeyboardVisible,

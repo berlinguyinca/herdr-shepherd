@@ -10,7 +10,19 @@ import { KEY_ROW, REPEAT_DELAY_MS, REPEAT_INTERVAL_MS } from "./terminal-keys";
 
 vi.mock("react-native", () => ({
   StyleSheet: { create: <T,>(styles: T) => styles, hairlineWidth: 1 },
-  View: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
+  View: ({
+    children,
+    testID,
+    style,
+  }: {
+    children?: ReactNode;
+    testID?: string;
+    style?: unknown;
+  }) => (
+    <div data-testid={testID} data-style={JSON.stringify(style)}>
+      {children}
+    </div>
+  ),
   ScrollView: ({ children }: { children?: ReactNode }) => <div>{children}</div>,
   Text: ({ children }: { children?: ReactNode }) => <span>{children}</span>,
   Pressable: ({
@@ -70,6 +82,7 @@ const props = {
   onToggleKeyboard: noop,
   onPaste: noop,
   onCopy: noop,
+  bottomInset: 0,
 };
 
 let host: HTMLElement;
@@ -86,7 +99,8 @@ afterEach(() => {
 });
 const render = (over: Partial<typeof props> = {}) =>
   act(() => root.render(<TerminalKeyRow {...props} {...over} />));
-const byId = (id: string) => host.querySelector(`[data-testid="terminal-key-${id}"]`);
+const byId = (id: string) =>
+  host.querySelector(`[data-testid="${id === "row" ? "terminal-key-row" : `terminal-key-${id}`}"]`);
 
 it("renders every row key with a test id and an accessibility label", () => {
   render();
@@ -94,7 +108,7 @@ it("renders every row key with a test id and an accessibility label", () => {
   expect(byId("Esc")?.getAttribute("aria-label")).toBe("Escape");
   expect(byId("|")?.getAttribute("aria-label")).toBe("Pipe");
   expect(byId("Left")?.textContent).toBe("←");
-  expect(byId("keyboard")?.getAttribute("aria-label")).toBe("Show keyboard");
+  expect(byId("keyboard")?.getAttribute("aria-label")).toBe("Keyboard");
   expect(byId("keyboard")?.querySelector("[data-icon]")).not.toBeNull();
 });
 
@@ -106,7 +120,7 @@ it("reports Ctrl and the keyboard toggle as switches with their state", () => {
   render({ ctrl: true, keyboardOn: true });
   expect(byId("Ctrl")?.getAttribute("data-checked")).toBe("true");
   expect(byId("keyboard")?.getAttribute("data-checked")).toBe("true");
-  expect(byId("keyboard")?.getAttribute("aria-label")).toBe("Hide keyboard");
+  expect(byId("keyboard")?.getAttribute("aria-label")).toBe("Keyboard");
   expect(byId("Tab")?.getAttribute("data-role")).toBe("button");
 });
 
@@ -155,4 +169,42 @@ it("releases the key repeat when the row unmounts", () => {
   vi.advanceTimersByTime(5000);
   expect(onKey).toHaveBeenCalledTimes(before);
   root = createRoot(host);
+});
+
+const fire = (id: string, ...events: string[]) =>
+  act(() => {
+    for (const type of events) byId(id)?.dispatchEvent(new MouseEvent(type, { bubbles: true }));
+  });
+
+it("a plain activation of a repeating key (TalkBack) sends it once", () => {
+  vi.useFakeTimers();
+  const onKey = vi.fn();
+  render({ onKey });
+  fire("Tab", "click");
+  expect(onKey).toHaveBeenCalledTimes(1);
+  expect(onKey).toHaveBeenCalledWith("Tab");
+});
+
+it("a touch tap sends once, not once for the press and again for the activation", () => {
+  vi.useFakeTimers();
+  const onKey = vi.fn();
+  render({ onKey });
+  fire("Tab", "mousedown", "mouseup", "click");
+  act(() => {
+    vi.advanceTimersByTime(REPEAT_DELAY_MS / 2);
+  });
+  expect(onKey).toHaveBeenCalledTimes(1);
+});
+
+it("pads the bottom by the inset it is given, so the home indicator clears the keys", () => {
+  render({ bottomInset: 34 });
+  const bar = JSON.parse(byId("row")?.getAttribute("data-style") ?? "[]") as Array<
+    Record<string, unknown>
+  >;
+  expect(bar.some((style) => style.paddingBottom === 38)).toBe(true);
+  render({ bottomInset: 0 });
+  const flat = JSON.parse(byId("row")?.getAttribute("data-style") ?? "[]") as Array<
+    Record<string, unknown>
+  >;
+  expect(flat.some((style) => style.paddingBottom === 4)).toBe(true);
 });

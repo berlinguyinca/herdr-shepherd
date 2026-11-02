@@ -1268,6 +1268,9 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Agent view": "檢視",
   "Terminal unavailable: this agent has no live session":
     "無法使用終端機：此代理程式沒有進行中的工作階段",
+  Keyboard: "鍵盤",
+  "Could not open the terminal": "無法開啟終端機",
+  "Too many open terminals, close one to continue": "開啟的終端機太多，請關閉一個後再繼續",
   "Opened elsewhere": "已在其他位置開啟",
   Reopen: "重新開啟",
   "Connection lost. Retrying…": "連線已中斷，正在重試…",

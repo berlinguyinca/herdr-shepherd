@@ -2,7 +2,7 @@ import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
-import { createKeyRepeater, KEY_ROW, type KeyName } from "../lib/terminal-keys";
+import { createKeyPresser, KEY_ROW, type KeyName } from "../lib/terminal-keys";
 import { NativeSymbol } from "./native-symbol";
 
 const TAP = 44;
@@ -27,6 +27,7 @@ export function TerminalKeyRow({
   onToggleKeyboard,
   onPaste,
   onCopy,
+  bottomInset,
 }: {
   ctrl: boolean;
   keyboardOn: boolean;
@@ -37,13 +38,15 @@ export function TerminalKeyRow({
   onToggleKeyboard: () => void;
   onPaste: () => void;
   onCopy: () => void;
+  /** Home indicator height to clear while the soft keyboard is not showing. */
+  bottomInset: number;
 }) {
   const { t } = useI18n();
   const tokens = useMobileTokens();
   const fire = useRef(onKey);
   fire.current = onKey;
-  const repeater = useMemo(() => createKeyRepeater((key) => fire.current(key)), []);
-  useEffect(() => repeater.release, [repeater]);
+  const presser = useMemo(() => createKeyPresser((key) => fire.current(key)), []);
+  useEffect(() => presser.release, [presser]);
 
   const names: Record<string, string> = {
     Esc: t("Escape"),
@@ -110,7 +113,15 @@ export function TerminalKeyRow({
 
   return (
     <View
-      style={[styles.bar, { borderTopColor: tokens.border, backgroundColor: tokens.background }]}
+      testID="terminal-key-row"
+      style={[
+        styles.bar,
+        {
+          borderTopColor: tokens.border,
+          backgroundColor: tokens.background,
+          paddingBottom: 4 + bottomInset,
+        },
+      ]}
     >
       <ScrollView
         horizontal
@@ -127,7 +138,8 @@ export function TerminalKeyRow({
             size={20}
             color={keyboardOn ? tokens.primaryForeground : tokens.foreground}
           />,
-          keyboardOn ? t("Hide keyboard") : t("Show keyboard"),
+          // One label; the checked state says whether the keyboard is showing.
+          t("Keyboard"),
           { onPress: onToggleKeyboard },
           keyboardOn,
         )}
@@ -135,8 +147,10 @@ export function TerminalKeyRow({
           key === "Ctrl"
             ? button("Ctrl", "Ctrl", t("Control"), { onPress: onToggleCtrl }, ctrl)
             : button(key, GLYPHS[key] ?? key, names[key] ?? key, {
-                onPressIn: () => repeater.press(key),
-                onPressOut: repeater.release,
+                onPressIn: () => presser.pressIn(key),
+                onPressOut: presser.pressOut,
+                // A plain activation (TalkBack, VoiceOver) sends once; a touch already has.
+                onPress: () => presser.activate(key),
                 unstable_pressDelay: PRESS_DELAY_MS,
               }),
         )}

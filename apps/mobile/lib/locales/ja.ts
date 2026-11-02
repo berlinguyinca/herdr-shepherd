@@ -1288,6 +1288,10 @@ export const JA_MESSAGES: Record<string, string> = {
   "Agent view": "表示",
   "Terminal unavailable: this agent has no live session":
     "ターミナルは利用できません: このエージェントには実行中のセッションがありません",
+  Keyboard: "キーボード",
+  "Could not open the terminal": "ターミナルを開けませんでした",
+  "Too many open terminals, close one to continue":
+    "開いているターミナルが多すぎます。続けるには1つ閉じてください",
   "Opened elsewhere": "別の場所で開かれています",
   Reopen: "再度開く",
   "Connection lost. Retrying…": "接続が切れました。再試行しています…",

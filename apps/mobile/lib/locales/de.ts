@@ -1268,6 +1268,10 @@ export const DE_MESSAGES: Record<string, string> = {
   "Agent view": "Ansicht",
   "Terminal unavailable: this agent has no live session":
     "Terminal nicht verfügbar: Dieser Agent hat keine laufende Sitzung",
+  Keyboard: "Tastatur",
+  "Could not open the terminal": "Das Terminal konnte nicht geöffnet werden",
+  "Too many open terminals, close one to continue":
+    "Zu viele offene Terminals, schließe eines, um fortzufahren",
   "Opened elsewhere": "Anderswo geöffnet",
   Reopen: "Erneut öffnen",
   "Connection lost. Retrying…": "Verbindung verloren. Neuer Versuch…",

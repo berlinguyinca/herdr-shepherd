@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   compactKeyRow,
   controlByte,
+  createKeyPresser,
   createKeyRepeater,
   isRepeatable,
   KEY_ROW,
@@ -213,5 +214,59 @@ describe("controlByte", () => {
     expect(controlByte("ab")).toBeUndefined();
     expect(controlByte("")).toBeUndefined();
     expect(controlByte("1")).toBeUndefined();
+  });
+});
+
+describe("createKeyPresser", () => {
+  const setup = () => {
+    vi.useFakeTimers();
+    const fire = vi.fn();
+    return { fire, presser: createKeyPresser(fire) };
+  };
+
+  it("a touch tap sends one key whichever way press-out and press arrive", () => {
+    const { fire, presser } = setup();
+    presser.pressIn("Left");
+    presser.pressOut();
+    presser.activate("Left");
+    vi.advanceTimersByTime(10);
+    presser.pressIn("Left");
+    presser.activate("Left");
+    presser.pressOut();
+    vi.advanceTimersByTime(10);
+    expect(fire).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it("an accessibility activation, which has no press-in, sends one key", () => {
+    const { fire, presser } = setup();
+    presser.activate("Tab");
+    expect(fire).toHaveBeenCalledTimes(1);
+    expect(fire).toHaveBeenCalledWith("Tab");
+    vi.useRealTimers();
+  });
+
+  it("a held key repeats and the final activation adds nothing", () => {
+    const { fire, presser } = setup();
+    presser.pressIn("Left");
+    vi.advanceTimersByTime(REPEAT_DELAY_MS + REPEAT_INTERVAL_MS * 2);
+    presser.pressOut();
+    presser.activate("Left");
+    const sent = fire.mock.calls.length;
+    expect(sent).toBeGreaterThan(2);
+    vi.advanceTimersByTime(5000);
+    expect(fire).toHaveBeenCalledTimes(sent);
+    vi.useRealTimers();
+  });
+
+  it("a cancelled press does not swallow the next accessibility activation", () => {
+    const { fire, presser } = setup();
+    presser.pressIn("Tab");
+    presser.pressOut();
+    vi.advanceTimersByTime(10);
+    expect(fire).toHaveBeenCalledTimes(1);
+    presser.activate("Tab");
+    expect(fire).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 });

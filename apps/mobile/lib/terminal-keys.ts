@@ -139,6 +139,40 @@ export function createKeyRepeater(fire: (key: KeyName) => void) {
   };
 }
 
+/**
+ * The repeating keys' three signals as one: a touch sends on press-in (held keys repeat) and its
+ * release then calls `activate`, which must add nothing; an accessibility activation (TalkBack,
+ * VoiceOver) calls only `activate`, which then sends once. Press-out clears the "already sent"
+ * mark a tick later, so a press that was cancelled never swallows a later activation.
+ */
+export function createKeyPresser(fire: (key: KeyName) => void) {
+  const repeater = createKeyRepeater(fire);
+  let sent = false;
+  let clear: ReturnType<typeof setTimeout> | undefined;
+  return {
+    pressIn(key: KeyName) {
+      clearTimeout(clear);
+      sent = true;
+      repeater.press(key);
+    },
+    pressOut() {
+      repeater.release();
+      clearTimeout(clear);
+      clear = setTimeout(() => {
+        sent = false;
+      }, 0);
+    },
+    activate(key: KeyName) {
+      if (sent) return;
+      fire(key);
+    },
+    release() {
+      clearTimeout(clear);
+      repeater.release();
+    },
+  };
+}
+
 /** An iPad with no soft keyboard showing is typed on by a hardware keyboard: the row shrinks. */
 export const compactKeyRow = (state: { isPad: boolean; softKeyboardVisible: boolean }): boolean =>
   state.isPad && !state.softKeyboardVisible;
