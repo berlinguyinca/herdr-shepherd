@@ -35,7 +35,7 @@ describe("terminal view handler", () => {
     expect(deps.ready).toHaveBeenCalledTimes(1);
   });
 
-  it("never resizes the pty for a size message from the page", () => {
+  it("never resizes the pane for a size message from the page", () => {
     const { deps, handler } = setup();
     post(handler, { t: "size", rows: 24, cols: 80 });
     expect(deps.setZoom).not.toHaveBeenCalled();

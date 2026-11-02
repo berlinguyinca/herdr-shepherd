@@ -70,6 +70,8 @@
   const term = new Terminal({
     fontFamily: 'ui-monospace, Menlo, "Roboto Mono", monospace',
     fontSize: window.__fontSize || 13,
+    // Needed for term.unicode (the width tables below).
+    allowProposedApi: true,
     // The pane's own scrollback stays on the host; the page scrolls the whole pane instead.
     scrollback: 0,
     // The relay reports no cursor, so none is drawn (the page also writes \x1b[?25l).
@@ -82,6 +84,9 @@
     // navigation. (There is no link policy in this view yet.)
     linkHandler: { activate() {} },
   });
+  // The host's screen is drawn with Unicode 11 widths (emoji, CJK), not xterm's default 6.
+  term.loadAddon(new Unicode11Addon.Unicode11Addon());
+  term.unicode.activeVersion = "11";
   const box = document.getElementById("t");
   term.open(box);
   // The native side owns the keyboard; a tap must not raise the web one.
@@ -151,6 +156,15 @@
 
   // The pane at its own cols x rows, its font scaled to the container width (paneFit), times
   // the pinch scale. Vertical scroll shows the rest of the pane; horizontal only where it pans.
+  const before = encoder.encode("\x1b[?25l\x1b[?2026h");
+  const after = encoder.encode("\x1b[?2026l");
+  const wrapFrame = (bytes) => {
+    const out = new Uint8Array(before.length + bytes.length + after.length);
+    out.set(before);
+    out.set(bytes, before.length);
+    out.set(after, before.length + bytes.length);
+    return out;
+  };
   let userFont = window.__fontSize || 13;
   let pinch = 1;
   let pane = null;
@@ -243,8 +257,10 @@
         applyFit();
         if (msg.rows !== term.rows || msg.cols !== term.cols) term.resize(msg.cols, msg.rows);
       }
-      term.write("\x1b[?25l");
-      term.write(fromB64(msg.b64), () => {
+      // No cursor (the page's own, not the frame's), and the frame is one synchronized update
+      // (DEC 2026): it paints whole, never half a screen. It repaints by itself (it starts
+      // with a clear), so no reset is needed and a selection survives.
+      term.write(wrapFrame(fromB64(msg.b64)), () => {
         syncMode();
         toBottom();
       });

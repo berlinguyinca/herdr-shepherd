@@ -19,6 +19,25 @@ class FakeTerminal {
   modes = { applicationCursorKeysMode: false };
   selection = "";
   pasted: string[] = [];
+  /** What was written, decoded, in order; and what "reset" wiped. */
+  written: string[] = [];
+  resets = 0;
+  unicode = { activeVersion: "6" };
+  /** xterm's measured cell: `cellRatio` of the font, as the real renderer reports it. */
+  cellRatio = 0;
+  _core = {
+    _renderService: {
+      dimensions: {
+        css: {
+          cell: {
+            get width() {
+              return fake.term.cellRatio * Number(fake.term.options.fontSize);
+            },
+          },
+        },
+      },
+    },
+  };
   onDataCb: (data: string) => void = () => {};
   onSelectionCb: () => void = () => {};
   keyHandler: (event: Partial<KeyboardEvent>) => boolean = () => true;
@@ -26,7 +45,9 @@ class FakeTerminal {
     this.options = options;
     fake.term = this;
   }
-  loadAddon() {}
+  loadAddon(addon: { activate?: (term: unknown) => void }) {
+    addon.activate?.(this);
+  }
   open() {
     document.body.append(this.textarea);
   }
@@ -53,16 +74,25 @@ class FakeTerminal {
     this.pasted.push(text);
     this.onDataCb(text);
   }
+  // Like xterm, a write is parsed later: its callback runs after the call returns.
   write(data: Uint8Array | string, cb?: () => void) {
     log.push(typeof data === "string" ? `write:${data}` : "write:data");
-    cb?.();
+    this.written.push(typeof data === "string" ? data : new TextDecoder().decode(data));
+    if (cb) queueMicrotask(cb);
   }
   resize(cols: number, rows: number) {
     log.push(`resize:${cols}x${rows}`);
     this.cols = cols;
     this.rows = rows;
   }
-  reset() {}
+  // A real reset wipes the screen, and with it the selection.
+  reset() {
+    this.resets += 1;
+    if (this.selection) {
+      this.selection = "";
+      this.onSelectionCb();
+    }
+  }
 }
 const fake = { term: undefined as unknown as FakeTerminal };
 let posted: Posted[];
@@ -70,6 +100,8 @@ let log: string[];
 // Each test runs a fresh page; the earlier pages' window listeners must not answer this one.
 let listeners: Array<[string, EventListener]>;
 let observed: () => void;
+let activated: FakeTerminal | undefined;
+const writes = () => Promise.resolve();
 const box = () => document.getElementById("t") as HTMLElement;
 const define = (el: HTMLElement, props: Record<string, number>) => {
   for (const [key, value] of Object.entries(props)) {
@@ -104,6 +136,13 @@ beforeEach(() => {
   });
   Object.assign(globalThis, {
     Terminal: FakeTerminal,
+    Unicode11Addon: {
+      Unicode11Addon: class {
+        activate(term: FakeTerminal) {
+          activated = term;
+        }
+      },
+    },
     ResizeObserver: class {
       constructor(cb: () => void) {
         observed = cb;
@@ -191,11 +230,7 @@ describe("terminal page: the pane's size", () => {
   it("takes the frame's size before writing the frame", () => {
     log.length = 0;
     frame(120, 97);
-    expect(log.filter((l) => /^(resize|write)/.test(l))).toEqual([
-      "resize:97x120",
-      "write:\x1b[?25l",
-      "write:data",
-    ]);
+    expect(log.filter((l) => /^(resize|write)/.test(l))).toEqual(["resize:97x120", "write:data"]);
     expect(fake.term.rows).toBe(120);
     expect(fake.term.cols).toBe(97);
   });
@@ -218,7 +253,7 @@ describe("terminal page: the pane's size", () => {
     expect(log.filter((l) => l === "write:data").length).toBe(4);
   });
 
-  it("never reports a size for the pty, however the page is laid out", () => {
+  it("never reports a size for the pane, however the page is laid out", () => {
     window.dispatchEvent(new Event("resize"));
     window.dispatchEvent(new Event("orientationchange"));
     observed();
@@ -232,10 +267,40 @@ describe("terminal page: no cursor, no scrollback", () => {
     expect(fake.term.options.cursorBlink).toBe(false);
     expect(fake.term.options.cursorInactiveStyle).toBe("none");
     expect(fake.term.options.scrollback).toBe(0);
-    log.length = 0;
     message({ t: "out", b64: "" });
-    expect(log.indexOf("write:\x1b[?25l")).toBeGreaterThanOrEqual(0);
-    expect(log.indexOf("write:\x1b[?25l")).toBeLessThan(log.indexOf("write:data"));
+    expect(fake.term.written.at(-1)?.startsWith("\x1b[?25l")).toBe(true);
+  });
+});
+
+describe("terminal page: a frame replaces the screen without a reset", () => {
+  it("writes the frame wrapped as one synchronized update, hide-cursor first", () => {
+    frame(24, 30);
+    expect(fake.term.written).toEqual(["\x1b[?25l\x1b[?2026hscreen\x1b[?2026l"]);
+  });
+
+  it("never resets the terminal for a frame, so the selection survives it", async () => {
+    fake.term.selection = "echo hi";
+    fake.term.onSelectionCb();
+    frame(24, 30);
+    frame(24, 30);
+    await writes();
+    expect(fake.term.resets).toBe(0);
+    expect(fake.term.selection).toBe("echo hi");
+    expect(posted.filter((m) => m.t === "selection")).toEqual([{ t: "selection", has: true }]);
+  });
+
+  it("still wipes everything on a clear, as a reopen wants", () => {
+    message({ t: "clear" });
+    expect(fake.term.resets).toBe(1);
+  });
+});
+
+describe("terminal page: unicode", () => {
+  it("loads the unicode 11 width tables and activates them", () => {
+    // unicode is a proposed API in xterm: it throws without this option.
+    expect(fake.term.options.allowProposedApi).toBe(true);
+    expect(activated).toBe(fake.term);
+    expect(fake.term.unicode.activeVersion).toBe("11");
   });
 });
 
@@ -473,7 +538,7 @@ describe("terminal page: clipboard", () => {
     expect(posted).toEqual([{ t: "tooLarge" }]);
   });
 
-  it("reports the selection once per change and the application cursor mode", () => {
+  it("reports the selection once per change and the application cursor mode", async () => {
     fake.term.selection = "x";
     fake.term.onSelectionCb();
     fake.term.onSelectionCb();
@@ -485,6 +550,7 @@ describe("terminal page: clipboard", () => {
     ]);
     fake.term.modes.applicationCursorKeysMode = true;
     message({ t: "out", b64: "" });
+    await writes();
     expect(posted.at(-1)).toEqual({ t: "appCursor", on: true });
   });
 });

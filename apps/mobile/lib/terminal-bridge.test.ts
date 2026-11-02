@@ -22,6 +22,8 @@ import {
 } from "./terminal-bridge";
 
 const bytes = (text: string) => new TextEncoder().encode(text);
+const text = (msg: NativeMsg | undefined) =>
+  msg?.t === "out" ? new TextDecoder().decode(base64ToBytes(msg.b64)) : msg;
 
 describe("terminal bridge codec", () => {
   it("round-trips every web message", () => {
@@ -91,7 +93,7 @@ describe("terminal bridge codec", () => {
     }
   });
 
-  it("no longer knows a size message: the page does not resize the pty", () => {
+  it("no longer knows a size message: the page does not resize the pane", () => {
     expect(decodeFromWeb('{"t":"size","rows":24,"cols":80}')).toBeNull();
   });
 
@@ -138,9 +140,6 @@ describe("output batcher", () => {
       },
     };
   };
-  const text = (msg: NativeMsg | undefined) =>
-    msg?.t === "out" ? new TextDecoder().decode(base64ToBytes(msg.b64)) : msg;
-
   it("sends nothing until the page is ready, then everything in one message", () => {
     const { sent, batcher, tick } = setup();
     batcher.push({ kind: "data", data: bytes("ab") });
@@ -164,7 +163,7 @@ describe("output batcher", () => {
     expect(sent).toHaveLength(1);
   });
 
-  it("keeps a clear in order between the data around it", () => {
+  it("a clear drops what is pending before it, and keeps what follows", () => {
     const { sent, batcher, tick } = setup();
     batcher.setReady(true);
     batcher.push({ kind: "data", data: bytes("old") });
@@ -172,7 +171,7 @@ describe("output batcher", () => {
     batcher.push({ kind: "data", data: bytes("new") });
     batcher.push({ kind: "data", data: bytes("er") });
     tick();
-    expect(sent.map(text)).toEqual(["old", { t: "clear" }, "newer"]);
+    expect(sent.map(text)).toEqual([{ t: "clear" }, "newer"]);
   });
 
   it("drops what is pending after dispose", () => {
@@ -338,18 +337,63 @@ describe("output batcher limits", () => {
     expect(sent[2]).not.toHaveProperty("cols");
   });
 
-  it("keeps each frame's own size when frames queue up behind a clear", () => {
+  it("keeps only the newest frame: a frame replaces the screen", () => {
     const { sent, batcher, tick } = run();
     batcher.setReady(true);
-    batcher.push({ kind: "clear" });
-    batcher.push({ kind: "data", data: bytes("a"), rows: 10, cols: 20 });
-    batcher.push({ kind: "clear" });
-    batcher.push({ kind: "data", data: bytes("b"), rows: 30, cols: 40 });
+    batcher.push({ kind: "data", data: bytes("a"), rows: 10, cols: 20, reset: true });
+    batcher.push({ kind: "data", data: bytes("b"), rows: 30, cols: 40, reset: true });
+    batcher.push({ kind: "data", data: bytes("c"), reset: true });
+    batcher.push({ kind: "data", data: bytes("d"), reset: true, rows: 50, cols: 60 });
     tick();
-    expect(sent.filter((m) => m.t === "out")).toMatchObject([
-      { rows: 10, cols: 20 },
-      { rows: 30, cols: 40 },
-    ]);
+    expect(sent.map(text)).toEqual(["d"]);
+    expect(sent).toMatchObject([{ t: "out", rows: 50, cols: 60 }]);
+  });
+
+  it("keeps the data that follows a frame, and a frame after a clear", () => {
+    const { sent, batcher, tick } = run();
+    batcher.setReady(true);
+    batcher.push({ kind: "data", data: bytes("w"), rows: 1, cols: 2 });
+    batcher.push({ kind: "data", data: bytes("x"), reset: true, rows: 1, cols: 2 });
+    batcher.push({ kind: "data", data: bytes("y") });
+    tick();
+    expect(sent.map(text)).toEqual(["xy"]);
+    batcher.push({ kind: "clear" });
+    batcher.push({ kind: "data", data: bytes("z"), reset: true, rows: 3, cols: 4 });
+    tick();
+    expect(sent.slice(1).map((m) => m.t)).toEqual(["clear", "out"]);
+  });
+
+  it("a flood of frames before the page is ready never overflows: only the newest counts", () => {
+    const { sent, batcher, tick, overflows } = run({ maxPendingBytes: 10 });
+    for (let i = 0; i < 50; i += 1) {
+      batcher.push({ kind: "data", data: new Uint8Array(6), rows: 5, cols: 5, reset: true });
+    }
+    expect(overflows()).toBe(0);
+    batcher.setReady(true);
+    tick();
+    expect(sent).toHaveLength(1);
+  });
+
+  it("holds output while paused, keeps only the newest frame, and sends it on resume", () => {
+    const { sent, batcher, tick } = run();
+    batcher.setReady(true);
+    batcher.setPaused(true);
+    batcher.push({ kind: "data", data: bytes("a"), rows: 1, cols: 1, reset: true });
+    batcher.push({ kind: "data", data: bytes("b"), rows: 2, cols: 2, reset: true });
+    tick();
+    expect(sent).toEqual([]);
+    batcher.setPaused(false);
+    tick();
+    expect(sent.map(text)).toEqual(["b"]);
+  });
+
+  it("counts paused output against the limit like output for a page that is not ready", () => {
+    const { batcher, overflows } = run({ maxPendingBytes: 10 });
+    batcher.setReady(true);
+    batcher.setPaused(true);
+    batcher.push({ kind: "data", data: new Uint8Array(6) });
+    batcher.push({ kind: "data", data: new Uint8Array(6) });
+    expect(overflows()).toBe(1);
   });
 
   it("drops everything and reports it when too much waits for a page that is not ready", () => {

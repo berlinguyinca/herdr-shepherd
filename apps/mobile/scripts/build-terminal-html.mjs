@@ -37,6 +37,7 @@ export function buildTerminalHtml() {
     "#t{position:absolute;top:0;right:0;bottom:0;left:0;padding:4px;overflow:auto;touch-action:pan-x pan-y}</style>",
     '</head><body><div id="t"></div>',
     `<script>${inlineScript(read("node_modules/@xterm/xterm/lib/xterm.js"))}</script>`,
+    `<script>${inlineScript(read("node_modules/@xterm/addon-unicode11/lib/addon-unicode11.js"))}</script>`,
     `<script>${inlineScript(controlByteSource() + fitSource())}</script>`,
     `<script>${inlineScript(read("scripts/terminal-page.js"))}</script>`,
     "</body></html>",

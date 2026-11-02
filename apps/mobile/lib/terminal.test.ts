@@ -89,10 +89,12 @@ describe("open and output", () => {
     client.dispose();
   });
 
-  it("a reset frame clears the screen and then writes its data", async () => {
+  it("a reset frame is data marked reset, with no clear: the frame repaints the screen itself", async () => {
     const { client, output } = await start();
     live[0]?.emit({ seq: 5, data: b64("fresh"), reset: true });
-    expect(output.map((o) => o.kind)).toEqual(["clear", "data"]);
+    live[0]?.emit({ seq: 6, data: b64("more") });
+    expect(output).toMatchObject([{ kind: "data", reset: true }, { kind: "data" }]);
+    expect((output[1] as { reset?: boolean }).reset).toBeUndefined();
     client.dispose();
   });
 });
@@ -153,12 +155,8 @@ describe("the pane owns its size", () => {
     const { client, output } = await start();
     live[0]?.emit({ seq: 1, data: b64("a"), reset: true, rows: 120, cols: 97 });
     live[0]?.emit({ seq: 2, data: b64("b") });
-    expect(output).toMatchObject([
-      { kind: "clear" },
-      { kind: "data", rows: 120, cols: 97 },
-      { kind: "data" },
-    ]);
-    expect((output[2] as { rows?: number }).rows).toBeUndefined();
+    expect(output).toMatchObject([{ kind: "data", rows: 120, cols: 97 }, { kind: "data" }]);
+    expect((output[1] as { rows?: number }).rows).toBeUndefined();
     client.dispose();
   });
 

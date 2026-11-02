@@ -20,10 +20,11 @@ export type TerminalState =
 
 /**
  * Screen output: bytes to feed the emulator, or a signal to wipe it before a replay. A frame's
- * data carries the pane's own size (`rows`, `cols`), which the emulator must take before writing.
+ * data carries the pane's own size (`rows`, `cols`), which the emulator must take before writing;
+ * `reset` marks a whole screen (it starts by clearing, so it replaces everything before it).
  */
 export type TerminalOutput =
-  | { kind: "data"; data: Uint8Array; rows?: number; cols?: number }
+  | { kind: "data"; data: Uint8Array; rows?: number; cols?: number; reset?: boolean }
   | { kind: "clear" };
 
 /** Batch keystrokes typed within this long into one call. */
@@ -171,12 +172,17 @@ export function createTerminalClient(
       endReason = frame.reason;
       return settled("ended");
     }
-    if (frame.reset) emit({ kind: "clear" });
     if (frame.rows !== undefined && frame.cols !== undefined) {
       ({ rows, cols } = { rows: frame.rows, cols: frame.cols });
     }
     if (typeof frame.data === "string" && frame.data) {
-      emit({ kind: "data", data: fromBase64(frame.data), rows: frame.rows, cols: frame.cols });
+      emit({
+        kind: "data",
+        data: fromBase64(frame.data),
+        rows: frame.rows,
+        cols: frame.cols,
+        ...(frame.reset ? { reset: true } : {}),
+      });
     }
   };
 

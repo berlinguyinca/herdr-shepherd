@@ -25,7 +25,7 @@ export type NativeMsg =
 
 /**
  * Page to native: typed bytes, how the pane is shown (its size and the percent of the font it got:
- * a caption, never a pty size), load done, selected text to copy, a pending Ctrl
+ * a caption, never a pane size), load done, selected text to copy, a pending Ctrl
  * used up, whether xterm has a selection, the terminal's application cursor mode, and a Cmd-V.
  */
 export type WebMsg =
@@ -131,8 +131,8 @@ export const MAX_PENDING_BYTES = 2 * 1024 * 1024;
 
 /**
  * Turns terminal output into as few messages as possible: everything that arrives within one
- * frame goes out as `out` messages of at most OUT_CHUNK_BYTES, with a `clear` kept in order
- * between the data around it. Nothing is sent until the page is ready; what arrived before is
+ * frame goes out as `out` messages of at most OUT_CHUNK_BYTES. A `clear` or a whole-screen frame
+ * (`reset`) drops the data pending before it, so only the newest screen is ever sent. Nothing is sent until the page is ready; what arrived before is
  * held and sent together, unless it outgrows `maxPendingBytes`: then it is all dropped and
  * `onOverflow` runs, so the caller can have the screen replayed.
  * `schedule` runs a callback on the next frame and returns its canceller.
@@ -146,6 +146,8 @@ export function createOutputBatcher(
   let pending: TerminalOutput[] = [];
   let pendingBytes = 0;
   let ready = false;
+  // Not shown (Chat is up): output waits like it does for a page that is not ready.
+  let paused = false;
   let cancel: (() => void) | undefined;
 
   const flush = () => {
@@ -179,19 +181,30 @@ export function createOutputBatcher(
     sendRun();
   };
   const arm = () => {
-    if (ready && pending.length > 0) cancel ??= schedule(flush);
+    if (ready && !paused && pending.length > 0) cancel ??= schedule(flush);
   };
 
   return {
     push(output: TerminalOutput) {
+      // A clear or a whole-screen frame replaces everything before it: that is never sent.
+      if (output.kind === "clear" || output.reset) {
+        // A pending clear (a reopen's full reset) stays: the frame only repaints the screen.
+        const clear = output.kind !== "clear" && pending.some((item) => item.kind === "clear");
+        pending = clear ? [{ kind: "clear" }] : [];
+        pendingBytes = 0;
+      }
       if (output.kind === "data") pendingBytes += output.data.length;
       pending.push(output);
-      if (!ready && pendingBytes > maxPendingBytes) {
+      if ((!ready || paused) && pendingBytes > maxPendingBytes) {
         pending = [];
         pendingBytes = 0;
         onOverflow?.();
         return;
       }
+      arm();
+    },
+    setPaused(next: boolean) {
+      paused = next;
       arm();
     },
     setReady(next: boolean) {
