@@ -38,8 +38,10 @@ vi.mock("react-native", () => {
       accessibilityLabel,
       accessibilityState,
       accessibilityRole,
+      style,
     }: {
       children?: ReactNode;
+      style?: unknown;
       onPress?: () => void;
       accessibilityRole?: string;
       accessibilityLabel?: string;
@@ -50,6 +52,7 @@ vi.mock("react-native", () => {
         aria-label={accessibilityLabel}
         data-role={accessibilityRole}
         data-selected={accessibilityState?.selected}
+        data-style={JSON.stringify(style)}
         onClick={onPress}
       >
         {children}
@@ -289,6 +292,9 @@ it("the list highlights the open agent and reports the tapped row", async () => 
   await render(<AgentsList selectedId="a2" onSelect={onSelect} />);
   const rows = [...host.querySelectorAll("button[data-selected]")];
   expect(rows.map((r) => r.getAttribute("data-selected"))).toEqual(["false", "true"]);
+  // The open row has the Assistant list's selected fill; the others have none.
+  expect(rows[1].getAttribute("data-style")).toContain('"backgroundColor":"#888"');
+  expect(rows[0].getAttribute("data-style")).not.toContain("backgroundColor");
   await act(async () => (rows[0] as HTMLElement).click());
   expect(onSelect).toHaveBeenCalledWith("a1");
 });

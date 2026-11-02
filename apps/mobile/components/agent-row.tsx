@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { agentStatus } from "../lib/agent-order";
 import type { AgentRow as Row } from "../lib/agents";
 import { useI18n } from "../lib/i18n";
-import { useMobileTokens } from "../lib/native";
+import { native, useMobileTokens } from "../lib/native";
 
 /** The label and color an agent status reads with. */
 export function useAgentStatus(raw: Row["status"]) {
@@ -53,7 +53,7 @@ export function AgentRow({
         styles.row,
         { borderBottomColor: tokens.border },
         needsYou ? { borderLeftColor: color, borderLeftWidth: 3 } : null,
-        selected ? { backgroundColor: tokens.sidebarAccent } : null,
+        selected ? styles.selected : null,
       ]}
     >
       <View style={styles.top}>
@@ -87,6 +87,13 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     gap: 3,
     borderBottomWidth: StyleSheet.hairlineWidth,
+  },
+  // The Assistant list's selected row: inset and rounded, in the same fill.
+  selected: {
+    marginHorizontal: 12,
+    paddingHorizontal: 4,
+    borderRadius: 12,
+    backgroundColor: native.fillPressed,
   },
   top: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { flex: 1, fontSize: 17, lineHeight: 22 },
