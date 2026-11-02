@@ -28,13 +28,16 @@ const ORIGINS = ["about:*"];
  * replay); so does another agent.
  */
 export function TerminalView({ agentId, focused }: { agentId: string; focused: boolean }) {
-  const [generation, setGeneration] = useState(0);
+  const [mount, setMount] = useState({ generation: 0, uncapped: false });
   return (
     <TerminalPage
-      key={`${agentId}:${generation}`}
+      key={`${agentId}:${mount.generation}`}
       agentId={agentId}
       focused={focused}
-      onReload={() => setGeneration((n) => n + 1)}
+      uncapped={mount.uncapped}
+      onReload={(next) =>
+        setMount((m) => ({ generation: m.generation + 1, uncapped: next.uncapped }))
+      }
     />
   );
 }
@@ -42,11 +45,13 @@ export function TerminalView({ agentId, focused }: { agentId: string; focused: b
 function TerminalPage({
   agentId,
   focused,
+  uncapped,
   onReload,
 }: {
   agentId: string;
   focused: boolean;
-  onReload: () => void;
+  uncapped: boolean;
+  onReload: (next: PageState) => void;
 }) {
   const { t } = useI18n();
   const tokens = useMobileTokens();
@@ -55,12 +60,12 @@ function TerminalPage({
   const { state, write, resize, reopen, onOutput } = useTerminal(agentId);
   const web = useRef<WebView>(null);
   const [ready, setReady] = useState(false);
-  const page = useRef<PageState>({ generation: 0, ready: false, dropped: false });
+  const page = useRef<PageState>({ generation: 0, ready: false, dropped: false, uncapped });
   const advance = (event: "ready" | "gone" | "overflow") => {
     const next = pageReducer(page.current, event);
     const reload = next.generation !== page.current.generation;
     page.current = next;
-    if (reload) onReload();
+    if (reload) onReload(next);
     else setReady(next.ready);
   };
   const advanceRef = useRef(advance);
@@ -78,7 +83,10 @@ function TerminalPage({
           const id = requestAnimationFrame(run);
           return () => cancelAnimationFrame(id);
         },
-        { onOverflow: () => advanceRef.current("overflow") },
+        {
+          maxPendingBytes: uncapped ? Number.POSITIVE_INFINITY : undefined,
+          onOverflow: () => advanceRef.current("overflow"),
+        },
       ),
     [],
   );

@@ -20,6 +20,7 @@ describe("terminal page", () => {
     expect(terminalHtml).toMatch(/linkHandler:\s*\{\s*activate\(\)\s*\{\s*\}/);
     expect(terminalHtml).toContain("window.__dark");
     expect(terminalHtml).toMatch(/msg\.t === "font"/);
+    expect(terminalHtml).toMatch(/Number\.isFinite\(msg\.size\)/);
     expect(terminalHtml).toMatch(/typeof msg\.b64 === "string"/);
   });
 });

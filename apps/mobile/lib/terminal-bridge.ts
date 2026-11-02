@@ -165,14 +165,21 @@ export function createOutputBatcher(
  * page was loading. All three end in a new generation: the view remounts, a new client opens
  * with seq 0 and the whole screen is replayed.
  */
-export type PageState = { generation: number; ready: boolean; dropped: boolean };
+export type PageState = {
+  generation: number;
+  ready: boolean;
+  dropped: boolean;
+  /** This mount follows an overflow remount: it buffers without a cap, so a flood cannot loop. */
+  uncapped: boolean;
+};
 export type PageEvent = "ready" | "gone" | "overflow";
 
 export function pageReducer(state: PageState, event: PageEvent): PageState {
-  const next = { generation: state.generation + 1, ready: false, dropped: false };
+  const next = { generation: state.generation + 1, ready: false, dropped: false, uncapped: false };
   if (event === "gone") return next;
-  if (event === "overflow") return { ...state, dropped: true };
-  return state.ready || state.dropped ? next : { ...state, ready: true };
+  if (event === "overflow") return state.uncapped ? state : { ...state, dropped: true };
+  if (state.dropped) return { ...next, uncapped: true };
+  return state.ready ? next : { ...state, ready: true };
 }
 
 /**

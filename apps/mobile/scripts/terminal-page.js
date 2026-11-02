@@ -127,7 +127,7 @@
     else if (msg.t === "clear") term.reset();
     else if (msg.t === "theme") term.options.theme = msg.dark ? themes.dark : themes.light;
     else if (msg.t === "focus") term.focus();
-    else if (msg.t === "font" && typeof msg.size === "number") {
+    else if (msg.t === "font" && typeof msg.size === "number" && Number.isFinite(msg.size)) {
       // A new size changes rows and cols; refit reports them through the normal size message.
       term.options.fontSize = Math.min(32, Math.max(8, msg.size));
       refit();

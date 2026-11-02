@@ -201,24 +201,70 @@ describe("terminal font size", () => {
 });
 
 describe("page state", () => {
-  const start: PageState = { generation: 0, ready: false, dropped: false };
+  const start: PageState = { generation: 0, ready: false, dropped: false, uncapped: false };
 
   it("treats the first ready as the page loading and any later one as a reload", () => {
     const first = pageReducer(start, "ready");
-    expect(first).toEqual({ generation: 0, ready: true, dropped: false });
-    expect(pageReducer(first, "ready")).toEqual({ generation: 1, ready: false, dropped: false });
+    expect(first).toEqual({ generation: 0, ready: true, dropped: false, uncapped: false });
+    expect(pageReducer(first, "ready")).toEqual({
+      generation: 1,
+      ready: false,
+      dropped: false,
+      uncapped: false,
+    });
   });
 
   it("starts over when the web process is gone", () => {
     const live = pageReducer(start, "ready");
-    expect(pageReducer(live, "gone")).toEqual({ generation: 1, ready: false, dropped: false });
+    expect(pageReducer(live, "gone")).toEqual({
+      generation: 1,
+      ready: false,
+      dropped: false,
+      uncapped: false,
+    });
     expect(pageReducer(start, "gone").generation).toBe(1);
   });
 
   it("asks for a replay when output was dropped before the page was ready", () => {
     const dropped = pageReducer(start, "overflow");
-    expect(dropped).toEqual({ generation: 0, ready: false, dropped: true });
-    expect(pageReducer(dropped, "ready")).toEqual({ generation: 1, ready: false, dropped: false });
+    expect(dropped).toEqual({ generation: 0, ready: false, dropped: true, uncapped: false });
+    expect(pageReducer(dropped, "ready")).toEqual({
+      generation: 1,
+      ready: false,
+      dropped: false,
+      uncapped: true,
+    });
+  });
+
+  it("does not remount twice for overflow: the next page buffers without a cap", () => {
+    const remounted = pageReducer(pageReducer(start, "overflow"), "ready");
+    expect(remounted.uncapped).toBe(true);
+    // A second flood before this page is ready changes nothing.
+    const again = pageReducer({ ...remounted, generation: 0 }, "overflow");
+    expect(again.dropped).toBe(false);
+    expect(pageReducer(again, "ready")).toEqual({
+      generation: 0,
+      ready: true,
+      dropped: false,
+      uncapped: true,
+    });
+  });
+
+  it("still remounts for a later reload or a dead web process, and caps again after that", () => {
+    const uncapped = { ...start, uncapped: true };
+    const live = pageReducer(uncapped, "ready");
+    expect(pageReducer(live, "ready")).toEqual({
+      generation: 1,
+      ready: false,
+      dropped: false,
+      uncapped: false,
+    });
+    expect(pageReducer(uncapped, "gone")).toEqual({
+      generation: 1,
+      ready: false,
+      dropped: false,
+      uncapped: false,
+    });
   });
 });
 
