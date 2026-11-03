@@ -2,7 +2,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { agentStatus } from "../lib/agent-order";
 import type { AgentRow as Row } from "../lib/agents";
 import { useI18n } from "../lib/i18n";
-import { useMobileTokens } from "../lib/native";
+import { native, useMobileTokens } from "../lib/native";
 
 /** The label and color an agent status reads with. */
 export function useAgentStatus(raw: Row["status"]) {
@@ -53,18 +53,28 @@ export function AgentRow({
         styles.row,
         { borderBottomColor: tokens.border },
         needsYou ? { borderLeftColor: color, borderLeftWidth: 3 } : null,
-        selected ? { backgroundColor: tokens.sidebarAccent } : null,
+        selected ? styles.selected : null,
       ]}
     >
       <View style={styles.top}>
-        <Text style={[styles.title, { color: tokens.foreground }]} numberOfLines={1}>
-          <Text testID="agent-name" style={styles.name}>
+        <View style={styles.title}>
+          <Text
+            testID="agent-name"
+            style={[styles.name, { color: tokens.foreground }]}
+            numberOfLines={1}
+          >
             {name || t("Unknown")}
           </Text>
           {row.machine ? (
-            <Text style={{ color: tokens.mutedForeground }}>{` ${row.machine}`}</Text>
+            <Text
+              testID="agent-row-machine"
+              style={[styles.machine, { color: tokens.mutedForeground }]}
+              numberOfLines={1}
+            >
+              {row.machine}
+            </Text>
           ) : null}
-        </Text>
+        </View>
         <Text style={[styles.chip, { color, borderColor: color }]}>{label}</Text>
       </View>
       {needsYou ? (
@@ -88,10 +98,20 @@ const styles = StyleSheet.create({
     gap: 3,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  // The Assistant list's selected row: inset and rounded, in the same fill.
+  selected: {
+    marginHorizontal: 12,
+    paddingHorizontal: 4,
+    borderRadius: 12,
+    backgroundColor: native.fillPressed,
+  },
   top: { flexDirection: "row", alignItems: "center", gap: 8 },
-  title: { flex: 1, fontSize: 17, lineHeight: 22 },
-  name: { fontWeight: "600" },
+  // The name gives way first: the machine and the chip keep their room.
+  title: { flex: 1, flexDirection: "row", alignItems: "baseline", gap: 6 },
+  name: { flexShrink: 1, fontSize: 17, lineHeight: 22, fontWeight: "600" },
+  machine: { flexShrink: 0, maxWidth: "45%", fontSize: 17, lineHeight: 22 },
   chip: {
+    flexShrink: 0,
     fontSize: 12,
     lineHeight: 16,
     paddingHorizontal: 8,

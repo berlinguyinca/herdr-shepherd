@@ -10,6 +10,7 @@ import Agents from "../app/agents";
 import { agentRouteId } from "./agent-route";
 import { rpc, streamRpc } from "./api";
 import { queryClient } from "./query";
+import { InboxBesideContext } from "./side-insets";
 
 const router = vi.hoisted(() => ({
   push: vi.fn(),
@@ -17,7 +18,10 @@ const router = vi.hoisted(() => ({
   back: vi.fn(),
   canGoBack: vi.fn(() => false),
 }));
-const screenOptions = vi.hoisted(() => ({ title: undefined as string | undefined }));
+const screenOptions = vi.hoisted(() => ({
+  title: undefined as string | undefined,
+  headerBackVisible: undefined as boolean | undefined,
+}));
 const headerInset = vi.hoisted(() => ({ value: 96 }));
 vi.mock("./floating-header", () => ({ useFloatingHeaderInset: () => headerInset.value }));
 const routeParams = vi.hoisted(() => ({ id: "a1" as string, decodes: 0 }));
@@ -29,8 +33,9 @@ vi.mock("expo-router", () => ({
     return { id };
   },
   Stack: {
-    Screen: ({ options }: { options?: { title?: string } }) => {
+    Screen: ({ options }: { options?: { title?: string; headerBackVisible?: boolean } }) => {
       screenOptions.title = options?.title;
+      screenOptions.headerBackVisible = options?.headerBackVisible;
       return null;
     },
   },
@@ -70,6 +75,7 @@ vi.mock("react-native", () => {
       ListEmptyComponent,
       ListFooterComponent,
       onStartReached,
+      contentContainerStyle,
     }: {
       data: unknown[];
       renderItem: (info: { item: unknown; index: number }) => ReactNode;
@@ -77,8 +83,9 @@ vi.mock("react-native", () => {
       ListEmptyComponent?: ReactNode;
       ListFooterComponent?: ReactNode;
       onStartReached?: () => void;
+      contentContainerStyle?: unknown;
     }) => (
-      <div>
+      <div data-testid="event-list" data-content-style={JSON.stringify(contentContainerStyle)}>
         <button type="button" aria-label="scroll-top" onClick={onStartReached} />
         {ListHeaderComponent}
         {data.length === 0 ? ListEmptyComponent : null}
@@ -240,6 +247,32 @@ it("shows the name once, in the native title, with machine and status in a sub-r
   expect(host.querySelector('[data-testid="agent-machine"]')?.textContent).toContain("mac-1");
   expect(host.textContent).toContain("Working");
   expect(host.textContent).not.toContain("a1");
+});
+
+it("keeps the back arrow on a phone and drops it when the list is beside the conversation", async () => {
+  serve({ messages: page([msg(1, "user", "hi")]) });
+  await render();
+  expect(screenOptions.headerBackVisible).toBe(true);
+  await render(
+    <InboxBesideContext.Provider value={true}>
+      <AgentScreen />
+    </InboxBesideContext.Provider>,
+  );
+  expect(screenOptions.headerBackVisible).toBe(false);
+});
+
+it("keeps the sub-row and the events in a centred column at most 720 points wide", async () => {
+  serve({ messages: page([msg(1, "user", "hi")]) });
+  await render();
+  const column = {
+    width: "100%",
+    maxWidth: 720,
+    alignSelf: "center",
+  };
+  const list = host.querySelector('[data-testid="event-list"]');
+  expect(JSON.parse(list?.getAttribute("data-content-style") ?? "null")).toEqual(column);
+  const header = host.querySelector('[data-testid="agent-column"]');
+  expect(JSON.parse(header?.getAttribute("data-style") ?? "[]")[0]).toEqual(column);
 });
 
 it("offsets the header sub-row below the floating native header", async () => {

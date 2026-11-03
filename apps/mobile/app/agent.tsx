@@ -1,15 +1,18 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
-import { useCallback, useRef } from "react";
+import { useCallback, useContext, useRef } from "react";
 import { ActivityIndicator, FlatList, Pressable, StyleSheet, Text, View } from "react-native";
 import { AgentEvent, isRenderableEvent } from "../components/agent-event";
 import { useAgentStatus } from "../components/agent-row";
 import { glassHeaderOptions } from "../components/glass-title";
+import { conversationColumn } from "../lib/agent-column";
 import { agentIdFromRoute } from "../lib/agent-route";
 import type { AgentEvent as Event } from "../lib/agents";
 import { agentEvent, isAgentGone } from "../lib/agents";
 import { useFloatingHeaderInset } from "../lib/floating-header";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
+import { iosAtLeast } from "../lib/native-controls";
+import { InboxBesideContext } from "../lib/side-insets";
 import { useAgentConversation } from "../lib/use-agent-conversation";
 
 /** Within this many points of the end counts as "at the bottom". */
@@ -24,6 +27,8 @@ export default function AgentScreen() {
   const { t } = useI18n();
   const tokens = useMobileTokens();
   const router = useRouter();
+  // With the list beside it there is nothing to go back to: picking another agent replaces this one.
+  const beside = useContext(InboxBesideContext);
   // The glass header floats over the screen on iOS 26, so fixed content starts below it.
   const headerInset = useFloatingHeaderInset();
   const { id } = useLocalSearchParams<{ id?: string }>();
@@ -69,7 +74,13 @@ export default function AgentScreen() {
 
   return (
     <View style={[styles.screen, { backgroundColor: tokens.background }]}>
-      <Stack.Screen options={glassHeaderOptions(name || t("Agent"))} />
+      <Stack.Screen
+        options={{
+          ...glassHeaderOptions(name || t("Agent")),
+          headerBackVisible: !beside,
+          ...(beside && iosAtLeast(26) ? { unstable_headerLeftItems: () => [] } : {}),
+        }}
+      />
       {agent ? (
         <View
           testID="agent-subheader"
@@ -78,14 +89,16 @@ export default function AgentScreen() {
             { borderBottomColor: tokens.border, paddingTop: headerInset + 10 },
           ]}
         >
-          <Text
-            testID="agent-machine"
-            style={[styles.title, { color: tokens.mutedForeground }]}
-            numberOfLines={1}
-          >
-            {agent.machine}
-          </Text>
-          <StatusChip status={agent.status} />
+          <View testID="agent-column" style={[conversationColumn, styles.headerColumn]}>
+            <Text
+              testID="agent-machine"
+              style={[styles.title, { color: tokens.mutedForeground }]}
+              numberOfLines={1}
+            >
+              {agent.machine}
+            </Text>
+            <StatusChip status={agent.status} />
+          </View>
         </View>
       ) : (
         <View style={{ height: headerInset }} />
@@ -113,6 +126,7 @@ export default function AgentScreen() {
         <FlatList<Event>
           ref={list}
           style={styles.list}
+          contentContainerStyle={conversationColumn}
           data={events}
           keyExtractor={(event) => `${agentId}:${event.seq}`}
           renderItem={({ item }) => <AgentEvent event={item} onExpand={expand} />}
@@ -160,13 +174,11 @@ const styles = StyleSheet.create({
   },
   message: { fontSize: 17, textAlign: "center" },
   header: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderBottomWidth: StyleSheet.hairlineWidth,
   },
+  headerColumn: { flexDirection: "row", alignItems: "center", gap: 8 },
   title: { flex: 1, fontSize: 17, lineHeight: 22 },
   chip: {
     fontSize: 12,

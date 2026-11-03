@@ -81,7 +81,16 @@ export function AgentsList({
   const hidden = !showOlder && (data?.hiddenCount ?? 0) > 0;
 
   return (
-    <View style={[styles.screen, { backgroundColor: tokens.background, paddingTop: insets.top }]}>
+    <View style={[styles.screen, { backgroundColor: tokens.background }]}>
+      {/* Same top inset as the Assistant list's header, so the first row clears the status bar. */}
+      <View
+        testID="agents-header"
+        style={[styles.header, { paddingTop: Math.max(insets.top, 20) + 8 }]}
+      >
+        <Text accessibilityRole="header" style={[styles.heading, { color: tokens.foreground }]}>
+          {t("Agents")}
+        </Text>
+      </View>
       {message ? (
         <View style={styles.center}>
           <Text style={[styles.message, { color: tokens.mutedForeground }]}>{message}</Text>
@@ -142,6 +151,8 @@ export function AgentsList({
 
 const styles = StyleSheet.create({
   screen: { flex: 1 },
+  header: { paddingHorizontal: 16, paddingBottom: 10 },
+  heading: { fontSize: 28, lineHeight: 34, fontWeight: "700" },
   list: { flex: 1 },
   center: {
     flex: 1,

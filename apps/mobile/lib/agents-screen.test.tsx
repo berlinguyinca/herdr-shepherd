@@ -19,16 +19,36 @@ vi.mock("react-native", () => {
   const View = ({
     children,
     accessibilityRole,
+    testID,
+    style,
   }: {
     children?: ReactNode;
     accessibilityRole?: string;
-  }) => <div data-role={accessibilityRole}>{children}</div>;
+    testID?: string;
+    style?: unknown;
+  }) => (
+    <div data-role={accessibilityRole} data-testid={testID} data-style={JSON.stringify(style)}>
+      {children}
+    </div>
+  );
   return {
     Platform: { OS: "ios" },
     StyleSheet: { create: <T,>(styles: T) => styles, hairlineWidth: 1 },
     View,
-    Text: ({ children, testID }: { children?: ReactNode; testID?: string }) => (
-      <span data-testid={testID}>{children}</span>
+    Text: ({
+      children,
+      testID,
+      style,
+      numberOfLines,
+    }: {
+      children?: ReactNode;
+      testID?: string;
+      style?: unknown;
+      numberOfLines?: number;
+    }) => (
+      <span data-testid={testID} data-style={JSON.stringify(style)} data-lines={numberOfLines}>
+        {children}
+      </span>
     ),
     ActivityIndicator: () => <div role="progressbar" />,
     RefreshControl: () => null,
@@ -38,8 +58,10 @@ vi.mock("react-native", () => {
       accessibilityLabel,
       accessibilityState,
       accessibilityRole,
+      style,
     }: {
       children?: ReactNode;
+      style?: unknown;
       onPress?: () => void;
       accessibilityRole?: string;
       accessibilityLabel?: string;
@@ -50,6 +72,7 @@ vi.mock("react-native", () => {
         aria-label={accessibilityLabel}
         data-role={accessibilityRole}
         data-selected={accessibilityState?.selected}
+        data-style={JSON.stringify(style)}
         onClick={onPress}
       >
         {children}
@@ -87,8 +110,9 @@ vi.mock("react-native", () => {
     ),
   };
 });
+const insets = vi.hoisted(() => ({ top: 0 }));
 vi.mock("react-native-safe-area-context", () => ({
-  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+  useSafeAreaInsets: () => ({ top: insets.top, bottom: 0, left: 0, right: 0 }),
 }));
 vi.mock("./app-foreground", () => ({ useAppForeground: () => true }));
 vi.mock("./native", () => {
@@ -289,8 +313,38 @@ it("the list highlights the open agent and reports the tapped row", async () => 
   await render(<AgentsList selectedId="a2" onSelect={onSelect} />);
   const rows = [...host.querySelectorAll("button[data-selected]")];
   expect(rows.map((r) => r.getAttribute("data-selected"))).toEqual(["false", "true"]);
+  // The open row has the Assistant list's selected fill; the others have none.
+  expect(rows[1]?.getAttribute("data-style")).toContain('"backgroundColor":"#888"');
+  expect(rows[0]?.getAttribute("data-style")).not.toContain("backgroundColor");
   await act(async () => (rows[0] as HTMLElement).click());
   expect(onSelect).toHaveBeenCalledWith("a1");
+});
+
+it("a row shrinks the agent name first and keeps the machine and the status chip", async () => {
+  rpcMock.mockResolvedValue(list([row("a1", "working")]));
+  await render(<AgentsList onSelect={vi.fn()} />);
+  const name = host.querySelector('[data-testid="agent-name"]');
+  const machine = host.querySelector('[data-testid="agent-row-machine"]');
+  expect(machine?.textContent).toBe("mac");
+  expect(name?.getAttribute("data-lines")).toBe("1");
+  expect(machine?.getAttribute("data-lines")).toBe("1");
+  expect(name?.getAttribute("data-style")).toContain('"flexShrink":1');
+  expect(machine?.getAttribute("data-style")).toContain('"flexShrink":0');
+  const chip = [...host.querySelectorAll("span")].find((n) => n.textContent === "Working");
+  expect(chip?.getAttribute("data-style")).toContain('"flexShrink":0');
+});
+
+it("the list has a title header with the Assistant list's top inset", async () => {
+  rpcMock.mockResolvedValue(list([row("a1", "working")]));
+  const header = () => host.querySelector('[data-testid="agents-header"]');
+  await render(<AgentsList onSelect={vi.fn()} />);
+  expect(header()?.textContent).toBe("Agents");
+  // Never less than 20 points, plus the 8 the Assistant header adds.
+  expect(header()?.getAttribute("data-style")).toContain('"paddingTop":28');
+  insets.top = 59;
+  await render(<AgentsList onSelect={vi.fn()} />);
+  expect(header()?.getAttribute("data-style")).toContain('"paddingTop":67');
+  insets.top = 0;
 });
 
 it("on a wide window the Agents screen is an empty right pane without the tab bar", async () => {
