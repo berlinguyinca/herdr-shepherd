@@ -45,18 +45,35 @@ vi.mock("react-native", () => {
     children,
     testID,
     style,
+    pointerEvents,
+    accessibilityElementsHidden,
+    importantForAccessibility,
   }: {
     children?: ReactNode;
     testID?: string;
     style?: unknown;
+    pointerEvents?: string;
+    accessibilityElementsHidden?: boolean;
+    importantForAccessibility?: string;
   }) => (
-    <div data-testid={testID} data-style={JSON.stringify(style)}>
+    <div
+      data-testid={testID}
+      data-style={JSON.stringify(style)}
+      data-pointer-events={pointerEvents}
+      data-a11y-hidden={String(accessibilityElementsHidden)}
+      data-importance={importantForAccessibility}
+    >
       {children}
     </div>
   );
   return {
     Platform: { OS: "ios" },
-    StyleSheet: { create: <T,>(styles: T) => styles, hairlineWidth: 1 },
+    useWindowDimensions: () => ({ fontScale: 1, width: 800 }),
+    StyleSheet: {
+      create: <T,>(styles: T) => styles,
+      hairlineWidth: 1,
+      absoluteFill: { position: "absolute", top: 0, left: 0, right: 0, bottom: 0 },
+    },
     View,
     Text: ({ children, testID }: { children?: ReactNode; testID?: string }) => (
       <span data-testid={testID}>{children}</span>
@@ -99,8 +116,70 @@ vi.mock("react-native", () => {
     ),
   };
 });
+const stored = vi.hoisted(() => ({ modes: null as string | null }));
+vi.mock("expo-secure-store", () => ({
+  getItemAsync: vi.fn(async () => stored.modes),
+  setItemAsync: vi.fn(async () => {}),
+}));
+const terminalMounts = vi.hoisted(() => ({ count: 0 }));
+vi.mock("../components/terminal-view", async () => {
+  const { useEffect } = await import("react");
+  return {
+    TerminalView: ({
+      agentId,
+      focused,
+      keyboardOffset,
+    }: {
+      agentId: string;
+      focused: boolean;
+      keyboardOffset?: number;
+    }) => {
+      useEffect(() => {
+        terminalMounts.count += 1;
+      }, []);
+      return (
+        <div
+          data-testid="terminal"
+          data-agent={agentId}
+          data-focused={String(focused)}
+          data-offset={keyboardOffset}
+        />
+      );
+    },
+  };
+});
+vi.mock("../components/native-segmented-control", () => ({
+  NativeSegmentedControl: ({
+    accessibilityLabel,
+    disabled,
+    value,
+    onChange,
+    options,
+  }: {
+    accessibilityLabel: string;
+    disabled?: boolean;
+    value: string;
+    onChange: (value: string) => void;
+    options: { value: string; label: string }[];
+  }) => (
+    <fieldset aria-label={accessibilityLabel} data-disabled={String(!!disabled)}>
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          aria-pressed={o.value === value}
+          disabled={disabled}
+          onClick={() => onChange(o.value)}
+        >
+          {o.label}
+        </button>
+      ))}
+    </fieldset>
+  ),
+}));
+const insets = vi.hoisted(() => ({ left: 0, right: 0 }));
 vi.mock("react-native-safe-area-context", () => ({
-  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
+  useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: insets.left, right: insets.right }),
 }));
 vi.mock("@rakazo/chat-ui/native", () => ({
   ChatMarkdown: ({ children }: { children: ReactNode }) => <p data-md>{children}</p>,
@@ -180,14 +259,19 @@ let onFrame: (json: unknown) => void = () => {};
 
 /** Routes rpc calls by procedure; `messages` may be a function of the input. */
 function serve(opts: {
-  get?: unknown;
+  get?: unknown | ((input: Data) => unknown);
   messages: unknown | ((input: Data) => unknown);
   event?: (input: Data) => unknown;
 }) {
   rpcMock.mockImplementation(async (proc: string, input: Data) => {
     const value =
       proc === "agents/get"
-        ? (opts.get ?? { agent, hasConversation: true })
+        ? ((typeof opts.get === "function"
+            ? (opts.get as (i: Data) => unknown)(input)
+            : opts.get) ?? {
+            agent,
+            hasConversation: true,
+          })
         : proc === "agents/messages"
           ? typeof opts.messages === "function"
             ? (opts.messages as (i: Data) => unknown)(input)
@@ -205,6 +289,10 @@ beforeEach(() => {
   routeParams.decodes = 0;
   queryClient.clear();
   foreground.value = true;
+  terminalMounts.count = 0;
+  stored.modes = null;
+  insets.left = 0;
+  insets.right = 0;
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   streamMock.mockImplementation(
     (_p: string, _b: unknown, signal: AbortSignal, cb: (json: unknown) => void) => {
@@ -562,3 +650,155 @@ it.each([0, 1, 2])(
     for (const [, input] of calls) expect((input as Data).id).toBe(original);
   },
 );
+
+const terminal = () => host.querySelector<HTMLElement>('[data-testid="terminal"]');
+const pane = (testID: string) => host.querySelector(`[data-testid="${testID}"]`);
+
+it("opens in Chat for a working agent and mounts the terminal only when asked", async () => {
+  serve({ messages: page([msg(1, "user", "hi")]) });
+  await render();
+  expect(terminal()).toBeNull();
+  expect(host.querySelector('[aria-label="Agent view"]')).not.toBeNull();
+  await act(async () => button("Terminal")?.click());
+  expect(terminal()?.dataset.agent).toBe("a1");
+  expect(terminal()?.dataset.focused).toBe("true");
+});
+
+it("opens in Terminal for a blocked agent, below the header inset", async () => {
+  serve({
+    messages: page([msg(1, "user", "hi")]),
+    get: { agent: { ...agent, status: "blocked" }, hasConversation: true },
+  });
+  headerInset.value = 96;
+  await render();
+  expect(terminal()?.dataset.focused).toBe("true");
+  expect(terminal()?.dataset.offset).toBe("96");
+  expect(merged("agent-terminal")).toMatchObject({ flex: 1 });
+  expect(merged("agent-terminal").opacity).toBeUndefined();
+  expect(merged("agent-terminal").position).toBeUndefined();
+});
+
+it("switching back to Chat keeps both mounted: no refetch, no new terminal, keyboard released", async () => {
+  serve({ messages: page([msg(1, "user", "hi")]) });
+  await render();
+  await act(async () => button("Terminal")?.click());
+  const fetched = rpcMock.mock.calls.length;
+  await act(async () => button("Chat")?.click());
+  await act(async () => button("Terminal")?.click());
+  await act(async () => button("Chat")?.click());
+  expect(terminalMounts.count).toBe(1);
+  expect(terminal()?.dataset.focused).toBe("false");
+  expect(host.querySelector('[data-testid="event-list"]')).not.toBeNull();
+  expect(rpcMock.mock.calls.length).toBe(fetched);
+});
+
+it("offers no Terminal for a closed agent, and says why", async () => {
+  serve({
+    messages: page([msg(1, "user", "hi")]),
+    get: { agent: { ...agent, status: "closed" }, hasConversation: true },
+  });
+  await render();
+  const group = host.querySelector("fieldset");
+  expect(group?.getAttribute("data-disabled")).toBe("true");
+  expect(group?.getAttribute("aria-label")).toBe(
+    "Terminal unavailable: this agent has no live session",
+  );
+  expect(terminal()).toBeNull();
+});
+
+it("fills the pane beside the list on an iPad as it does on a phone", async () => {
+  serve({
+    messages: page([msg(1, "user", "hi")]),
+    get: { agent: { ...agent, status: "blocked" }, hasConversation: true },
+  });
+  await render(
+    <InboxBesideContext.Provider value={true}>
+      <AgentScreen />
+    </InboxBesideContext.Provider>,
+  );
+  expect(terminal()).not.toBeNull();
+  expect(
+    JSON.parse(
+      host.querySelector('[data-testid="agent-terminal"]')?.getAttribute("data-style") ?? "[]",
+    )[0],
+  ).toEqual({ flex: 1 });
+});
+
+const styleOf = (testID: string) =>
+  JSON.parse(pane(testID)?.getAttribute("data-style") ?? "[]") as Array<Record<string, unknown>>;
+const merged = (testID: string) => Object.assign({}, ...styleOf(testID).filter(Boolean));
+
+it("keeps the hidden pane laid out at full size, transparent and out of reach, never display none", async () => {
+  serve({ messages: page([msg(1, "user", "hi")]) });
+  await render();
+  await act(async () => button("Terminal")?.click());
+  const chat = host.querySelector('[data-testid="agent-chat"]');
+  const hidden = JSON.parse(chat?.getAttribute("data-style") ?? "[]") as Array<
+    Record<string, unknown>
+  >;
+  const style = Object.assign({}, ...hidden.filter(Boolean));
+  expect(style).toMatchObject({ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 });
+  expect(style.opacity).toBe(0);
+  expect(style.display).toBeUndefined();
+  expect(chat?.getAttribute("data-pointer-events")).toBe("none");
+  expect(chat?.getAttribute("data-a11y-hidden")).toBe("true");
+  expect(chat?.getAttribute("data-importance")).toBe("no-hide-descendants");
+  await act(async () => button("Chat")?.click());
+  expect(merged("agent-terminal")).toMatchObject({ position: "absolute", opacity: 0 });
+  expect(merged("agent-terminal").display).toBeUndefined();
+  expect(pane("agent-terminal")?.getAttribute("data-pointer-events")).toBe("none");
+  expect(merged("agent-chat").opacity).toBeUndefined();
+});
+
+it("clears a landscape notch beside the terminal, but not on the left in the split pane", async () => {
+  serve({
+    messages: page([msg(1, "user", "hi")]),
+    get: { agent: { ...agent, status: "blocked" }, hasConversation: true },
+  });
+  insets.left = 44;
+  insets.right = 20;
+  await render();
+  expect(merged("agent-terminal")).toMatchObject({ paddingLeft: 44, paddingRight: 20 });
+  await act(async () => root.unmount());
+  root = createRoot(host);
+  await render(
+    <InboxBesideContext.Provider value={true}>
+      <AgentScreen />
+    </InboxBesideContext.Provider>,
+  );
+  expect(merged("agent-terminal")).toMatchObject({ paddingLeft: 0, paddingRight: 20 });
+});
+
+it("never opens the terminal for a blocked agent whose stored choice is Chat", async () => {
+  stored.modes = JSON.stringify({ a1: "chat" });
+  serve({
+    messages: page([msg(1, "user", "hi")]),
+    get: { agent: { ...agent, status: "blocked" }, hasConversation: true },
+  });
+  await render();
+  expect(terminalMounts.count).toBe(0);
+  expect(terminal()).toBeNull();
+});
+
+it("another agent on the same screen does not inherit the terminal that was mounted", async () => {
+  const byId = (input: Data) => ({
+    agent: { ...agent, id: input.id, status: input.id === "a1" ? "blocked" : "working" },
+    hasConversation: true,
+  });
+  serve({ messages: page([msg(1, "user", "hi")]), get: byId });
+  await render();
+  expect(terminal()?.dataset.agent).toBe("a1");
+  routeParams.id = "a2";
+  await render();
+  expect(terminal()).toBeNull();
+  expect(host.querySelector('[data-testid="event-list"]')).not.toBeNull();
+});
+
+it("keeps the Chat | Terminal switch when only the conversation failed to load", async () => {
+  serve({ messages: new Error("offline") });
+  await render();
+  expect(host.textContent).toContain("Could not load this conversation");
+  expect(host.querySelector('[aria-label="Agent view"]')).not.toBeNull();
+  await act(async () => button("Terminal")?.click());
+  expect(terminal()?.dataset.agent).toBe("a1");
+});

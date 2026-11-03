@@ -1,0 +1,350 @@
+// The page inside the terminal WebView. Plain script, inlined by build-terminal-html.mjs;
+// every decision worth testing lives in lib/terminal-bridge.ts and lib/terminal-fit.ts (inlined
+// too: validPane, paneFit, pinchScale). The page shows a pane it does not own: it takes the
+// pane's rows and cols from each frame and only scales the font. Keep this small.
+(() => {
+  const themes = {
+    dark: {
+      background: "#141414",
+      foreground: "#e8e8e8",
+      cursor: "#e8e8e8",
+      cursorAccent: "#141414",
+      selectionBackground: "#3d5a80",
+      black: "#64686a",
+      red: "#ef5350",
+      green: "#66bb6a",
+      yellow: "#ffca28",
+      blue: "#64b5f6",
+      magenta: "#ce93d8",
+      cyan: "#4dd0e1",
+      white: "#d3d7cf",
+      brightBlack: "#7f8788",
+      brightRed: "#ff8a80",
+      brightGreen: "#a5d6a7",
+      brightYellow: "#ffe082",
+      brightBlue: "#90caf9",
+      brightMagenta: "#e1bee7",
+      brightCyan: "#80deea",
+      brightWhite: "#ffffff",
+    },
+    light: {
+      background: "#fcfcfc",
+      foreground: "#1a1a1a",
+      cursor: "#1a1a1a",
+      cursorAccent: "#fcfcfc",
+      selectionBackground: "#b3d4fc",
+      black: "#1a1a1a",
+      red: "#c62828",
+      green: "#2e7d32",
+      yellow: "#8d6e00",
+      blue: "#1565c0",
+      magenta: "#8e24aa",
+      cyan: "#007f8a",
+      white: "#737373",
+      brightBlack: "#5f6368",
+      brightRed: "#d32f2f",
+      brightGreen: "#338237",
+      brightYellow: "#916d00",
+      brightBlue: "#1874cf",
+      brightMagenta: "#9c27b0",
+      brightCyan: "#008088",
+      brightWhite: "#666666",
+    },
+  };
+  const post = (msg) => {
+    window.ReactNativeWebView.postMessage(JSON.stringify(msg));
+  };
+  const toB64 = (bytes) => {
+    let s = "";
+    for (let i = 0; i < bytes.length; i += 0x8000)
+      s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  };
+  const fromB64 = (text) => {
+    const s = atob(text),
+      out = new Uint8Array(s.length);
+    for (let i = 0; i < s.length; i++) out[i] = s.charCodeAt(i);
+    return out;
+  };
+
+  const term = new Terminal({
+    fontFamily: 'ui-monospace, Menlo, "Roboto Mono", monospace',
+    fontSize: window.__fontSize || 13,
+    // Needed for term.unicode (the width tables below).
+    allowProposedApi: true,
+    // The pane's own scrollback stays on the host; the page scrolls the whole pane instead.
+    scrollback: 0,
+    // The relay reports no cursor, so none is drawn (the page also writes \x1b[?25l).
+    cursorBlink: false,
+    cursorInactiveStyle: "none",
+    // Option types Meta (ESC-prefixed) on the iPad hardware keyboard.
+    macOptionIsMeta: true,
+    theme: window.__dark === false ? themes.light : themes.dark,
+    // Remote output can carry OSC 8 hyperlinks. Activating one must do nothing: no dialog, no
+    // navigation. (There is no link policy in this view yet.)
+    linkHandler: { activate() {} },
+  });
+  // The host's screen is drawn with Unicode 11 widths (emoji, CJK), not xterm's default 6.
+  term.loadAddon(new Unicode11Addon.Unicode11Addon());
+  term.unicode.activeVersion = "11";
+  const box = document.getElementById("t");
+  term.open(box);
+  // The native side owns the keyboard; a tap must not raise the web one.
+  term.textarea.setAttribute("inputmode", "none");
+  // Whatever dismisses the keyboard, a later focus must not raise it again.
+  term.textarea.addEventListener("blur", () => term.textarea.setAttribute("inputmode", "none"));
+
+  const encoder = new TextEncoder();
+  // A Ctrl pending from the key row applies to the next input: a single character goes through
+  // controlByte (the key row's own table, inlined at build time), anything else passes through
+  // unchanged. Either way Ctrl is spent and native is told. An IME word arriving in one onData
+  // spends Ctrl without applying it; that fails visibly, the word types as it is.
+  let ctrl = false;
+  const spendCtrl = () => {
+    if (!ctrl) return;
+    ctrl = false;
+    post({ t: "ctrlUsed" });
+  };
+  term.onData((data) => {
+    if (ctrl) {
+      spendCtrl();
+      const byte = controlByte(data);
+      if (byte !== undefined) data = String.fromCharCode(byte);
+    }
+    post({ t: "in", b64: toB64(encoder.encode(data)) });
+  });
+  term.onBinary((data) => {
+    const bytes = new Uint8Array(data.length);
+    for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i) & 255;
+    post({ t: "in", b64: toB64(bytes) });
+  });
+  // Clipboard text is capped at 1 MB of UTF-8 (MAX_CLIPBOARD_BYTES in terminal-bridge.ts); a
+  // larger selection never crosses the bridge.
+  const MAX_CLIPBOARD = 1048576;
+  const copySelection = () => {
+    if (!term.hasSelection()) return;
+    const text = term.getSelection();
+    if (text.length > MAX_CLIPBOARD || encoder.encode(text).length > MAX_CLIPBOARD) {
+      post({ t: "tooLarge" });
+      return;
+    }
+    post({ t: "copy", text });
+  };
+  term.attachCustomKeyEventHandler((event) => {
+    if (event.type !== "keydown" || !event.metaKey) return true;
+    if (event.key === "c" && term.hasSelection()) copySelection();
+    else if (event.key === "v") {
+      // Native reads the clipboard and answers with a paste message.
+      event.preventDefault();
+      post({ t: "pasteRequest" });
+    } else return true;
+    return false;
+  });
+  let selected = false;
+  term.onSelectionChange(() => {
+    if (term.hasSelection() === selected) return;
+    selected = !selected;
+    post({ t: "selection", has: selected });
+  });
+  let appCursor = false;
+  const syncMode = () => {
+    const on = term.modes.applicationCursorKeysMode;
+    if (on === appCursor) return;
+    appCursor = on;
+    post({ t: "appCursor", on });
+  };
+
+  // The pane at its own cols x rows, its font scaled to the container width (paneFit), times
+  // the pinch scale. Vertical scroll shows the rest of the pane; horizontal only where it pans.
+  const syncOn = encoder.encode("\x1b[?25l\x1b[?2026h");
+  const syncOff = encoder.encode("\x1b[?2026l");
+  const wrapFrame = (bytes) => {
+    const out = new Uint8Array(syncOn.length + bytes.length + syncOff.length);
+    out.set(syncOn);
+    out.set(bytes, syncOn.length);
+    out.set(syncOff, syncOn.length + bytes.length);
+    return out;
+  };
+  let userFont = window.__fontSize || 13;
+  let pinch = 1;
+  let pane = null;
+  let lastFit = "";
+  // The cursor row is at the bottom: stay there, unless the person scrolled up.
+  let stick = true;
+  const toBottom = () => {
+    if (stick) box.scrollTop = box.scrollHeight;
+  };
+  // xterm's measured cell width (no public way to read it): 0 when unavailable.
+  const cellWidth = () => {
+    return term._core?._renderService?.dimensions?.css?.cell?.width || 0;
+  };
+  // The cell width as a share of the font, learned from what xterm measures.
+  let ratio = CHAR_RATIO;
+  // Where between the fingers a pinch holds the content (box coordinates), until it is applied.
+  let focal = null;
+  const applyFit = () => {
+    // Laid out at zero (hidden, or not sized yet) fits to nothing: wait for a real width.
+    if (!pane || !box.clientWidth) return;
+    const width = box.clientWidth - 8;
+    const was = Number(term.options.fontSize);
+    // Fit, measure the real cell, and fit again to what was measured.
+    let f = paneFit(width, pane.cols, userFont, pinch, ratio);
+    for (let i = 0; i < 2; i++) {
+      term.options.fontSize = f.font;
+      const next = cellWidth() ? measuredRatio(cellWidth(), f.font) : ratio;
+      if (Math.abs(next - ratio) < 0.005) break;
+      ratio = next;
+      f = paneFit(width, pane.cols, userFont, pinch, ratio);
+    }
+    term.options.fontSize = f.font;
+    // Never clip the last column: what still overflows pans.
+    const pan = f.pan || (cellWidth() > 0 && overflows(cellWidth(), pane.cols, width));
+    box.style.overflowX = pan ? "auto" : "hidden";
+    box.style.overflowY = "auto";
+    const key = `${pane.rows}x${pane.cols}@${f.pct}`;
+    if (key !== lastFit) {
+      lastFit = key;
+      post({ t: "fit", rows: pane.rows, cols: pane.cols, pct: f.pct });
+    }
+    if (!focal) toBottom();
+    else if (f.font !== was) {
+      const k = f.font / was;
+      box.scrollLeft = focalScroll(box.scrollLeft, focal.x, k);
+      box.scrollTop = focalScroll(box.scrollTop, focal.y, k);
+    }
+    focal = null;
+  };
+  let queued = 0;
+  const refit = () => {
+    cancelAnimationFrame(queued);
+    queued = requestAnimationFrame(applyFit);
+  };
+  window.addEventListener("resize", refit);
+  window.addEventListener("orientationchange", refit);
+  new ResizeObserver(refit).observe(document.body);
+  box.addEventListener("scroll", () => {
+    stick = box.scrollHeight - box.scrollTop - box.clientHeight < 4;
+  });
+
+  // Two fingers pinch the scale between 1x and 4x; a double tap puts it back to 1x.
+  let startDist = 0;
+  let startPinch = 1;
+  let startFocal = null;
+  let gesture = false;
+  let lastTap = 0;
+  let doubleTapAt = 0;
+  const dist = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+  box.addEventListener(
+    "touchstart",
+    (event) => {
+      if (event.touches.length !== 2) return;
+      gesture = true;
+      startDist = dist(event.touches);
+      startPinch = pinch;
+      const rect = box.getBoundingClientRect();
+      const t = event.touches;
+      startFocal = {
+        x: (t[0].clientX + t[1].clientX) / 2 - rect.left,
+        y: (t[0].clientY + t[1].clientY) / 2 - rect.top,
+      };
+      event.preventDefault();
+    },
+    { passive: false },
+  );
+  box.addEventListener(
+    "touchmove",
+    (event) => {
+      if (event.touches.length !== 2) return;
+      event.preventDefault();
+      pinch = pinchScale(startPinch, startDist, dist(event.touches));
+      focal = startFocal;
+      refit();
+    },
+    { passive: false },
+  );
+  box.addEventListener("touchend", (event) => {
+    if (event.touches.length) return;
+    if (gesture) {
+      gesture = false;
+      lastTap = 0;
+      return;
+    }
+    const now = Date.now();
+    if (now - lastTap < 300) {
+      pinch = 1;
+      applyFit();
+      lastTap = 0;
+      doubleTapAt = now;
+      // The second tap must not also click: that would select a word under the finger.
+      event.preventDefault();
+    } else lastTap = now;
+  });
+  // The browser may still synthesize a dblclick for the double tap: drop it, so no word is
+  // selected. A double click made some other way (a mouse) is left alone.
+  box.addEventListener("dblclick", (event) => {
+    if (Date.now() - doubleTapAt < 600) event.preventDefault();
+  });
+
+  const onMessage = (event) => {
+    let msg;
+    try {
+      msg = JSON.parse(event.data);
+    } catch {
+      return;
+    }
+    if (!msg) return;
+    if (msg.t === "out" && typeof msg.b64 === "string") {
+      if (validPane(msg.rows, msg.cols)) {
+        // The pane's size comes first, so the frame is written at the size it was drawn for.
+        pane = { rows: msg.rows, cols: msg.cols };
+        applyFit();
+        if (msg.rows !== term.rows || msg.cols !== term.cols) term.resize(msg.cols, msg.rows);
+      }
+      // No cursor (the page's own, not the frame's), and the frame is one synchronized update
+      // (DEC 2026): it paints whole, never half a screen. It repaints by itself (it starts
+      // with a clear), so no reset is needed and a selection survives.
+      term.write(wrapFrame(fromB64(msg.b64)), () => {
+        syncMode();
+        toBottom();
+      });
+    } else if (msg.t === "clear") {
+      term.reset();
+      syncMode();
+    } else if (msg.t === "theme") term.options.theme = msg.dark ? themes.dark : themes.light;
+    else if (msg.t === "focus") term.focus();
+    else if (msg.t === "blur") {
+      // The view went away: no soft keyboard, and no focus left to raise one.
+      term.textarea.setAttribute("inputmode", "none");
+      term.textarea.blur();
+    } else if (msg.t === "copy") copySelection();
+    else if (msg.t === "ctrl") ctrl = msg.on === true;
+    else if (msg.t === "keyboard") {
+      if (msg.on) {
+        // Blur first: iOS only reloads the input view for a changed input mode on a fresh focus.
+        term.textarea.blur();
+        term.textarea.setAttribute("inputmode", "text");
+        term.focus();
+      } else {
+        // Stay focused with no soft keyboard, so a hardware keyboard keeps typing.
+        term.textarea.setAttribute("inputmode", "none");
+        term.textarea.blur();
+        term.focus();
+      }
+    } else if (msg.t === "paste" && typeof msg.b64 === "string") {
+      if (msg.b64.length > Math.ceil((MAX_CLIPBOARD * 4) / 3) + 4) post({ t: "tooLarge" });
+      else {
+        // Pasted text is never a control byte: a pending Ctrl is dropped first.
+        spendCtrl();
+        term.paste(new TextDecoder().decode(fromB64(msg.b64)));
+      }
+    } else if (msg.t === "font" && typeof msg.size === "number" && Number.isFinite(msg.size)) {
+      userFont = Math.min(32, Math.max(8, msg.size));
+      applyFit();
+    }
+  };
+  // iOS delivers to window, Android to document.
+  window.addEventListener("message", onMessage);
+  document.addEventListener("message", onMessage);
+
+  post({ t: "ready" });
+})();

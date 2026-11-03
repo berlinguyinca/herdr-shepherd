@@ -15,6 +15,7 @@
       "!**/design",
       "!**/packages/db/src/generated",
       "!**/apps/mobile/.expo",
+      "!**/apps/mobile/lib/terminal-html.generated.ts",
       "!**/playwright-report",
       "!**/test-results",
       "!**/test-report",
