@@ -1,17 +1,21 @@
 import { ORPCError, onError, os } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import {
+  SandboxAllowanceUsedError,
   SandboxDamagedError,
   SandboxRateLimitError,
   SandboxUnavailableError,
   SandboxUnresponsiveError,
   VoiceAccountError,
 } from "@rakazo/adapter-kit";
+import { ThreadMessagePageSchema } from "@rakazo/contracts";
 import { MODEL_IMAGE_INPUT_ERROR } from "@rakazo/core";
-import { IsolationError } from "@rakazo/db";
+import { IsolationError, SpaceDeletionInProgressError } from "@rakazo/db";
 import { createLogger, createTestSink, installLogger } from "@rakazo/logging";
+import { markExpectedFailure, requestLogging } from "@rakazo/logging/hono";
+import { Hono } from "hono";
 import { afterEach, describe, expect, it } from "vitest";
-import { handleRpcError, logUnexpectedRpcError } from "./app.js";
+import { handleRpcError, logUnexpectedRpcError } from "./rpc-errors.js";
 
 describe("logUnexpectedRpcError", () => {
   afterEach(() => {
@@ -30,6 +34,86 @@ describe("logUnexpectedRpcError", () => {
     expect(sink.events).toEqual([]);
   });
 
+  it("reports a procedure's own 5xx under the procedure with its cause", () => {
+    const sink = createTestSink();
+    installLogger(createLogger({ service: "rakazo-api", sinks: [sink] }));
+    const cause = new Error("key service unreachable");
+
+    logUnexpectedRpcError(new ORPCError("SERVICE_UNAVAILABLE", { cause }), ["models", "list"]);
+
+    expect(sink.events[0]).toMatchObject({
+      level: "error",
+      message: "rpc models/list failed",
+      error: { cause: { message: "key service unreachable" } },
+    });
+  });
+
+  it("completes a request the provider outage answered with 503 as a warning", async () => {
+    const sink = createTestSink();
+    const logger = createLogger({ service: "rakazo-api", sinks: [sink] });
+    installLogger(logger);
+    const rpc = new RPCHandler(
+      {
+        boot: os.handler(() => {
+          throw new SandboxUnresponsiveError("Boat API request failed (HTTP 525)");
+        }),
+      },
+      { clientInterceptors: [onError((error, { path }) => handleRpcError(error, path))] },
+    );
+    const app = new Hono();
+    app.use("*", requestLogging(logger));
+    app.post("/rpc/*", async (c) => {
+      const { response } = await rpc.handle(c.req.raw, { prefix: "/rpc", context: {} });
+      return response ?? c.notFound();
+    });
+
+    const response = await app.request("/rpc/boot", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(503);
+    expect(sink.events.map((event) => [event.level, event.message])).toEqual([
+      ["warn", "rpc boot computer unavailable"],
+      ["warn", "http.request.completed"],
+    ]);
+  });
+
+  it("leaves a 5xx out of error reports when the procedure marked its outage expected", async () => {
+    const sink = createTestSink();
+    const logger = createLogger({ service: "rakazo-api", sinks: [sink] });
+    installLogger(logger);
+    const rpc = new RPCHandler(
+      {
+        begin: os.handler(() => {
+          logger.warn("provider sign-in unavailable");
+          markExpectedFailure();
+          throw new ORPCError("SERVICE_UNAVAILABLE");
+        }),
+      },
+      { clientInterceptors: [onError((error, { path }) => handleRpcError(error, path))] },
+    );
+    const app = new Hono();
+    app.use("*", requestLogging(logger));
+    app.post("/rpc/*", async (c) => {
+      const { response } = await rpc.handle(c.req.raw, { prefix: "/rpc", context: {} });
+      return response ?? c.notFound();
+    });
+
+    const response = await app.request("/rpc/begin", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({}),
+    });
+
+    expect(response.status).toBe(503);
+    expect(sink.events.map((event) => [event.level, event.message])).toEqual([
+      ["warn", "provider sign-in unavailable"],
+      ["warn", "http.request.completed"],
+    ]);
+  });
+
   it("keeps an image send the model cannot read out of error reports", () => {
     const sink = createTestSink();
     installLogger(createLogger({ service: "rakazo-api", sinks: [sink] }));
@@ -40,6 +124,59 @@ describe("logUnexpectedRpcError", () => {
 
     expect(() => handleRpcError(rejection, ["threads", "send"])).not.toThrow();
     expect(sink.events).toEqual([]);
+  });
+
+  it("answers work refused in a Space being deleted as a conflict, without an error report", () => {
+    const sink = createTestSink();
+    installLogger(createLogger({ service: "rakazo-api", sinks: [sink] }));
+
+    expect(() => handleRpcError(new SpaceDeletionInProgressError(), ["threads", "send"])).toThrow(
+      expect.objectContaining({ code: "CONFLICT" }),
+    );
+    expect(sink.events.filter((event) => event.level === "error")).toEqual([]);
+  });
+
+  it("names the fields a procedure's output got wrong, without their values", async () => {
+    const sink = createTestSink();
+    installLogger(createLogger({ service: "rakazo-api", sinks: [sink] }));
+    const router = {
+      messages: os.output(ThreadMessagePageSchema).handler(() => ({
+        threadId: "thread-1",
+        olderCursor: null,
+        messages: [
+          {
+            id: "message-1",
+            threadId: "thread-1",
+            seq: 1,
+            role: "user" as const,
+            blocks: [{ kind: "text" as const, text: 42 as unknown as string, private: "secret" }],
+            createdAt: "2026-11-06T00:00:00.000Z",
+          },
+        ],
+      })),
+    };
+    const rpc = new RPCHandler(router, {
+      clientInterceptors: [onError((error, { path }) => handleRpcError(error, path))],
+    });
+
+    await rpc.handle(
+      new Request("http://localhost/rpc/messages", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({}),
+      }),
+      { prefix: "/rpc", context: {} },
+    );
+
+    expect(sink.events).toEqual([
+      expect.objectContaining({
+        level: "error",
+        message: "rpc messages failed",
+        "validation.issues":
+          "messages.0.blocks.0.text: Invalid input: expected string, received number",
+      }),
+    ]);
+    expect(JSON.stringify(sink.events)).not.toContain("secret");
   });
 
   it("names the procedure and every cause behind an opaque failure", () => {
@@ -162,6 +299,24 @@ describe("logUnexpectedRpcError", () => {
         message: "rpc computer/screenUrl computer unavailable",
         reason: "Boat API request failed (HTTP 502)",
       }),
+    ]);
+  });
+
+  it("returns a spent computer allowance with its message and no error report", () => {
+    const sink = createTestSink();
+    installLogger(createLogger({ service: "rakazo-api", sinks: [sink] }));
+    const error = new SandboxAllowanceUsedError();
+
+    let thrown: unknown;
+    try {
+      handleRpcError(error, ["computer", "boot"]);
+    } catch (failure) {
+      thrown = failure;
+    }
+
+    expect(thrown).toMatchObject({ code: "FORBIDDEN", status: 403, message: error.message });
+    expect(sink.events.map((event) => [event.level, event.message])).toEqual([
+      ["warn", "rpc computer/boot computer allowance used up"],
     ]);
   });
 

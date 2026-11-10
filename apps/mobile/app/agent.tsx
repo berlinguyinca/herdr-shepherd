@@ -1,4 +1,5 @@
 import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import type { ComponentRef } from "react";
 import { useCallback, useContext, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -16,11 +17,11 @@ import { NativeSegmentedControl } from "../components/native-segmented-control";
 import { TerminalView } from "../components/terminal-view";
 import { conversationColumn } from "../lib/agent-column";
 import { agentIdFromRoute } from "../lib/agent-route";
+import type { ViewMode } from "../lib/agent-view-mode";
 import {
   modeSwitchWidth,
   terminalKeyboardOffset,
   useViewMode,
-  type ViewMode,
   viewModeLocked,
 } from "../lib/agent-view-mode";
 import type { AgentEvent as Event } from "../lib/agents";
@@ -71,7 +72,7 @@ export default function AgentScreen() {
   const [headerWidth, setHeaderWidth] = useState<number>();
   // Where the terminal begins in the window: the keyboard has to clear that much too.
   const [terminalTop, setTerminalTop] = useState<number>();
-  const terminalBox = useRef<View>(null);
+  const terminalBox = useRef<ComponentRef<typeof View>>(null);
   // Nothing to attach to for a closed agent; one that closes while shown still offers Chat.
   const terminalLocked = viewModeLocked(agent?.status) && mode !== "terminal";
 
@@ -170,7 +171,7 @@ export default function AgentScreen() {
                 {t("Could not load this conversation")}
               </Text>
               <Pressable accessibilityRole="button" onPress={conversation.retry}>
-                <Text style={[styles.message, { color: tokens.foreground }]}>{t("Try Again")}</Text>
+                <Text style={[styles.message, { color: tokens.foreground }]}>{t("Try again")}</Text>
               </Pressable>
             </View>
           ) : null}
@@ -228,7 +229,7 @@ export default function AgentScreen() {
                       {t("Load earlier messages")}
                     </Text>
                   </Pressable>
-                ) : null
+                ) : undefined
               }
               initialNumToRender={20}
               windowSize={9}

@@ -1,5 +1,6 @@
 import type { Agent, AgentTool, AgentToolResult } from "@earendil-works/pi-agent-core";
 import type { Api, Model, Models } from "@earendil-works/pi-ai";
+import { validateToolArguments } from "@earendil-works/pi-ai";
 import type {
   AdapterContext,
   AgentRunRequest,
@@ -11,16 +12,29 @@ import type {
 } from "@rakazo/adapter-kit";
 import { DEFAULT_CONTEXT_STRATEGY } from "@rakazo/adapter-kit";
 import { FLEET_TOOL_NAMES } from "@rakazo/contracts";
-import { isToolPauseResult } from "./approval-effect.js";
+import { batchActions, humanizeToolName, redactSecrets } from "@rakazo/core";
+import { MAX_APPROVAL_DETAIL_LENGTH } from "./approval-ask.js";
+import {
+  isInternalTermination,
+  isTerminatingReplyResult,
+  isToolPauseResult,
+} from "./approval-effect.js";
 import {
   connectionIdArgument,
   credentialArgument,
   loginFieldLabelsArgument,
+  oneTimeCodeArgument,
 } from "./bot-secrets.js";
+import { FIND_TOOL, findTools, partitionTools, USE_TOOL } from "./builtin-tool-bridge.js";
 import { shortenToolResultText } from "./context-selection.js";
 import type { PiAgentRuntimeOptions } from "./pi-runtime.js";
+import { COMPUTER_MODE_TOOLS } from "./pi-runtime-computer-mode.js";
 import { sanitizeSensitiveText } from "./pi-runtime-errors.js";
-import { clipToolResultContent, clipToolResultText } from "./pi-runtime-limits.js";
+import {
+  clipToolResultContent,
+  clipToolResultText,
+  TOOL_RESULT_TEXT_LIMIT,
+} from "./pi-runtime-limits.js";
 import type { RuntimeModelTarget } from "./pi-runtime-models.js";
 import { executeSubagent } from "./pi-runtime-subagent.js";
 import { parametersFor, prepareFleetArguments } from "./pi-runtime-tool-parameters.js";
@@ -29,6 +43,8 @@ import { VERBATIM_TOOL_RESULTS } from "./runtime-context.js";
 import { SCHEDULE_TOOL_NAMES } from "./schedule-tools.js";
 import type { FinishedShellCommand } from "./shell-command-stream.js";
 import { textContentArg } from "./tool-text.js";
+import { isVerbatimMcpResult } from "./verbatim-mcp-result.js";
+import { positiveIntegerArg } from "./workspace-file-tools.js";
 
 export interface ToolCallBudget {
   count: number;
@@ -55,7 +71,66 @@ export function maxToolCallsPerTurn(env: NodeJS.ProcessEnv = process.env): numbe
 }
 
 export function toAgentTools(toolDefs: readonly ConnectorTool[], host: ToolHost): AgentTool[] {
-  return namedAgentTools(toolDefs).map(({ tool, name }) => toAgentTool(tool, host, name));
+  const { listed, deferred } = partitionTools(toolDefs);
+  const tools = namedAgentTools(listed).map(({ tool, name }) =>
+    toAgentTool(tool, host, name, { deferred }),
+  );
+  if (!deferred.length) return tools;
+  const runnable = new Map(
+    [...tools, ...deferred.map((tool) => toAgentTool(tool, host, tool.name, { viaUseTool: true }))]
+      .filter((tool) => tool.name !== FIND_TOOL && tool.name !== USE_TOOL)
+      .map((tool) => [tool.name, tool]),
+  );
+  return tools.map((tool) =>
+    tool.name === USE_TOOL ? useToolAgentTool(tool, runnable, host) : tool,
+  );
+}
+
+/**
+ * Unwraps to the real tool before anything else, so its gate, approvals, checkpoint, audit
+ * and activity all name that tool exactly as a direct call would.
+ */
+function useToolAgentTool(
+  wrapper: AgentTool,
+  runnable: ReadonlyMap<string, AgentTool>,
+  host: ToolHost,
+): AgentTool {
+  return {
+    ...wrapper,
+    // Deferred schedule and memory tools must not race a sibling call.
+    executionMode: "sequential",
+    execute: async (toolCallId, params, signal, onUpdate) => {
+      const { name, arguments: args } = params as { name: string; arguments?: unknown };
+      const tool = runnable.get(name);
+      if (!tool) {
+        host.queue.push({
+          type: "tool",
+          name: USE_TOOL,
+          args: params as Record<string, unknown>,
+          executionId: JSON.stringify(["pi-tool", host.agentNamespace ?? "main", toolCallId]),
+          response: host.modelResponses,
+        });
+        throw new Error(`${name} is not available. Use a name find_tool lists.`);
+      }
+      const prepared = tool.prepareArguments?.(args ?? {}) ?? args ?? {};
+      const validated = validateToolArguments(tool, {
+        type: "toolCall",
+        id: toolCallId,
+        name,
+        arguments: prepared as never,
+      });
+      return tool.execute(toolCallId, validated, signal, onUpdate);
+    },
+  };
+}
+
+/** Each tool's definition under the name the model calls it, as toAgentTools exposes it. */
+export function agentToolDefinitions(toolDefs: readonly ConnectorTool[]) {
+  const { listed, deferred } = partitionTools(toolDefs);
+  return new Map([
+    ...deferred.map((tool) => [tool.name, tool] as const),
+    ...namedAgentTools(listed).map(({ tool, name }) => [name, tool] as const),
+  ]);
 }
 
 /** Shared canonical mapping for checkpoint validation and runtime exposure. */
@@ -113,24 +188,62 @@ export function normalizeAgentToolName(name: string): string {
 
 const ACTIVITY_DETAIL_LIMIT = 90;
 
+const MAX_STEP_ACTIONS = 3;
+const STEP_ACTION_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+
+/**
+ * What a call's steps show: the actions a batch runs, else the tool's label. Empty when neither
+ * applies, so callers fall back to the tool name.
+ */
+export function connectorStepNames(tool: ConnectorTool | undefined, args: unknown): string[] {
+  const actions = batchStepActions(tool, args);
+  if (actions.length > 0) return actions;
+  return tool?.label ? [tool.label] : [];
+}
+
+/** The model writes these names, so show only a few that look like tool names. */
+function batchStepActions(tool: ConnectorTool | undefined, args: unknown): string[] {
+  if (!tool?.batch) return [];
+  const { actions, complete } = batchActions(tool.batch, args);
+  if (!complete || actions.length > MAX_STEP_ACTIONS) return [];
+  if (!actions.every((action) => STEP_ACTION_NAME.test(action))) return [];
+  return actions.map(humanizeToolName);
+}
+
 /** One human-readable line describing a tool call, shown live in the thread. */
-export function describeToolActivity(toolName: string, args: unknown): string {
+export function describeToolActivity(
+  toolName: string,
+  args: unknown,
+  findTool?: (name: string) => ConnectorTool | undefined,
+): string {
   const record = args && typeof args === "object" ? (args as Record<string, unknown>) : {};
+  if (toolName === USE_TOOL)
+    return describeToolActivity(String(record.name), record.arguments, findTool);
+  const tool = findTool?.(toolName);
+  const actions = batchStepActions(tool, args);
+  if (actions.length > 0) return `Using ${actions.join(", ")}`;
+  if (tool?.label) return tool.label;
+  if (toolName === FIND_TOOL) return "Finding a tool";
   const detail = (value: unknown): string => {
     const text = sanitizeSensitiveText(String(value ?? ""))
       .replaceAll(/\s+/g, " ")
       .trim();
-    return text.length > ACTIVITY_DETAIL_LIMIT ? `${text.slice(0, ACTIVITY_DETAIL_LIMIT)}…` : text;
+    return clipToolResultText(text, ACTIVITY_DETAIL_LIMIT);
   };
   if (toolName === "shell") return `Running: ${detail(record.command)}`;
   if (toolName === "user_computer_shell")
     return `Running on your computer: ${detail(record.command)}`;
+  if (toolName === "user_computer_observe") return `Looking at ${detail(record.app)}`;
+  if (toolName === "user_computer_act") return `Using ${detail(record.app)}`;
   if (toolName === "read_file") return `Reading ${detail(record.path)}`;
   if (toolName === "write_file") return `Writing ${detail(record.path)}`;
   if (toolName === "list_files") return `Listing ${detail(record.path ?? ".")}`;
   if (toolName === "attach_file") return `Attaching ${detail(record.path)}`;
   if (toolName === "open_path") return `Opening ${detail(record.path)}`;
   if (toolName === "render_plot") return "Rendering a chart";
+  if (toolName === "save_page") {
+    return record.help === true ? "Reading the page kit reference" : "Writing the page code";
+  }
   if (toolName === "add_mcp_server") return `Connecting MCP server: ${detail(record.name)}`;
   if (toolName === "computer_observe") return "Looking at the screen";
   if (toolName === "browser_navigate")
@@ -152,6 +265,8 @@ export function describeToolActivity(toolName: string, args: unknown): string {
   if (toolName === "save_shared_memory") return `Saving shared memory: ${detail(record.path)}`;
   if (toolName === "web_search") return `Searching the web: ${detail(record.query)}`;
   if (toolName === "web_fetch") return `Reading page: ${detail(redactActivityUrl(record.url))}`;
+  if (toolName === "service_search") return `Finding a service: ${detail(record.query)}`;
+  if (toolName === "service_call") return `Using service: ${detail(record.service)}`;
   if (toolName === "skill_read")
     return record.file
       ? `Reading ${detail(record.file)} from ${detail(record.name)}`
@@ -238,12 +353,18 @@ export function prepareRequestSecretArguments(raw: Record<string, unknown>) {
     purpose,
     ...(connectionId ? { connectionId } : {}),
     ...(credential !== undefined ? { credential } : {}),
+    ...(raw.oneTimeCode !== undefined ? { oneTimeCode: oneTimeCodeArgument(raw.oneTimeCode) } : {}),
     ...(raw.replace === true ? { replace: true } : {}),
     ...(raw.fields != null ? { fields: loginFieldLabelsArgument(raw.fields) } : {}),
   };
 }
 
-function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): AgentTool {
+function toAgentTool(
+  tool: ConnectorTool,
+  host: ToolHost,
+  exposedName: string,
+  { deferred = [], viaUseTool = false }: { deferred?: ConnectorTool[]; viaUseTool?: boolean } = {},
+): AgentTool {
   return {
     name: exposedName,
     label: tool.name,
@@ -251,8 +372,11 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
     // Pi runs a turn's tool calls concurrently by default, so a batch that
     // creates a routine and lists routines can read the list before the row
     // exists. Pi runs the whole batch in order when any call in it is
-    // sequential. Remember also needs this to avoid competing revision writes.
-    ...(SCHEDULE_TOOL_NAMES.has(tool.name) || tool.name === "remember"
+    // sequential. Remember also needs this to avoid competing revision writes, and request_secret
+    // so a sibling request cannot start after one pauses for its card and share its answer.
+    ...(SCHEDULE_TOOL_NAMES.has(tool.name) ||
+    tool.name === "remember" ||
+    tool.name === "request_secret"
       ? { executionMode: "sequential" as const }
       : {}),
     parameters: parametersFor(tool),
@@ -261,7 +385,7 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
       if (tool.name === "remember") {
         return {
           content: String(raw.content ?? ""),
-          path: String(raw.path ?? "MEMORY.md"),
+          ...(typeof raw.old_text === "string" && raw.old_text ? { old_text: raw.old_text } : {}),
         };
       }
       if (tool.name === "request_takeover") {
@@ -269,8 +393,16 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
       }
       if (tool.name === "ask_user") {
         const options = Array.isArray(raw.options) ? raw.options.map(String) : raw.options;
+        // The content the user is deciding about, shown on the card under the question;
+        // redacted and capped here so recorded arguments never hold the raw value. A
+        // non-string value is dropped, not passed through: Pi coerces numbers and
+        // booleans to strings only after this point, past redaction, and a rejected
+        // object would echo its raw value in the validation error the model sees.
         return {
           question: String(raw.question ?? "What should I use?"),
+          ...(typeof raw.detail === "string" && raw.detail
+            ? { detail: redactedAskUserDetail(raw.detail, host.request.secrets) }
+            : {}),
           // Keep a missing/invalid options value as-is so schema minItems can reject it;
           // coercing to [] would look like a valid empty list upstream.
           options,
@@ -293,7 +425,18 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
         };
       }
       if (tool.name === "list_files") return { path: String(raw.path ?? "") };
-      if (tool.name === "read_file" || tool.name === "open_path") {
+      if (tool.name === "read_file") {
+        const offset = positiveIntegerArg(raw.offset);
+        const limit = positiveIntegerArg(raw.limit);
+        return {
+          path: String(raw.path ?? ""),
+          // Values that are not positive integers are dropped so one bad
+          // argument cannot fail the read; the executor revalidates.
+          ...(offset !== undefined ? { offset } : {}),
+          ...(limit !== undefined ? { limit } : {}),
+        };
+      }
+      if (tool.name === "open_path") {
         return { path: String(raw.path ?? "") };
       }
       if (tool.name === "launch_app") {
@@ -316,6 +459,7 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
           instructions: raw.instructions ? String(raw.instructions) : "",
           model_provider: raw.model_provider ? String(raw.model_provider) : "",
           model_id: raw.model_id ? String(raw.model_id) : "",
+          ...(raw.background === true ? { background: true } : {}),
         };
       }
       if (tool.name === "spawn_bot") {
@@ -333,7 +477,7 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
       if (tool.name === "create_space") {
         return { name: String(raw.name ?? "") };
       }
-      if (tool.name === "archive_bot" || tool.name === "delete_bot") {
+      if (tool.name === "archive_bot") {
         return {
           confirm_name: String(raw.confirm_name ?? raw.confirmName ?? ""),
           bot_id: raw.bot_id ? String(raw.bot_id) : raw.botId ? String(raw.botId) : "",
@@ -349,7 +493,16 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
         },
         async (span) => {
           host.signal.throwIfAborted();
+          if (
+            host.computerModeAllowed &&
+            COMPUTER_MODE_TOOLS.has(tool.name) &&
+            (host.depth !== 0 || !host.computerModeAllowed())
+          )
+            throw new Error("Enter top-level computer mode before using computer tools");
           const args = (params ?? {}) as Record<string, unknown>;
+          const keepToolResultWhole = (name: string, callArgs: Record<string, unknown>) =>
+            VERBATIM_TOOL_RESULTS.has(name) ||
+            isVerbatimMcpResult(name, callArgs, host.request.verbatimMcpServers);
           recordPiTelemetryContent(span, "pi.agent.tool.arguments", args);
           const rawCallId =
             toolCallId || `${host.request.runId}:${tool.name}:${host.toolCallSeq.value++}`;
@@ -368,7 +521,14 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
               details: { skipped: true },
             };
           }
-          host.queue.push({ type: "tool", name: tool.name, args, executionId });
+          host.queue.push({
+            type: "tool",
+            name: tool.name,
+            args,
+            executionId,
+            response: host.modelResponses,
+            ...(viaUseTool ? { viaUseTool } : {}),
+          });
           const startedAt = Date.now();
           let result: unknown;
           let failure: unknown;
@@ -404,6 +564,9 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
                   type: "ask",
                   ...(host.request.onCheckpoint ? { executionId } : {}),
                   text: String(args.question ?? "What should I use?"),
+                  ...(typeof args.detail === "string" && args.detail
+                    ? { detail: args.detail }
+                    : {}),
                   actions: options.map((label, index) => ({
                     id: `choice-${index + 1}`,
                     label,
@@ -444,7 +607,20 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
                   terminate: true,
                 };
               }
-              if (tool.name === "run_subagent") {
+              if (tool.name === FIND_TOOL) {
+                // Outside computer mode, screen tools are reached by entering it, not by search.
+                const findable =
+                  host.computerModeAllowed && (host.depth !== 0 || !host.computerModeAllowed())
+                    ? deferred.filter((candidate) => !COMPUTER_MODE_TOOLS.has(candidate.name))
+                    : deferred;
+                const found = findTools(findable, args);
+                return {
+                  content: [{ type: "text", text: JSON.stringify(found) }],
+                  details: found,
+                };
+              }
+              // A background helper is its own run, which the executor starts like any tool effect.
+              if (tool.name === "run_subagent" && args.background !== true) {
                 const result = await executeSubagent(host, executionId, args);
                 return {
                   content: [{ type: "text", text: result }],
@@ -465,7 +641,9 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
                 );
                 if (isAgentToolExecutionResult(result)) {
                   if (isToolPauseResult(result)) host.pausePending = true;
-                  return boundAgentToolResult(result);
+                  return keepToolResultWhole(tool.name, args)
+                    ? result
+                    : boundAgentToolResult(result);
                 }
                 return {
                   content: [
@@ -476,6 +654,7 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
                         host.request.contextStrategy,
                         tool.name,
                         args,
+                        host.request.verbatimMcpServers,
                       ),
                     },
                   ],
@@ -492,15 +671,16 @@ function toAgentTool(tool: ConnectorTool, host: ToolHost, exposedName: string): 
                 details: { error: "no executor" },
               };
             })();
-            if (VERBATIM_TOOL_RESULTS.has(tool.name)) return result as AgentToolResult<unknown>;
+            if (keepToolResultWhole(tool.name, args)) return result as AgentToolResult<unknown>;
             return boundAgentToolResult(result as AgentToolResult<unknown>);
           } catch (error) {
             failure = error;
             throw error;
           } finally {
             // Pi only terminates a parallel batch when every result terminates.
-            // A single paused call must stop the turn before another model request.
-            if (host.pausePending) host.abortTurn?.();
+            // A single paused or turn-ending call must stop the turn before another
+            // model request, or the next assistant message replaces its final reply.
+            if (host.pausePending || isTerminatingReplyResult(result)) host.abortTurn?.();
             const details = (
               result as AgentToolResult<{ error?: unknown; isError?: unknown }> | undefined
             )?.details;
@@ -536,6 +716,8 @@ function isAgentToolExecutionResult(result: unknown): result is AgentToolExecuti
     !result ||
     typeof result !== "object" ||
     (result as { kind?: unknown }).kind !== "agent_tool_result" ||
+    (((result as { terminate?: unknown }).terminate === true || isToolPauseResult(result)) &&
+      !isInternalTermination(result)) ||
     !("content" in result)
   ) {
     return false;
@@ -558,15 +740,21 @@ export function serializeToolResult(
   strategy: AgentRunRequest["contextStrategy"],
   name: string,
   args: Record<string, unknown>,
+  verbatimMcpServers?: AgentRunRequest["verbatimMcpServers"],
 ) {
   try {
     const text = JSON.stringify(result);
     if (!text) return "ok";
     // skill-tools.ts already bounds skill content; the context budget selector may still shorten it.
-    if (text.length <= 12_000 || VERBATIM_TOOL_RESULTS.has(name)) return text;
+    if (
+      text.length <= TOOL_RESULT_TEXT_LIMIT ||
+      VERBATIM_TOOL_RESULTS.has(name) ||
+      isVerbatimMcpResult(name, args, verbatimMcpServers)
+    )
+      return text;
     return (strategy ?? DEFAULT_CONTEXT_STRATEGY) === "current"
       ? clipToolResultText(text)
-      : shortenToolResultText(text, 12_000, { name, arguments: args });
+      : shortenToolResultText(text, TOOL_RESULT_TEXT_LIMIT, { name, arguments: args });
   } catch {
     return "ok";
   }
@@ -612,6 +800,7 @@ export interface ToolHost {
   queue: EventQueue;
   request: AgentRunRequest;
   activeModel: RuntimeModelTarget;
+  computerModeAllowed?: () => boolean;
   models: Models;
   model: Model<Api>;
   apiKey: string | undefined;
@@ -628,10 +817,81 @@ export interface ToolHost {
   captureCheckpoint?: (toolCallId: string, executionId: string) => Promise<void>;
   /** Shell commands that returned output and are still running. */
   pendingShells: Array<Promise<FinishedShellCommand>>;
+  /** Model responses started by the main agent. Helpers reset it, so each of their calls counts. */
+  modelResponses?: number;
 }
 
 export function toolCallBudgetExceededMessage(limit: number) {
   return `I stopped after reaching the limit of ${limit} tool calls in this turn. Send another message to continue.`;
+}
+
+/**
+ * The ask card's detail is the one tool argument the product keeps outside the tool call
+ * itself: on the card, in the turn checkpoint and in the recorded session. Redact and cap
+ * it once, at the argument boundary, so every downstream copy holds the safe value.
+ */
+export function redactedAskUserDetail(
+  detail: string,
+  secrets: readonly string[] | undefined,
+): string {
+  const redacted = redactSecrets(detail, secrets ?? []);
+  // A draft within the schema's maxLength is kept as redacted, unchanged. Only a
+  // longer one (redaction can expand a short secret past the limit) is cut, one
+  // unit below the limit so the appended ellipsis stays within it, stepping back
+  // over a surrogate pair the cut would split.
+  if (redacted.length <= MAX_APPROVAL_DETAIL_LENGTH) return redacted;
+  let capped = redacted.slice(0, MAX_APPROVAL_DETAIL_LENGTH - 1);
+  const last = capped.charCodeAt(capped.length - 1);
+  if (last >= 0xd800 && last <= 0xdbff) capped = capped.slice(0, -1);
+  return `${capped}…`;
+}
+
+/** The arguments an ask_user call carries: directly, or nested in a use_tool wrapper
+ * (the wrapper's own normalizer unwraps them, but the streamed message records the
+ * nested object verbatim). */
+function askUserScrubTarget(call: {
+  name?: string;
+  arguments?: unknown;
+}): Record<string, unknown> | undefined {
+  // A provider can stream malformed arguments (a bare string or number); argument
+  // preparation rejects those later, so there is nothing to scrub here.
+  const args = asObject(call.arguments);
+  if (call.name === "ask_user") return args;
+  if (call.name !== USE_TOOL || args?.name !== "ask_user") return undefined;
+  return asObject(args.arguments);
+}
+
+function asObject(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === "object" ? (value as Record<string, unknown>) : undefined;
+}
+
+/** Redacts the ask card's detail in a streamed assistant message, in place, so the session
+ * transcript, the turn checkpoint and later provider payloads never hold the raw value. */
+export function redactAskUserDetailInMessage(
+  message: { role: string; content?: unknown },
+  secrets: readonly string[] | undefined,
+): void {
+  if (message.role !== "assistant" || !Array.isArray(message.content)) return;
+  for (const part of message.content) {
+    const call = part as { type?: string; name?: string; arguments?: unknown };
+    if (call?.type !== "toolCall") continue;
+    // A use_tool wrapper can carry ask_user's arguments as a bare string, which argument
+    // preparation rejects but the message keeps; redact it whole so no kept copy holds a raw
+    // secret. (Unparseable direct arguments reach here as {} plus the parser's argumentsError.)
+    const wrapper = call.name === USE_TOOL ? asObject(call.arguments) : undefined;
+    if (wrapper?.name === "ask_user" && typeof wrapper.arguments === "string") {
+      wrapper.arguments = redactSecrets(wrapper.arguments, secrets ?? []);
+    }
+    const args = askUserScrubTarget(call);
+    if (!args) continue;
+    if (typeof args.detail === "string") {
+      if (args.detail) args.detail = redactedAskUserDetail(args.detail, secrets);
+    } else if ("detail" in args) {
+      // A non-string detail never reaches the card (the argument normalizer drops
+      // it); drop it here too, so no kept copy holds the raw value.
+      delete args.detail;
+    }
+  }
 }
 
 export function toolCallBudgetFor(runId: string): ToolCallBudget {
@@ -690,4 +950,58 @@ function beginToolCall(host: ToolHost): boolean {
 function endToolCall(host: ToolHost) {
   host.toolCallBudget.inFlight = Math.max(0, host.toolCallBudget.inFlight - 1);
   maybeAbortToolCallBudget(host);
+}
+
+export function createGate(max: number) {
+  let active = 0;
+  const waiters: Array<() => void> = [];
+  return {
+    async acquire() {
+      if (active >= max) {
+        await new Promise<void>((resolve) => {
+          waiters.push(resolve);
+        });
+      }
+      active += 1;
+    },
+    release() {
+      active = Math.max(0, active - 1);
+      waiters.shift()?.();
+    },
+  };
+}
+
+export function createQueue(): EventQueue {
+  const items: AgentRuntimeEvent[] = [];
+  let wake: (() => void) | undefined;
+  let closed = false;
+  let failure: Error | undefined;
+  return {
+    push(event) {
+      items.push(event);
+      wake?.();
+    },
+    fail(error) {
+      failure = error;
+      closed = true;
+      wake?.();
+    },
+    close() {
+      closed = true;
+      wake?.();
+    },
+    async *iterate() {
+      while (true) {
+        if (items.length) {
+          yield items.shift()!;
+          continue;
+        }
+        if (failure) throw failure;
+        if (closed) return;
+        await new Promise<void>((resolve) => {
+          wake = resolve;
+        });
+      }
+    },
+  };
 }

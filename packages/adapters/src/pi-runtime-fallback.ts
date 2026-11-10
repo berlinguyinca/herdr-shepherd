@@ -25,6 +25,7 @@ import {
 } from "@rakazo/core";
 import { getLogger } from "@rakazo/logging";
 import { ModelImageLimitError, pruneForRebuild } from "./context-pruning.js";
+import { ContextBudgetError } from "./context-selection.js";
 import { groqRequestContextWindow } from "./groq-request-budget.js";
 import { estimateModelContextTokens } from "./model-context.js";
 import { IMAGE_RETURNING_COMPUTER_TOOLS } from "./model-vision.js";
@@ -34,7 +35,8 @@ import { OPENAI_COMPATIBLE_PROVIDER_ID } from "./pi-openai-compatible-provider.j
 import { assistantText, messageHasToolCall, sanitizeProviderError } from "./pi-runtime-errors.js";
 import {
   effectiveOutputReserve,
-  MODEL_STREAM_TIMEOUT_MS,
+  modelStreamTimeoutMs,
+  operatorMaxTokens,
   resolveCompletionMaxTokens,
 } from "./pi-runtime-limits.js";
 import type { RuntimeModelTarget } from "./pi-runtime-models.js";
@@ -82,6 +84,12 @@ export interface FallbackStreamState {
   continuingCutReply?: boolean;
   onSwitch(target: RuntimeModelTarget): Promise<void>;
   onContextLimit(contextWindow: number): void;
+  /**
+   * The context a backup's own context policy would send on its first call. The policy shortens
+   * older tool results and drops older turns to fit the backup's window, so a backup is judged on
+   * that, not on a transcript sized for the primary. Throws ContextBudgetError when nothing fits.
+   */
+  prepareForTarget?(target: RuntimeModelTarget, context: TranscriptContext): TranscriptContext;
   isProviderFailure(message: AssistantMessage): boolean;
   /** Set once a provider rejected replayed thinking signatures; see thinking-signatures.ts. */
   dropThinkingBlocks?: boolean;
@@ -232,6 +240,7 @@ function fallbackIncompatibility(
   context: TranscriptContext,
   options: ModelsSimpleStreamOptions | undefined,
   tools: readonly ConnectorTool[],
+  prepareForTarget?: FallbackStreamState["prepareForTarget"],
 ): string | undefined {
   // The backup's own context policy prunes on its first call; judge what it would send. Too
   // many user images for its limit throws, and the caller skips the backup.
@@ -240,9 +249,12 @@ function fallbackIncompatibility(
       ...context,
       messages: pruneForRebuild(context.messages, candidate.config.maxImagesPerPrompt),
     };
+    if (prepareForTarget) context = prepareForTarget(candidate, context);
   } catch (error) {
     if (error instanceof ModelImageLimitError)
       return "The request exceeds the backup model's image limit.";
+    if (error instanceof ContextBudgetError)
+      return "Conversation exceeds the backup model's context limit.";
     throw error;
   }
   const inputTokens = estimateModelContextTokens(context, estimatePiImageTokens);
@@ -252,13 +264,20 @@ function fallbackIncompatibility(
     options?.maxTokens,
     candidate.model.reasoning,
     candidate.model.contextWindow,
+    operatorMaxTokens(candidate.model),
   );
   // Token counts are estimates and can differ by provider/tokenizer. Reserve a
   // small input-relative margin, not a fixed 4096 tokens that would exclude
   // otherwise usable small-context models on short turns.
   const contextSafetyMargin = Math.max(256, Math.ceil(inputTokens * 0.1));
-  if (candidate.model.contextWindow <= inputTokens + outputTokens + contextSafetyMargin)
-    return "Conversation exceeds the backup model's context limit.";
+  // A context the backup's own policy prepared was sized against the output reserve the send
+  // uses, so it is judged by that accounting with no extra margin. A policy that keeps the
+  // transcript as is still has to fit.
+  const exceedsWindow = prepareForTarget
+    ? candidate.model.contextWindow <
+      inputTokens + effectiveOutputReserve(candidate.model.contextWindow, outputTokens)
+    : candidate.model.contextWindow <= inputTokens + outputTokens + contextSafetyMargin;
+  if (exceedsWindow) return "Conversation exceeds the backup model's context limit.";
   const imageCount = contextImageCount(context);
   if (
     (imageCount > 0 || tools.some((tool) => IMAGE_RETURNING_COMPUTER_TOOLS.has(tool.name))) &&
@@ -399,14 +418,24 @@ export function fallbackAwareModelStream(
           requestContext(true),
           options,
           state.request.tools,
+          state.prepareForTarget,
         );
         if (incompatibility) {
           skip(incompatibility);
           continue;
         }
         return candidate;
-      } catch {
-        // Do not persist credential-resolution diagnostics; they can contain secrets.
+      } catch (error) {
+        // Never log the message: credential diagnostics can quote the key.
+        const failure = (error ?? {}) as { name?: unknown; code?: unknown; status?: unknown };
+        getLogger().warn("model.backup.unavailable", {
+          runId: state.request.runId,
+          provider: choice.provider,
+          model: choice.id,
+          "error.type": typeof failure.name === "string" ? failure.name : typeof error,
+          ...(typeof failure.code === "string" ? { "error.code": failure.code } : {}),
+          ...(typeof failure.status === "number" ? { "error.status": failure.status } : {}),
+        });
         skip("The backup connection or request could not be prepared.");
       }
     }
@@ -420,7 +449,7 @@ export function fallbackAwareModelStream(
     // Bound same-model retries. Explicit backups retain their per-model header
     // timeout: a post-header idle watchdog can already exceed that timeout.
     let startedAt = Date.now();
-    const timeoutMs = options?.timeoutMs ?? MODEL_STREAM_TIMEOUT_MS;
+    const timeoutMs = options?.timeoutMs ?? modelStreamTimeoutMs();
     let firstRetryableError: Extract<AssistantMessageEvent, { type: "error" }> | undefined;
     // Set once this call has been repeated after spending its output budget on nothing visible.
     let lengthRecovered = false;
@@ -456,16 +485,14 @@ export function fallbackAwareModelStream(
       let sawVisibleOutput = false;
       let restart = false;
       let stream: AssistantMessageEventStream;
+      // A backup runs at its own effort, never the main model's.
+      const runsRequestModel = sameModelTarget(target.config, state.request.model);
+      const requestedThinking =
+        target.config.thinkingLevel ??
+        (runsRequestModel ? (options?.reasoning ?? state.request.model.thinkingLevel) : undefined);
       const thinkingLevel =
         thinkingOverride ??
-        (target.model.reasoning
-          ? thinkingLevelFor(
-              target.model,
-              target.config.thinkingLevel ??
-                options?.reasoning ??
-                state.request.model.thinkingLevel,
-            )
-          : "off");
+        (target.model.reasoning ? thinkingLevelFor(target.model, requestedThinking) : "off");
       const sentTarget = outputBudget ? withOutputBudget(target, outputBudget) : target;
       const sentMaxTokens = resolveCompletionMaxTokens(
         sentTarget.model.maxTokens,
@@ -473,6 +500,7 @@ export function fallbackAwareModelStream(
         attemptOptions.maxTokens,
         sentTarget.model.reasoning,
         sentTarget.model.contextWindow,
+        operatorMaxTokens(sentTarget.model),
       );
       try {
         const apiKey = target.credentials?.accessToken ?? target.apiKey;

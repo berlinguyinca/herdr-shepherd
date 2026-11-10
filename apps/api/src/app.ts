@@ -1,5 +1,6 @@
-import { hostname } from "node:os";
-import { ORPCError, onError } from "@orpc/server";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { getConnInfo } from "@hono/node-server/conninfo";
+import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import type {
   AgentContextStrategy,
@@ -8,80 +9,58 @@ import type {
   ConnectorProvider,
   JobPublisher,
   ManagedConnectorProvider,
-  MessagingInboundEvent,
   MessagingSurface,
   NotificationProvider,
   RealtimeFanout,
   SandboxProvider,
   TransactionalEmailProvider,
 } from "@rakazo/adapter-kit";
-import {
-  SandboxDamagedError,
-  SandboxRateLimitError,
-  SandboxUnavailableError,
-  SandboxUnresponsiveError,
-  VoiceAccountError,
-} from "@rakazo/adapter-kit";
+import { EmailRecipientRejectedError } from "@rakazo/adapter-kit";
 import type {
   ComposioProvider,
   ConnectorRegistry,
+  createRunExecutor,
   PluginRepoFetcher,
   PluginTextReader,
   RemoteConnectorDependencies,
+  RunRuntimeEnv,
   UserDeviceGateway,
 } from "@rakazo/adapters";
 import {
-  applyMessagingOutboundStatus,
   ChatSdkMessagingSurface,
   CodexCatalogCache,
-  ComposioConnector,
   contentKeyProviderFromEnv,
   createAgentHomeStore,
+  createApnsActivityProvider,
+  createApnsVoipProvider,
   createArtifactStore,
-  createBackgroundJobHandlers,
   createCloudAgentConnection,
-  createConnectorStack,
-  createIdleComputerSweeper,
-  createJobReconciler,
-  createMessagingContextLoader,
-  createMessagingTeamChatHistory,
-  createMessagingTeamChatSender,
-  createModelCreditReconciler,
+  createConnectorRuntime,
+  createMediaGenerationProvider,
   createPaymentWalletProvider,
   createProductAnalytics,
-  createRunExecutor,
+  createRunReconciler,
+  createRunRuntime,
   createRunSandbox,
   createRunSecretWriter,
   createSecretStore,
   createTicketChangeNotifier,
-  createWebProvider,
-  deploymentModelUsageLookup,
   EmailEmulator,
   ExpoPushProvider,
   GraphileJobPublisher,
   InMemoryJobQueue,
   InMemoryRealtimeFanout,
-  InstalledConnectorProvider,
-  IntegrationProviderSettings,
   installedMessaging,
-  isComposioEnabled,
   isMessagingSurfaceEnabled,
-  isPipedreamEnabled,
-  McpConnector,
-  McpOAuthBroker,
   messagingPlatformsFromEnv,
+  ObjectAgentHomeStore,
   PiAgentRuntime,
   PiOAuthLogins,
-  PipedreamConnector,
   PostgresRealtimeFanout,
   PrismaPushTokenStore,
-  pipedreamConfigFromEnv,
   piSessionsRoot,
   RunJobPublisher,
   RunStarter,
-  reconcileCloudAgents,
-  reconcileComputerUpdates,
-  reconcilePurchases,
   removePiUserSessions,
   resolveDeploymentModel,
   ScriptedAgentRuntime,
@@ -89,15 +68,22 @@ import {
   StripeBillingProvider,
   sandboxProviderOptionsFromEnv,
   stripeBillingConfigFromEnv,
-  toTeamChatInbound,
   UserDeviceHub,
   UserDevices,
   userDeviceForwardSecret,
   userDeviceInternalAddress,
   verifyModelServesAgents,
+  WorkActivities,
   withSecretPersistence,
 } from "@rakazo/adapters";
-import { createAuth, isBlockedAuthPath, loopbackTwinOrigins } from "@rakazo/auth";
+import type { DirectoryAccountChange } from "@rakazo/auth";
+import {
+  buildTrustedOrigins,
+  CLIENT_IP_HEADER,
+  createAuth,
+  createDirectory,
+  isBlockedAuthPath,
+} from "@rakazo/auth";
 import type { Actor, AuthCapabilities } from "@rakazo/contracts";
 import {
   isLocalhostOrLoopbackIp,
@@ -107,22 +93,21 @@ import {
 import { encryptionKeyWarning, signupPolicyFromEnv } from "@rakazo/core";
 import type { Pool, PrismaClient } from "@rakazo/db";
 import {
+  configureProviderTransactionPool,
   createBoardEvents,
   createDb,
   createPool,
-  createSecurityEventPruner,
   createThreadEvents,
   describeRowSecurity,
   IsolationError,
+  installAuditEventStore,
   installSecurityEventStore,
-  ProviderTransactionBusyError,
+  observeThreadChanges,
   parsePositiveInteger,
-  provisionMessagingIdentity,
   pushSessionExpiresAt,
   requireMembership,
   rowSecurityWarning,
   runAsSystem,
-  securityEventRetentionDays,
   verifyContentKeys,
 } from "@rakazo/db";
 import type { Logger } from "@rakazo/logging";
@@ -135,13 +120,16 @@ import {
 } from "@rakazo/logging";
 import { requestLogging } from "@rakazo/logging/hono";
 import { MarkdownMemoryStore } from "@rakazo/memory";
+import type { Context } from "hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
-import { deleteAccountContent } from "./account-deletion.js";
+import { deleteAccountContent, finishStalledOrganizationDeletions } from "./account-deletion.js";
 import { mountAccountExportRoute } from "./account-export.js";
 import { mountAccountImportRoute } from "./account-import.js";
+import { settleDirectoryChange } from "./account-status.js";
 import { mountAppAssociation, nativePasskeys } from "./app-association.js";
 import { storeInboundAttachment } from "./artifacts.js";
+import { mountAuditExportRoute } from "./audit-export.js";
 import { createBillingService } from "./billing.js";
 import { mountBillingRoutes } from "./billing-webhook.js";
 import { clientBuildMiddleware, readDeployedWebBuild } from "./client-build.js";
@@ -153,38 +141,40 @@ import {
   withClientIp,
 } from "./client-ip.js";
 import { cspReportRoutes } from "./csp-report.js";
-import { mountDiagramScript } from "./diagram-script.js";
 import { configuredEmailProvider } from "./email.js";
+import { mountEmailInboundRoute } from "./email-inbound.js";
 import type { AppEnv } from "./env.js";
 import { loadEnv } from "./env.js";
 import { healthRoutes } from "./health.js";
+import { homeRetentionSweep } from "./home-retention.js";
+import { startHourlySweep } from "./hourly-sweep.js";
+import { trackInFlightRequests } from "./in-flight-requests.js";
 import { mountLocalComputerHost } from "./local-settings.js";
 import { marketingEmailRoutes, sendWelcomeEmail } from "./marketing-email.js";
-import {
-  createMessagingInboundHandler,
-  teamChatSenderCanWakeMessageRoutines,
-  wakeMessageRoutines,
-} from "./messaging-inbound.js";
-import { createMessagingReceipts } from "./messaging-receipts.js";
-import { mountMessagingWebhookRoutes } from "./messaging-webhook.js";
+import { moveMcpArgsIntoSecrets } from "./mcp-args-migration.js";
+import { startMessagingRuntime } from "./messaging-runtime.js";
 import { monitoringRoutes } from "./monitoring.js";
-import { pluginSubmissionRoutes } from "./plugin-submissions.js";
-import { mountApiRequestBodyLimits } from "./request-body-limit.js";
-import { createRouter } from "./router.js";
-import { mountScreenTarget } from "./screen-proxy.js";
-import { createAuthResponseAudit } from "./security-audit.js";
-import { createSpeechSummarizer } from "./speech-summary.js";
-import { isDeferredReservationLost, TeamChatBridge } from "./team-chat-bridge.js";
-import { ModelTeamChatEngagementJudge } from "./team-chat-judge.js";
 import {
-  PendingTeamChatInbound,
-  prefersTeamChatSurface,
-  settleWithTimeout,
-  TEAM_CHAT_STARTUP_SHUTDOWN_MS,
-  TeamChatStartupRetries,
-} from "./team-chat-startup.js";
-import { mountUserDeviceRoutes } from "./user-devices.js";
-import { mountVoiceHttpRoutes, voiceAccountErrorStatus } from "./voice.js";
+  assertOpenOwnerHost,
+  createOpenLimiter,
+  hasForwardingHeaders,
+  isOwnerNetworkAddress,
+  openOwnerOriginAllowed,
+} from "./open-owner.js";
+import { pluginSubmissionRoutes } from "./plugin-submissions.js";
+import { sendReferralEmails } from "./referral-email.js";
+import { mountApiRequestBodyLimits, rpcBodyLimit } from "./request-body-limit.js";
+import { createRouter } from "./router.js";
+import { handleRpcError } from "./rpc-errors.js";
+import { mountScreenTarget } from "./screen-proxy.js";
+import { mountScriptAssets } from "./script-assets.js";
+import { createAuthResponseAudit } from "./security-audit.js";
+import { mountSharedPages } from "./shared-pages.js";
+import { afterSpaceDeparture } from "./space-departure.js";
+import { createSpeechSummarizer } from "./speech-summary.js";
+import { settleWithTimeout } from "./team-chat-startup.js";
+import { endUserDeviceSession, mountUserDeviceRoutes } from "./user-devices.js";
+import { mountVoiceHttpRoutes } from "./voice.js";
 import { mountWebhookHttpRoutes } from "./webhook.js";
 
 /**
@@ -199,6 +189,9 @@ export const MOBILE_AUTH_ORIGINS = [
   "http://localhost:19006",
   "http://127.0.0.1:19006",
 ];
+
+// Deploys give the old API 30 seconds to stop before killing it.
+const REQUEST_DRAIN_MS = 20_000;
 
 export interface AppHandles {
   app: Hono;
@@ -247,6 +240,10 @@ type CreateAppOverrides = Partial<AppEnv> & {
   contextStrategy?: AgentContextStrategy;
   /** Test-only stand-in for desktops connected to this server. */
   userDevices?: UserDeviceGateway;
+  /** Test-only present moment the agent is told. */
+  now?: () => Date;
+  /** Test-only: the TCP peer of a request; the default reads the real socket. */
+  ownerPeerAddress?: (request: Request, env: unknown) => string | undefined;
 };
 
 async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
@@ -269,15 +266,28 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     runtime: runtimeOverride,
     contextStrategy,
     userDevices: userDevicesOverride,
+    now,
+    ownerPeerAddress,
     ...envOverrides
   } = overrides;
   const env = { ...loadEnv(process.env), ...envOverrides };
+  const openOwnerMode = env.accessMode === "open-owner";
+  // Refuse before anything starts: a public listener must never serve the open owner.
+  if (openOwnerMode) assertOpenOwnerHost(env.apiHost);
+  const runtimeEnv: RunRuntimeEnv = { ...env, inboundEmailDomain: env.inboundEmail?.domain };
   const logger = loggerOverride ?? createServiceLogger({ service: SERVICE_NAMES.api });
   installLogger(logger);
+  if (openOwnerMode) {
+    // Signups stay closed; the one account is the owner's.
+    env.signupsEnabled = "false";
+    logger.info("open-owner access is ON: no login for peers on loopback or Tailscale");
+  }
+  const poolMax = parsePositiveInteger(process.env.DB_POOL_MAX, 4);
+  configureProviderTransactionPool(poolMax);
   const created = prismaOverride
     ? { prisma: prismaOverride, pool: undefined }
     : createDb(env.databaseUrl, {
-        poolMax: parsePositiveInteger(process.env.DB_POOL_MAX, 4),
+        poolMax,
         applicationName: "rakazo-api",
         keyProvider: contentKeyProviderFromEnv(),
         encryptContent: env.contentEncryption,
@@ -294,20 +304,26 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
   if (rowSecurity) logger.warn(rowSecurity);
   const weakEncryptionKey = encryptionKeyWarning(process.env);
   if (weakEncryptionKey) logger.warn(weakEncryptionKey);
-  const realtime =
+  // Set once push delivery is configured below; thread changes before then have no cards.
+  let workActivities: WorkActivities | undefined;
+  // Every thread change this process commits also updates its users' live status cards.
+  const realtime = observeThreadChanges(
     realtimeOverride ??
-    (created.pool
-      ? new PostgresRealtimeFanout({
-          connectionString: env.realtimeDatabaseUrl,
-          publisher: created.pool,
-        })
-      : new InMemoryRealtimeFanout());
+      (created.pool
+        ? new PostgresRealtimeFanout({
+            connectionString: env.realtimeDatabaseUrl,
+            publisher: created.pool,
+          })
+        : new InMemoryRealtimeFanout()),
+    (threadId) => workActivities?.threadChanged(threadId),
+  );
   const secrets = createSecretStore(env.encryptionKey, process.env, realtime);
   await secrets.start();
   if (secrets.describe().capabilities.degraded)
     logger.warn("Secret storage degraded; encrypted credentials remain available");
   prisma = withSecretPersistence(prisma, secrets);
   installSecurityEventStore(prisma);
+  installAuditEventStore(prisma);
   const unreadableMasterKeys = await verifyContentKeys(prisma);
   if (unreadableMasterKeys.length)
     logger.error("Stored space keys need master keys that are not configured", undefined, {
@@ -386,36 +402,14 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       boatApiUrl: env.boatApiUrl,
       dataDir: env.dataDir,
       prisma,
+      secrets,
     }));
-  const mcpOAuth = new McpOAuthBroker(
-    prisma,
-    secrets,
-    remoteConnectors,
-    env.mcpAllowPrivateEndpoint,
-  );
   const memoryProviders = new SpaceMemoryProviderResolver(prisma, secrets);
   const oauthLogins = new PiOAuthLogins(undefined, { prisma, secrets });
   const home = createAgentHomeStore(env.dataDir, prisma);
   void home.removeStaleStaging().catch((error) => getLogger().error("home staging cleanup", error));
   const artifacts = createArtifactStore(env.dataDir, prisma);
   const memory = new MarkdownMemoryStore(prisma);
-  const mcp = new McpConnector(
-    prisma,
-    secrets,
-    {
-      stdioEnabled: env.mcpStdioEnabled,
-      allowedCommands: env.mcpStdioAllowedCommands,
-      ...env.mcpStdio,
-      network: remoteConnectors,
-      events,
-      allowPrivateEndpoint: env.mcpAllowPrivateEndpoint,
-    },
-    mcpOAuth,
-  );
-  const pipedreamConfig = pipedreamConfigFromEnv(env);
-  const pipedream =
-    pipedreamOverride ??
-    (isPipedreamEnabled(pipedreamConfig) ? new PipedreamConnector(pipedreamConfig) : undefined);
   // This process registers the inbound sink, so it must hold Telegram's getUpdates connection.
   const messagingPlatforms = messagingPlatformsFromEnv(env, { pollInboundMessages: true }).filter(
     (platform) => platform.provider !== "slack" || !env.slackClientId,
@@ -444,8 +438,12 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     throw new Error("EMAIL_EMULATOR requires API_HOST to be a loopback host");
   }
   const email: TransactionalEmailProvider | undefined = configuredEmail ?? localEmailEmulator;
-  const onEmailError = (error: unknown) =>
-    getLogger().error("transactional email delivery failed", error);
+  const emailErrorLogger = (message: string) => (error: unknown) => {
+    if (error instanceof EmailRecipientRejectedError) {
+      getLogger().warn(message, { "error.message": error.message });
+    } else getLogger().error(message, error);
+  };
+  const onEmailError = emailErrorLogger("transactional email delivery failed");
   const stripeBilling = stripeBillingConfigFromEnv(env);
   const billingProvider: BillingProvider | undefined =
     billingOverride ?? (stripeBilling ? new StripeBillingProvider(stripeBilling) : undefined);
@@ -453,8 +451,10 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     ? createBillingService({
         prisma,
         provider: billingProvider,
+        sandbox,
         webOrigin: env.webOrigin,
         managedModelsAvailable: resolveDeploymentModel().configured,
+        analytics,
       })
     : undefined;
   const modelCreditsEnabled = billing?.modelCreditsEnabled ?? false;
@@ -466,29 +466,17 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     },
     update: { modelCreditsEnabled },
   });
-  const installed = new InstalledConnectorProvider(
-    prisma,
-    secrets,
-    remoteConnectors,
-    env.mcpAllowPrivateEndpoint,
+  const connectors = createConnectorRuntime(
+    runtimeEnv,
+    { prisma, secrets, events },
+    {
+      network: remoteConnectors,
+      composio: composioOverride,
+      pipedream: pipedreamOverride,
+      connectors: connectorOverrides,
+    },
   );
-  const integrationSettings = new IntegrationProviderSettings(prisma, secrets, env.encryptionKey, {
-    composio:
-      composioOverride ??
-      (isComposioEnabled(env.composioApiKey)
-        ? new ComposioConnector({ apiKey: env.composioApiKey })
-        : undefined),
-    pipedream,
-  });
-  const stack = createConnectorStack(composioOverride, [
-    installed,
-    ...integrationSettings
-      .providers()
-      .filter((provider) => !composioOverride || provider.describe().id !== "composio"),
-    mcp,
-    ...connectorOverrides,
-  ]);
-  integrationSettings.warmDirectories();
+  const { mcpOAuth, mcp, pipedream, installed, integrationSettings, stack } = connectors;
   const runtime =
     runtimeOverride ??
     (env.agentRuntime === "scripted"
@@ -503,8 +491,35 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       sessionExpiresAt: (sessionId) => pushSessionExpiresAt(prisma, sessionId),
       jobs,
       accessToken: env.expoAccessToken,
+      voip: await createApnsVoipProvider(env.apnsVoip),
     });
+  const activityPush = await createApnsActivityProvider(env.apnsVoip);
+  if (activityPush) workActivities = new WorkActivities(prisma, env.encryptionKey, activityPush);
+  const userDeviceSecret = userDeviceForwardSecret(env.encryptionKey);
+  const userDeviceHub = env.userDevicesEnabled
+    ? new UserDeviceHub({ prisma, address: userDeviceInternalAddress(env.apiHost, env.port) })
+    : undefined;
+  const userDevices = userDeviceHub
+    ? new UserDevices({ prisma, forwardSecret: userDeviceSecret, hub: userDeviceHub })
+    : undefined;
+  const deviceSessions = {
+    prisma,
+    devices: userDevices ?? new UserDevices({ prisma, forwardSecret: userDeviceSecret }),
+  };
+  // A SCIM request records the accounts it turned off or on; the route settles them after commit.
+  const directoryChanges = new AsyncLocalStorage<DirectoryAccountChange[]>();
+  const directory = env.scimBearerToken
+    ? await createDirectory(prisma, {
+        token: env.scimBearerToken,
+        secret: env.authSecret,
+        baseURL: env.authUrl,
+        ipAddressHeader: CLIENT_IP_HEADER,
+        logger: authLibraryLogger("directory.request.failed"),
+        onAccountChange: (change) => directoryChanges.getStore()?.push(change),
+      })
+    : undefined;
   const auth = createAuth(prisma, {
+    directoryProvisioning: Boolean(directory),
     analytics,
     passwordAuth: env.passwordAuth,
     breachedPasswordCheck: env.breachedPasswordCheck,
@@ -514,35 +529,31 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     webOrigin: env.webOrigin,
     signupsEnabled: env.signupsEnabled,
     signupAllowlist: env.signupAllowlist,
+    singleAccount: Boolean(env.desktopStackToken),
+    openOwner: openOwnerMode ? { email: env.ownerEmail, name: env.ownerName } : undefined,
     email,
-    logger: {
-      level: "error",
-      log: (_level, _message, ...args) =>
-        getLogger().error(
-          "auth.request.failed",
-          args.find((arg) => arg instanceof Error),
-        ),
-    },
+    logger: authLibraryLogger("auth.request.failed"),
     onEmailError,
     afterSignIn:
       email && env.welcomeEmailEnabled
-        ? (userId) =>
+        ? (userId, headers) =>
             sendWelcomeEmail(
               {
                 prisma,
                 email,
                 origin: env.authUrl,
                 secret: env.authSecret,
-                onError: (error) => getLogger().error("welcome email delivery failed", error),
+                onError: emailErrorLogger("welcome email delivery failed"),
               },
               userId,
+              headers,
             )
         : undefined,
-    extraOrigins: MOBILE_AUTH_ORIGINS,
+    extraOrigins: [...MOBILE_AUTH_ORIGINS, ...env.extraAuthOrigins],
     androidAppCertFingerprints: env.passkeyAndroidCertFingerprints,
     beforeDeleteUser: async (userId) => {
-      // First, so a provider failure aborts deletion before anything is destroyed.
-      await billing?.cancelForDeletedUser(userId);
+      // Billing cancels inside, after the account's spaces are claimed and before anything is
+      // destroyed, so a provider failure aborts deletion with the account as it was.
       await deleteAccountContent(
         {
           prisma,
@@ -552,6 +563,9 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
           artifacts,
           dataDir: env.dataDir,
           messagingInstallations,
+          secrets,
+          events,
+          billing,
         },
         userId,
       );
@@ -559,22 +573,45 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       await pushTokens
         .remove(userId)
         .catch((error) => getLogger().error("push token removal failed", error));
+      // Before the rows go with the account, so its phones' cards end too.
+      await workActivities
+        ?.endUser(userId)
+        .catch((error) => getLogger().error("live status card removal failed", error));
     },
     // The session change already happened, so a registration cleanup failure must not fail sign-out.
     afterDeleteSession: async (session) => {
       await pushTokens
         .endSession(session.userId, session.id)
         .catch((error) => getLogger().error("push token removal failed", error));
+      await workActivities
+        ?.endSession(session.userId, session.id)
+        .catch((error) => getLogger().error("live status card removal failed", error));
+      await endUserDeviceSession(deviceSessions, session).catch((error) =>
+        getLogger().error("user device revocation failed", error),
+      );
     },
     afterReplaceSession: async (previous, session) => {
       await pushTokens
         .endSession(session.userId, previous.id, session.id)
         .catch((error) => getLogger().error("push token session update failed", error));
+      await workActivities
+        ?.endSession(session.userId, previous.id, session.id)
+        .catch((error) => getLogger().error("live status card session update failed", error));
+      await endUserDeviceSession(deviceSessions, previous, session).catch((error) =>
+        getLogger().error("user device session update failed", error),
+      );
     },
   });
   const oauthTokenUpgrade = auth
     .encryptStoredOAuthTokens()
     .catch((error) => getLogger().error("oauth token encryption upgrade failed", error));
+  const mcpArgsMove = moveMcpArgsIntoSecrets(prisma, secrets, { signal: shutdown.signal })
+    .then(({ moved }) => {
+      if (moved) getLogger().info("mcp server arguments encrypted", { count: moved });
+    })
+    .catch((error) => {
+      if (!shutdown.signal.aborted) getLogger().error("mcp server arguments move failed", error);
+    });
   // One provider instance so emulator launches and polls share the same Map.
   const cloudAgent = createCloudAgentConnection({
     CLOUD_AGENT_PROVIDER: env.cloudAgentProvider,
@@ -588,16 +625,11 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
   // One cache serves models.list, selection validation, and run-time model
   // resolution alike, so a list call warms the run path in this process.
   const codexCatalog = new CodexCatalogCache();
-  const userDeviceSecret = userDeviceForwardSecret(env.encryptionKey);
-  const userDeviceHub = env.userDevicesEnabled
-    ? new UserDeviceHub({ prisma, address: userDeviceInternalAddress(env.apiHost, env.port) })
-    : undefined;
-  const userDevices = userDeviceHub
-    ? new UserDevices({ prisma, forwardSecret: userDeviceSecret, hub: userDeviceHub })
-    : undefined;
-  const executor = createRunExecutor({
+  // One instance: chat runs submit videos and, in single-process mode, background polls finish them.
+  const mediaGeneration = createMediaGenerationProvider();
+  const { executor, jobHandlers } = createRunRuntime(runtimeEnv, connectors, {
     billingEnabled: modelCreditsEnabled,
-    maxUploadSizeBytes: env.maxUploadSizeBytes,
+    mediaGeneration,
     contextStrategy,
     prisma,
     runtime,
@@ -607,93 +639,81 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     memoryProviders,
     home,
     artifacts,
-    connector: stack.connector,
-    connectors: stack.connector,
-    listConnectedPluginSlugs: async (userId) => {
-      const provider = await integrationSettings.resolve("composio");
-      if (!provider) return [];
-      return provider.listConnectedExternalIds({
-        userId,
-        spaceId: "",
-        operationId: "connections.sync",
-        traceId: "connections.sync",
-        signal: AbortSignal.timeout(15_000),
-      });
-    },
-    secrets: [
-      env.deploymentModelKey ?? "",
-      env.composioApiKey ?? "",
-      env.cursorApiKey ?? "",
-      process.env.TYPESAFE_API_KEY ?? "",
-    ].filter(Boolean),
     secretStore: secrets,
     secretHttp: remoteConnectors,
-    mcpAllowPrivateEndpoint: env.mcpAllowPrivateEndpoint,
-    mcpStdio: { stdioEnabled: env.mcpStdioEnabled, allowedCommands: env.mcpStdioAllowedCommands },
-    deploymentModelKey: env.deploymentModelKey,
-    deploymentModelConfigured: env.deploymentModelConfigured,
-    dataDir: env.dataDir,
     notifications,
     jobs,
     events,
     onTicketChange: ticketChanges,
-    ticketBoardEnabled,
-    phoneCallsEnabled: env.phoneCallsEnabled,
-    phoneCallRingSeconds: env.phoneCallRingSeconds,
-    phoneCallCooldownMinutes: env.phoneCallCooldownMinutes,
-    messaging: messaging ? createMessagingContextLoader(prisma) : undefined,
-    web: createWebProvider(),
+    email,
+    messaging,
     cloudAgent,
     userDevices: userDevicesOverride ?? userDevices,
     paymentWallet,
     shutdownSignal: shutdown.signal,
+    now,
   });
 
-  const jobHandlers = createBackgroundJobHandlers({
-    executor,
-    prisma,
-    sandbox,
-    home,
-    artifacts,
-    jobs,
-    events,
-    // Every API container runs node as the same pid, and deploys run old and new side by side.
-    workerId: `${hostname()}:${process.pid}`,
-    runtime,
-    notifications: notifications instanceof ExpoPushProvider ? notifications : undefined,
-    secretStore: secrets,
-    memoryProviders,
-    deploymentModelKey: env.deploymentModelKey,
-    deploymentModelConfigured: env.deploymentModelConfigured,
-    messaging,
-    cloudAgent,
-    paymentWallet,
-  });
   if (inMemoryJobs) {
     await inMemoryJobs.start(jobHandlers);
   }
   runs?.attach(jobHandlers);
   const reconciler = inMemoryJobs
-    ? createJobReconciler({
+    ? createRunReconciler({
         prisma,
         jobs,
         events,
         notifications,
-        reconcileModelCredits: createModelCreditReconciler({
-          prisma,
-          lookup: deploymentModelUsageLookup(),
-        }),
-        reconcileCloudAgents: () => reconcileCloudAgents({ prisma, jobs, cloudAgent }),
-        reconcilePurchases: () => reconcilePurchases({ prisma, jobs, paymentWallet }),
-        reconcileComputerUpdates: () => reconcileComputerUpdates({ prisma, jobs }),
-        reconcileSecurityEventRetention: createSecurityEventPruner(
-          prisma,
-          securityEventRetentionDays(),
-        ),
-        reconcileIdleComputers: createIdleComputerSweeper({ prisma, jobs }),
+        cloudAgent,
+        paymentWallet,
+        mediaGeneration,
+        billingEnabled: modelCreditsEnabled,
       })
     : undefined;
   reconciler?.start();
+  const stopReferralEmails =
+    email && env.welcomeEmailEnabled && billing?.referralsEnabled
+      ? startHourlySweep(
+          sendReferralEmails({
+            prisma,
+            email,
+            appUrl: new URL("/app", env.webOrigin).href,
+            origin: env.authUrl,
+            secret: env.authSecret,
+            onError: onEmailError,
+          }),
+          onEmailError,
+        )
+      : undefined;
+
+  // Self-hosted deployments without billing keep every saved home.
+  const stopHomeRetention =
+    email && billingProvider && home instanceof ObjectAgentHomeStore
+      ? startHourlySweep(
+          homeRetentionSweep({
+            prisma,
+            email,
+            appUrl: new URL("/app", env.webOrigin).href,
+            onError: (error) => getLogger().error("saved home retention failed", error),
+          }),
+          (error) => getLogger().error("saved home retention failed", error),
+        )
+      : undefined;
+
+  const stopOrganizationDeletions = startHourlySweep(
+    finishStalledOrganizationDeletions({
+      prisma,
+      sandbox,
+      home,
+      jobs,
+      artifacts,
+      dataDir: env.dataDir,
+      messagingInstallations,
+      secrets,
+      billing,
+    }),
+    (error) => getLogger().error("stalled organization deletion failed", error),
+  );
 
   const router = createRouter({
     speechSummary:
@@ -714,7 +734,9 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     paymentWallet,
     codexCatalog,
     prisma,
+    notifications,
     pushTokens,
+    workActivities,
     events,
     ticketChanges,
     boardEvents,
@@ -752,6 +774,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       openSignup: env.messagingOpenSignup,
     },
     env: {
+      inboundEmailDomain: env.inboundEmail?.domain,
       phoneCallsEnabled: env.phoneCallsEnabled,
       phoneCallRingSeconds: env.phoneCallRingSeconds,
       ticketBoardEnabled,
@@ -774,6 +797,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       integrationsCatalogUrl: env.integrationsCatalogUrl,
       mcpAllowPrivateEndpoint: env.mcpAllowPrivateEndpoint,
       desktopHostChoiceEnabled: Boolean(env.desktopStackToken),
+      computerSettingsEnabled: env.computerSettingsEnabled,
       mcpStdioEnabled: env.mcpStdioEnabled,
       mcpStdioAllowedCommands: env.mcpStdioAllowedCommands,
     },
@@ -782,6 +806,8 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     clientInterceptors: [onError((error, { path, signal }) => handleRpcError(error, path, signal))],
   });
   const app = new Hono();
+  const inFlight = trackInFlightRequests();
+  app.use("*", inFlight.middleware);
   app.use("*", requestLogging(logger));
   app.use("*", clientIpMiddleware(clientIp, env.clientIpHeader));
   app.use(
@@ -818,6 +844,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       passkeyRpId: auth.passkeyRpId,
       nativePasskeys: nativePasskeys(env, auth.passkeyRpId),
       crispWebsiteId: billing ? (env.crispWebsiteId ?? null) : null,
+      ...(openOwnerMode ? { openOwner: true } : {}),
     } satisfies AuthCapabilities);
   });
   mountAppAssociation(app, env);
@@ -851,19 +878,89 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     }),
   );
   app.route("/", marketingEmailRoutes(prisma, env.authSecret));
-  mountApiRequestBodyLimits(app, env.maxUploadSizeBytes);
+  mountApiRequestBodyLimits(app);
   mountScreenTarget(app, prisma, env.screenProxySecret);
-  mountDiagramScript(app);
+  mountScriptAssets(app);
+  mountSharedPages(app, prisma, requestClientIp);
   const auditAuthResponse = createAuthResponseAudit();
   // Account and session tables, signup bootstrap and account deletion span tenants;
   // webhooks authenticate a bot or provider, then resolve the tenant from it.
   for (const [path, reason] of [
     ["/api/auth/*", "authentication"],
     ["/api/v1/bots/*", "bot webhook"],
+    ["/api/v1/email/*", "inbound email"],
     ["/api/v1/messaging/*", "messaging webhook"],
     ["/api/v1/phone/*", "messaging webhook"],
   ] as const) {
     app.use(path, (_c, next) => runAsSystem(reason, next));
+  }
+  if (directory) {
+    app.on(["GET", "POST", "PUT", "PATCH", "DELETE"], "/api/auth/scim/v2/*", async (c) => {
+      const changes: DirectoryAccountChange[] = [];
+      const response = await directoryChanges.run(changes, () =>
+        directory.handler(withClientIp(c.req.raw, requestClientIp(c))),
+      );
+      // A retried write reports an account again; the last report per account stands.
+      const latest = new Map(changes.map((change) => [change.userId, change]));
+      let unfinished = false;
+      for (const change of latest.values())
+        await settleDirectoryChange(
+          {
+            prisma,
+            pushTokens,
+            devices: deviceSessions,
+            events,
+            afterDeparture: (actor, departure) =>
+              afterSpaceDeparture({ prisma, sandbox, jobs, events }, actor, departure),
+          },
+          change,
+        ).catch((error) => {
+          unfinished = true;
+          // Sign-in and runs are already refused. A retried update finishes the rest; after a
+          // delete, the operator's `account-status.js deactivate` does.
+          getLogger().error("directory.account_change.unfinished", error, {
+            "user.id": change.userId,
+          });
+        });
+      if (unfinished) {
+        // The directory change committed. Failing the request makes the provider retry it.
+        return c.json(
+          {
+            schemas: ["urn:ietf:params:scim:api:messages:2.0:Error"],
+            status: "500",
+            detail: "Could not finish the change; retry it",
+          },
+          500,
+          { "content-type": "application/scim+json" },
+        );
+      }
+      return response;
+    });
+  }
+  if (openOwnerMode) {
+    const originsAllowed = [env.webOrigin, ...env.extraAuthOrigins];
+    const peerOf =
+      ownerPeerAddress ??
+      ((request: Request, nodeEnv: unknown) =>
+        getConnInfo({ env: nodeEnv, req: { raw: request } } as unknown as Context).remote.address);
+    const allowOpen = createOpenLimiter();
+    app.post("/api/auth/open", async (c) => {
+      // The TCP peer, never a forwarded header: those are the caller's to write. A proxy or
+      // tunnel on this computer makes every caller look local, so any forwarding header refuses.
+      if (hasForwardingHeaders(c.req.raw.headers)) {
+        return c.json({ error: "Not available through a proxy" }, 403);
+      }
+      if (!isOwnerNetworkAddress(peerOf(c.req.raw, c.env))) {
+        return c.json({ error: "Not available from this network" }, 403);
+      }
+      // Browsers always send Origin on a POST; this stops cross-site and DNS-rebound pages.
+      if (!openOwnerOriginAllowed(c.req.header("origin"), originsAllowed)) {
+        return c.json({ error: "Origin not allowed" }, 403);
+      }
+      if (!allowOpen()) return c.json({ error: "Too many requests" }, 429);
+      const response = await auth.openOwnerSession(c.req.raw.headers);
+      return response ?? c.json({ error: "Not found" }, 404);
+    });
   }
   app.on(["GET", "POST"], "/api/auth/*", async (c) => {
     const path = new URL(c.req.url).pathname.replace("/api/auth", "");
@@ -885,7 +982,12 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     const session = await auth.api.getSession({ headers: request.headers });
     if (!session?.user) return null;
     const actor = await actorFromMembership(
-      requireMembership(prisma, session.user.id, request.headers.get("x-rakazo-space-id")),
+      requireMembership(
+        prisma,
+        session.user.id,
+        request.headers.get("x-rakazo-space-id"),
+        session.session.id,
+      ),
     );
     return actor && { actor, sessionId: session.session.id };
   };
@@ -896,8 +998,10 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       hub: userDeviceHub,
       devices: userDevices,
       forwardSecret: userDeviceSecret,
-      sessionUserId: async (request) =>
-        (await auth.api.getSession({ headers: request.headers }))?.user.id ?? null,
+      session: async (request) => {
+        const found = await auth.api.getSession({ headers: request.headers });
+        return found ? { userId: found.user.id, sessionId: found.session.id } : null;
+      },
       trustedOrigin: (origin) => isTrustedOrigin(origin, env),
     });
   }
@@ -916,9 +1020,12 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       minimums: env.minimumClientBuilds ?? {},
     }),
   );
+  const limitRpcBody = rpcBodyLimit(env.maxUploadSizeBytes);
   app.use("/rpc/*", async (c, next) => {
     const session = await requestSession(c.req.raw);
     const actor = session?.actor ?? null;
+    const tooLarge = await limitRpcBody(c, actor !== null);
+    if (tooLarge) return tooLarge;
     if (actor) {
       enrichLogContext({ "user.id": actor.userId, "space.id": actor.spaceId });
     }
@@ -942,6 +1049,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     await next();
   });
   mountAccountExportRoute(app, { prisma, auth, artifacts, home });
+  mountAuditExportRoute(app, { prisma, sessionActor });
   mountVoiceHttpRoutes(app, { prisma, secrets, env }, async (c) => {
     const actor = await sessionActor(c.req.raw);
     if (actor) enrichLogContext({ "user.id": actor.userId, "space.id": actor.spaceId });
@@ -962,6 +1070,20 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     sessionActor,
   );
   mountWebhookHttpRoutes(app, { prisma, secrets, events, jobs });
+  if (env.inboundEmail) {
+    mountEmailInboundRoute(app, {
+      prisma,
+      events,
+      jobs,
+      ...env.inboundEmail,
+      storeAttachment: ({ spaceId, userId, ...input }) =>
+        storeInboundAttachment(
+          { prisma, artifacts, maxUploadSizeBytes: env.maxUploadSizeBytes },
+          { spaceId, userId },
+          input,
+        ),
+    });
+  }
   if (billing && billingProvider) {
     mountBillingRoutes(app, {
       billing,
@@ -970,365 +1092,21 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       authenticate: sessionActor,
     });
   }
-  // Shared with stop so a shutdown during retry delays does not restart polling.
-  let messagingStopped = false;
-  let stopInstalledBridges: (() => Promise<void>) | undefined;
-  let clearMessagingRetryDelay: (() => void) | undefined;
-  let messagingInitTask: Promise<void> | undefined;
-  let clearTeamChatRetryDelay: (() => void) | undefined;
-  let teamChatInitTask: Promise<void> | undefined;
-  let teamChatBridge: TeamChatBridge | undefined;
-  /** Constructed even before start() succeeds so stop() can cancel in-flight startup. */
-  let teamChatBridgeInstance: TeamChatBridge | undefined;
-  const pendingTeamChatInbound = new PendingTeamChatInbound();
-  const receipts = messaging ? createMessagingReceipts(messaging) : undefined;
-  if (messaging) {
-    const inboundDeps = {
-      prisma,
-      events,
-      jobs,
-      provision: (request, policyEnv) => provisionMessagingIdentity(prisma, request, policyEnv),
-      openSignup: env.messagingOpenSignup,
-      signupPolicy: {
-        signupsEnabled: env.signupsEnabled,
-        signupAllowlist: env.signupAllowlist,
-      },
-      acknowledge: receipts?.acknowledge,
-      storeAttachment: ({ spaceId, userId, ...input }) =>
-        storeInboundAttachment(
-          { prisma, artifacts, maxUploadSizeBytes: env.maxUploadSizeBytes },
-          { spaceId, userId },
-          input,
-        ),
-    } satisfies Parameters<typeof createMessagingInboundHandler>[0];
-    const inbound = createMessagingInboundHandler(inboundDeps);
-    const handleTeamChatInbound = async (
-      bridge: TeamChatBridge,
-      event: Parameters<typeof wakeMessageRoutines>[2],
-    ) => {
-      const mapped = toTeamChatInbound(event);
-      if (!mapped) {
-        await inbound(event);
-        return;
-      }
-      const canWake = await teamChatSenderCanWakeMessageRoutines(inboundDeps, event);
-      if (!canWake) {
-        await bridge.receive(mapped);
-        return;
-      }
-
-      // Persist a non-reconcilable row until routine routing owns or releases
-      // the message, so the timer cannot start a second TeamChat run.
-      const target = await bridge.receive(mapped, { queueAgent: false });
-      if (!target.deferred) return;
-      const leaseHeartbeat = await bridge.startDeferredReservationHeartbeat(
-        target.externalMessageId,
-      );
-      let woken = false;
-      bridge.markRoutineWakeInFlight(target.externalMessageId);
-      try {
-        const wakePromise = wakeMessageRoutines(inboundDeps, target, event, {
-          // Must match TeamChatBridge ExternalConversation / recovery provider.
-          deliveryProvider: bridge.providerId,
-          externalMessageId: target.externalMessageId,
-        });
-        try {
-          woken = await Promise.race([wakePromise, leaseHeartbeat.lost]);
-        } catch (error) {
-          if (isDeferredReservationLost(error)) {
-            // Lease loss must not start a fallback agent beside an in-flight
-            // wake: re-hold exclusive ownership while awaiting that wake, then
-            // resolve from its settled result.
-            let hold: { stop: () => void } | undefined;
-            try {
-              hold = await bridge.startDeferredReservationHeartbeat(target.externalMessageId);
-            } catch {
-              // Row already left deferred; wake CAS / resolve decide the winner.
-            }
-            try {
-              try {
-                woken = await wakePromise;
-              } catch (wakeError) {
-                const released = await bridge.resolveDeferredMessage(
-                  target.externalMessageId,
-                  "agent",
-                  mapped.kind,
-                );
-                if (!released) {
-                  throw new Error("Team chat deferred message ownership conflict", {
-                    cause: wakeError,
-                  });
-                }
-                await bridge.reconcileOnce();
-                getLogger().error(
-                  "team chat routine wake failed after deferred lease loss",
-                  wakeError,
-                );
-                return;
-              }
-            } finally {
-              hold?.stop();
-            }
-          } else {
-            await bridge.resolveDeferredMessage(target.externalMessageId, "agent", mapped.kind);
-            await bridge.reconcileOnce();
-            throw error;
-          }
-        }
-        const resolved = await bridge.resolveDeferredMessage(
-          target.externalMessageId,
-          woken ? "routine" : "agent",
-          mapped.kind,
-        );
-        if (!resolved) {
-          throw new Error("Team chat deferred message ownership conflict");
-        }
-        if (!woken) await bridge.reconcileOnce();
-      } finally {
-        bridge.clearRoutineWakeInFlight(target.externalMessageId);
-        leaseHeartbeat.stop();
-      }
-    };
-    const flushPendingTeamChatInbound = (bridge: TeamChatBridge) => {
-      pendingTeamChatInbound.flush((event) => handleTeamChatInbound(bridge, event));
-    };
-    const makeTeamChatBridge = (
-      botId: string,
-      installation?: { id: string; workspaceId: string },
-    ) => {
-      const judge =
-        env.teamChatJudgeProvider && env.teamChatJudgeModel
-          ? new ModelTeamChatEngagementJudge({
-              prisma,
-              runtime,
-              secrets,
-              deploymentProvider: env.defaultProvider,
-              deploymentModel: env.defaultModel,
-              deploymentModelKey: env.deploymentModelKey,
-              allowPrivateEndpoint: env.mcpAllowPrivateEndpoint,
-              providerOverride: env.teamChatJudgeProvider,
-              modelOverride: env.teamChatJudgeModel,
-            })
-          : new ModelTeamChatEngagementJudge({
-              prisma,
-              runtime,
-              secrets,
-              deploymentProvider: env.defaultProvider,
-              deploymentModel: env.defaultModel,
-              deploymentModelKey: env.deploymentModelKey,
-              allowPrivateEndpoint: env.mcpAllowPrivateEndpoint,
-            });
-      const bridge = new TeamChatBridge({
+  const messagingRuntime = messaging
+    ? await startMessagingRuntime({
+        app,
         prisma,
         events,
         jobs,
-        send: createMessagingTeamChatSender(messaging),
-        fetchThreadHistory: createMessagingTeamChatHistory(messaging),
-        storeAttachment: ({ spaceId, userId, ...input }) =>
-          storeInboundAttachment(
-            { prisma, artifacts, maxUploadSizeBytes: env.maxUploadSizeBytes },
-            { spaceId, userId },
-            input,
-          ),
-        providerId: "slack",
-        botId,
-        workspaceId: installation?.workspaceId,
-        conversationPrefix: installation ? `slack~${installation.id}:` : undefined,
-        onUnavailable: installation
-          ? () => {
-              installedBridges.delete(installation.id);
-            }
-          : undefined,
-        isAvailable: installation
-          ? async () => Boolean(await messagingInstallations?.isActive(installation.id))
-          : undefined,
-        judge,
-        acknowledge: receipts?.acknowledge,
-      });
-      return bridge;
-    };
-    const installedBridges = new Map<
-      string,
-      { bridge: TeamChatBridge; pending: Promise<TeamChatBridge> }
-    >();
-    const installedRetries = new TeamChatStartupRetries((error) =>
-      getLogger().error("installed team chat restore failed; retrying", error),
-    );
-    const retryInstalledBridge = (installation: {
-      id: string;
-      botId: string;
-      workspaceId: string;
-    }) => {
-      installedRetries.schedule(installation.id, () =>
-        runAsSystem("retry installed team chat", async () => {
-          if (messagingStopped) return;
-          const active = await messagingInstallations?.isActive(installation.id);
-          if (!active || messagingStopped) return;
-          await installedBridge(installation);
-        }),
-      );
-    };
-    const installedBridge = (installation: { id: string; botId: string; workspaceId: string }) => {
-      const existing = installedBridges.get(installation.id);
-      if (existing) return existing.pending;
-      const bridge = makeTeamChatBridge(installation.botId, installation);
-      const pending = bridge
-        .start()
-        .then(() => {
-          installedRetries.succeeded(installation.id);
-          return bridge;
-        })
-        .catch(async (error) => {
-          installedBridges.delete(installation.id);
-          await bridge.stop();
-          retryInstalledBridge(installation);
-          throw error;
-        });
-      installedBridges.set(installation.id, { bridge, pending });
-      return pending;
-    };
-    if (messagingInstallations) {
-      await Promise.all(
-        (await messagingInstallations.targets()).map((installation) =>
-          runAsSystem("resume installed team chat", () => installedBridge(installation)).catch(
-            (error) => {
-              getLogger().error("installed team chat could not resume", error);
-            },
-          ),
-        ),
-      );
-    }
-    stopInstalledBridges = async () => {
-      installedRetries.stop();
-      // Stop first so an in-flight start() is cancelled, then bound the wait
-      // as the static bridge does.
-      await Promise.all(
-        [...installedBridges.values()].map(({ bridge, pending }) =>
-          settleWithTimeout(
-            bridge
-              .stop()
-              .catch(() => undefined)
-              .then(() => pending.catch(() => undefined)),
-            TEAM_CHAT_STARTUP_SHUTDOWN_MS,
-          ),
-        ),
-      );
-    };
-    if (env.teamChatBotId) {
-      const bridge = makeTeamChatBridge(env.teamChatBotId);
-      teamChatBridgeInstance = bridge;
-      try {
-        await bridge.start();
-        teamChatBridge = bridge;
-      } catch (error) {
-        getLogger().error("team chat bridge failed to start; retrying", error);
-        teamChatInitTask = (async () => {
-          let delayMs = 2_000;
-          while (!messagingStopped) {
-            await new Promise<void>((resolve) => {
-              const timer = setTimeout(resolve, delayMs);
-              clearTeamChatRetryDelay = () => {
-                clearTimeout(timer);
-                clearTeamChatRetryDelay = undefined;
-                resolve();
-              };
-            });
-            clearTeamChatRetryDelay = undefined;
-            if (messagingStopped) return;
-            try {
-              await bridge.start();
-              if (messagingStopped) {
-                await bridge.stop();
-                return;
-              }
-              teamChatBridge = bridge;
-              flushPendingTeamChatInbound(bridge);
-              return;
-            } catch (retryError) {
-              if (
-                retryError instanceof Error &&
-                retryError.message === "Team chat bridge start cancelled"
-              ) {
-                return;
-              }
-              getLogger().error("team chat bridge failed to start; retrying", retryError);
-              delayMs = Math.min(delayMs * 5, 30_000);
-            }
-          }
-        })();
-      }
-    }
-    const handleInbound = async (event: MessagingInboundEvent) => {
-      if (event.type !== "message") {
-        await applyMessagingOutboundStatus(prisma, event);
-        return;
-      }
-      if (event.installationBotId && !event.isDirect) {
-        if (!event.installationId || !event.workspaceId) return;
-        const installation = {
-          id: event.installationId,
-          botId: event.installationBotId,
-          workspaceId: event.workspaceId,
-        };
-        await handleTeamChatInbound(await installedBridge(installation), event);
-        return;
-      }
-      if (!event.installationBotId && prefersTeamChatSurface(event, env.teamChatBotId)) {
-        const bridge = teamChatBridge;
-        if (bridge) {
-          await handleTeamChatInbound(bridge, event);
-          return;
-        }
-        // Bridge is still starting (or retrying). Do not fall through to the
-        // personal-line inbound path — that bypasses externalMessage ownership
-        // and can wake routines for unlinked TeamChat senders.
-        if (teamChatInitTask) {
-          const pending = pendingTeamChatInbound.enqueue(event);
-          if (!pending) {
-            throw new Error("Team chat inbound buffer is full");
-          }
-          await pending;
-          return;
-        }
-        throw new Error("Team chat bridge is unavailable");
-      }
-      await inbound(event);
-    };
-    messaging.onInbound((event) => runAsSystem("messaging inbound", () => handleInbound(event)));
-    mountMessagingWebhookRoutes(app, { messaging });
-    // Start polling adapters now rather than on the first webhook or send; a second poller
-    // elsewhere would fight this one for Telegram's single getUpdates slot. Bounded retries
-    // cover transient startup failures, otherwise polling-only bots stay dark.
-    messagingInitTask = (async () => {
-      const delayMs = [0, 2_000, 10_000];
-      for (let attempt = 0; attempt < delayMs.length; attempt += 1) {
-        if (messagingStopped) return;
-        if (delayMs[attempt]! > 0) {
-          await new Promise<void>((resolve) => {
-            const timer = setTimeout(resolve, delayMs[attempt]);
-            clearMessagingRetryDelay = () => {
-              clearTimeout(timer);
-              clearMessagingRetryDelay = undefined;
-              resolve();
-            };
-          });
-          clearMessagingRetryDelay = undefined;
-        }
-        if (messagingStopped) return;
-        try {
-          await messaging.initialize?.();
-          return;
-        } catch (error) {
-          getLogger().error(
-            attempt === delayMs.length - 1
-              ? "messaging surface initialize failed"
-              : "messaging surface initialize failed; retrying",
-            error,
-          );
-        }
-      }
-    })();
-  }
+        sandbox,
+        secrets,
+        artifacts,
+        runtime,
+        env,
+        messaging,
+        messagingInstallations,
+      })
+    : undefined;
 
   app.route(
     "/",
@@ -1336,8 +1114,9 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       () => ({
         runtime: env.agentRuntime,
         sandbox: env.sandboxProvider,
-        composio: Boolean(stack.composio),
-        pipedream: Boolean(pipedream),
+        integrations: [stack.composio, pipedream].flatMap((provider) =>
+          provider ? [provider.describe().id] : [],
+        ),
         messaging: Boolean(messaging),
         email: email?.describe().id ?? null,
         billing: billingProvider?.describe().id ?? null,
@@ -1372,6 +1151,8 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     backgroundFailures: inMemoryJobs ? () => inMemoryJobs.failureCounts() : undefined,
     handleUpgrade: userDeviceHub?.handleUpgrade,
     stop: async () => {
+      // Handlers still running would otherwise query the pool after it ends.
+      const requestsSettled = settleWithTimeout(inFlight.settled(), REQUEST_DRAIN_MS);
       // Abort in-flight continueRun boot waits before draining jobs so stop() cannot sit
       // on waitForComputerReady for the full boot-wait window during shared Postgres journeys.
       auth.disposeOidcDiscovery();
@@ -1380,30 +1161,21 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       const runsStopped = runs?.stop();
       await userDeviceHub?.close();
       oauthLogins.abortAll();
-      messagingStopped = true;
-      clearMessagingRetryDelay?.();
-      clearTeamChatRetryDelay?.();
-      receipts?.stop();
-      pendingTeamChatInbound.reject(new Error("Team chat bridge stopped before startup"));
-      // Cancel in-flight start() before awaiting the retry task so stop() cannot
-      // sit on DB/reconcile work that bridge.start() is still running.
-      await settleWithTimeout(
-        teamChatBridgeInstance ? teamChatBridgeInstance.stop().catch(() => undefined) : undefined,
-        TEAM_CHAT_STARTUP_SHUTDOWN_MS,
-      );
-      await messagingInitTask?.catch(() => undefined);
-      await settleWithTimeout(teamChatInitTask, TEAM_CHAT_STARTUP_SHUTDOWN_MS);
-      await messaging?.shutdown?.();
-      await teamChatBridge?.stop();
-      await stopInstalledBridges?.();
-      await email?.drain?.();
+      await messagingRuntime?.stop();
+      await stopReferralEmails?.();
+      await stopHomeRetention?.();
+      await stopOrganizationDeletions();
       await reconciler?.stop();
       await oauthTokenUpgrade;
+      await mcpArgsMove;
       await runsStopped;
+      await requestsSettled;
+      await email?.drain?.();
       await jobs.close();
       await secrets.close();
       await realtime.close();
       await mcp.close();
+      await installed.close();
       await prisma.$disconnect().catch(() => undefined);
       await created.pool?.end().catch(() => undefined);
       await ownedJobPool?.end().catch(() => undefined);
@@ -1415,33 +1187,22 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
 
 export function isTrustedOrigin(
   origin: string,
-  env: Pick<AppEnv, "webOrigin" | "apiUrl" | "authUrl">,
+  env: Pick<AppEnv, "webOrigin" | "apiUrl" | "authUrl"> & { extraAuthOrigins?: string[] },
 ) {
   if (!origin) return true;
   if (origin.startsWith("rakazo://")) return true;
-  const allowed = new Set(
-    [env.webOrigin, env.apiUrl, env.authUrl, ...MOBILE_AUTH_ORIGINS].flatMap(originVariants),
-  );
-  return allowed.has(origin);
+  return new Set(trustedRequestOrigins(env)).has(origin);
 }
 
-function originVariants(origin: string): string[] {
-  if (!origin || origin === "rakazo://") return [];
-  const variants = [origin, ...loopbackTwinOrigins(origin)];
-  try {
-    const url = new URL(origin);
-    if (url.protocol === "http:" || url.protocol === "https:") {
-      variants.push(url.origin);
-    }
-    if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
-      const v6 = new URL(origin);
-      v6.hostname = "[::1]";
-      variants.push(v6.origin);
-    }
-  } catch {
-    return variants;
-  }
-  return variants;
+export function trustedRequestOrigins(
+  env: Pick<AppEnv, "webOrigin" | "apiUrl" | "authUrl"> & { extraAuthOrigins?: string[] },
+) {
+  return buildTrustedOrigins({
+    origins: [env.webOrigin, env.apiUrl, env.authUrl, ...MOBILE_AUTH_ORIGINS],
+    // Exactly as configured, like Better Auth's extraOrigins: no loopback twins.
+    extraOrigins: env.extraAuthOrigins,
+    requestOrigins: true,
+  });
 }
 
 /**
@@ -1456,6 +1217,21 @@ export async function actorFromMembership(membership: Promise<Actor>): Promise<A
     if (error instanceof IsolationError) return null;
     throw error;
   }
+}
+
+/**
+ * The auth library repeats each failure as a bare message after logging it with its error. That
+ * echo stays out of the collector; the request's completion reports a failure nothing else did.
+ */
+function authLibraryLogger(event: string) {
+  return {
+    level: "error" as const,
+    log: (_level: string, _message: string, ...args: unknown[]) =>
+      getLogger().error(
+        event,
+        args.find((arg) => arg instanceof Error) ?? { "error.report": false },
+      ),
+  };
 }
 
 /**
@@ -1474,75 +1250,4 @@ function emptyAuthBodyAsJson(request: Request) {
   headers.set("content-type", "application/json");
   headers.delete("content-length");
   return new Request(request, { headers, body: "{}" });
-}
-
-/**
- * Non-ORPCError failures are flattened into an opaque "Internal server error", so this log is
- * the only record of what broke. The cause chain matters: undici and most SDKs report a bare
- * "fetch failed" and keep the host and errno one level down.
- */
-export function handleRpcError(
-  error: unknown,
-  path: readonly string[],
-  signal?: AbortSignal,
-): void {
-  // A missing or foreign resource is the caller's mistake (a stale client, a deleted bot),
-  // not a server failure, so it is a warning rather than an error report.
-  if (error instanceof IsolationError) {
-    getLogger().warn(`rpc ${path.join("/")} not found`, { "error.stack": error.stack });
-    throw new ORPCError("NOT_FOUND", { message: error.message, cause: error });
-  }
-  // The user's own voice account refused the request: theirs to fix.
-  if (error instanceof VoiceAccountError) {
-    getLogger().warn(`rpc ${path.join("/")} voice provider account rejected the request`, {
-      reason: error.code ?? error.message,
-    });
-    throw new ORPCError(error.code ?? "FORBIDDEN", {
-      status: voiceAccountErrorStatus(error.code),
-      message: error.message,
-      cause: error,
-    });
-  }
-  // The computer provider did not start the computer in time, or could not be reached: an outage
-  // on its side the user can retry, not a server failure.
-  if (error instanceof SandboxUnavailableError || error instanceof SandboxUnresponsiveError) {
-    const unavailable =
-      error instanceof SandboxUnavailableError
-        ? error
-        : new SandboxUnavailableError({ cause: error });
-    getLogger().warn(`rpc ${path.join("/")} computer unavailable`, {
-      reason: unavailable.cause instanceof Error ? unavailable.cause.message : undefined,
-    });
-    throw new ORPCError("SERVICE_UNAVAILABLE", { message: unavailable.message, cause: error });
-  }
-  // A provider kept another transaction busy past the wait; nothing failed, so the caller retries.
-  if (error instanceof ProviderTransactionBusyError) {
-    getLogger().warn(`rpc ${path.join("/")} provider transaction busy`);
-    throw new ORPCError("SERVICE_UNAVAILABLE", { message: error.message, cause: error });
-  }
-  if (error instanceof SandboxRateLimitError) {
-    getLogger().warn(`rpc ${path.join("/")} computer rate limited`, {
-      reason: error.cause instanceof Error ? error.cause.message : undefined,
-    });
-    throw new ORPCError("TOO_MANY_REQUESTS", { message: error.message, cause: error });
-  }
-  // A retry cannot fix a damaged computer; its message tells the user to Recover it.
-  if (error instanceof SandboxDamagedError) {
-    getLogger().warn(`rpc ${path.join("/")} computer damaged`);
-    throw new ORPCError("CONFLICT", { message: error.message, cause: error });
-  }
-  // The client went away mid-request, so whatever failed next has no one waiting for it.
-  if (signal?.aborted && !(error instanceof ORPCError)) {
-    getLogger().warn(`rpc ${path.join("/")} client disconnected`, {
-      reason: error instanceof Error ? error.message : String(error),
-    });
-    return;
-  }
-  logUnexpectedRpcError(error, path);
-}
-
-export function logUnexpectedRpcError(error: unknown, path: readonly string[]): void {
-  if (error instanceof ORPCError) return;
-  const where = `rpc ${path.join("/")} failed`;
-  getLogger().error(where, error);
 }

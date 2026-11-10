@@ -7,8 +7,7 @@ import { createRepos } from "./repos.js";
 import { runAsSystem, runAsTenant } from "./row-security.js";
 
 const databaseUrl = process.env.DATABASE_URL;
-const describePostgres =
-  process.env.VERIFY_DATABASE && databaseUrl ? describe.sequential : describe.skip;
+const describePostgres = process.env.VERIFY_DATABASE && databaseUrl ? describe : describe.skip;
 
 describePostgres("bot fleetManagement (PostgreSQL)", () => {
   const provider = "sendblue";
@@ -102,7 +101,7 @@ describePostgres("bot fleetManagement (PostgreSQL)", () => {
             spaceId: owner.spaceId,
             threadId: thread.id,
             botId: bot.id,
-            expectedModel: baseline,
+            expectedSettings: baseline,
             data: { modelProvider: "scripted", modelId: "scripted", thinkingLevel: null },
             emitBotUpdated: true,
           }),

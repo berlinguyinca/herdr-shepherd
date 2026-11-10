@@ -4,6 +4,7 @@ import type { RunContext } from "./run-context.js";
 import type { ToolCall } from "./run-tool-gate.js";
 import {
   userComputerCwd,
+  userComputerGate,
   userComputerOwner,
   userComputerShell,
 } from "./run-tools-user-computer.js";
@@ -18,7 +19,7 @@ function setup(execute: (signal: AbortSignal) => AsyncIterable<unknown>, secrets
   const deviceIds: (string | undefined)[] = [];
   const gateway: UserDeviceGateway = {
     connected: async () => ({ deviceId: "device-1", name: "Laptop", platform: "darwin" }),
-    hasDevice: async () => true,
+    pairedSince: async () => new Date(0),
     async *request<T>(
       _userId: string,
       request: HostComputerRequest,
@@ -51,6 +52,33 @@ function setup(execute: (signal: AbortSignal) => AsyncIterable<unknown>, secrets
     }) as unknown as ToolCall;
   return { ctx, call, controller, requests, signals, deviceIds, onShellStillRunning };
 }
+
+describe("userComputerGate", () => {
+  it("finds an app approved before hundreds of later screen actions", async () => {
+    const effects = [
+      ...Array.from({ length: 450 }, (_, index) => ({ id: `e${450 - index}`, app: "TextEdit" })),
+      { id: "e0", app: "Mail" },
+    ].map(({ id, app }) => ({ id, request: { app } }));
+    const findMany = vi.fn(async ({ take, cursor }: { take: number; cursor?: { id: string } }) => {
+      const start = cursor ? effects.findIndex((effect) => effect.id === cursor.id) + 1 : 0;
+      return effects.slice(start, start + take);
+    });
+    const ctx = {
+      deps: {
+        userDevices: { pairedSince: async () => new Date(0) },
+        prisma: { externalEffect: { findMany } },
+      },
+      run: { spaceId: "space-1", userId: "user-1" },
+    } as unknown as RunContext;
+    await expect(
+      userComputerGate(ctx, false, "user_computer_observe", { app: "mail" }),
+    ).resolves.toBe("allow");
+    expect(findMany).toHaveBeenCalledTimes(3);
+    await expect(
+      userComputerGate(ctx, false, "user_computer_observe", { app: "Notes" }),
+    ).resolves.toBe("ask");
+  });
+});
 
 describe("userComputerOwner", () => {
   const own = {
@@ -129,7 +157,7 @@ describe("userComputerShell", () => {
     ]);
   });
 
-  it("returns a quiet long-running command early and keeps collecting its output", async () => {
+  it("returns a quiet sign-in prompt early and keeps collecting its output", async () => {
     let finish!: () => void;
     const exited = new Promise<void>((resolve) => {
       finish = resolve;
@@ -137,13 +165,16 @@ describe("userComputerShell", () => {
     vi.useFakeTimers();
     try {
       const { ctx, call, onShellStillRunning } = setup(async function* () {
-        yield { type: "stdout", data: "Enter code ABCD\n" };
+        yield { type: "stdout", data: "Enter code ABCD-1234 at https://example.com/device\n" };
         await exited;
         yield { type: "exit", code: 0 };
       });
       const pending = userComputerShell(ctx, call({ command: "gh auth login" }));
       await vi.advanceTimersByTimeAsync(1_500);
-      expect(await pending).toMatchObject({ stdout: "Enter code ABCD\n", running: true });
+      expect(await pending).toMatchObject({
+        stdout: "Enter code ABCD-1234 at https://example.com/device\n",
+        running: true,
+      });
       expect(onShellStillRunning).toHaveBeenCalledOnce();
       finish();
       await expect(onShellStillRunning.mock.calls[0]![0]).resolves.toMatchObject({ code: 0 });

@@ -20,6 +20,9 @@ vi.mock("expo-router", () => ({
   useFocusEffect: (callback: () => void) => useEffect(callback, [callback]),
   useLocalSearchParams: () => state.params,
 }));
+vi.mock("./api-server", () => ({}));
+vi.mock("./api-auth", () => ({}));
+vi.mock("./api-live", () => ({}));
 vi.mock("./api", () => ({
   rpc: state.rpc,
   currentApiBase: () => "https://app.example.test",
@@ -35,6 +38,7 @@ vi.mock("./device-voice", () => ({
   saveDeviceVoiceEnabled: state.save,
 }));
 vi.mock("./call-sounds", () => ({
+  loadCallGreetingEnabled: async () => true,
   loadCallSoundsEnabled: async () => true,
   loadWaitSoundEnabled: async () => true,
   saveCallSoundsEnabled: vi.fn(),
@@ -105,7 +109,7 @@ vi.mock("react-native", () => {
 });
 
 const catalog = [
-  { id: "fish-audio", name: "Fish Audio", transcribe: true },
+  { id: "fish-audio", name: "Fish Audio", transcribe: true, speechModel: true },
   { id: "other", name: "Other provider", transcribe: false },
   { id: "new", name: "New provider", transcribe: false },
 ];
@@ -286,7 +290,7 @@ it.each([true, false])(
       expect(state.save.mock.calls).toEqual([[false], [true]]);
       await click("This device");
     } else {
-      expect(state.save).not.toHaveBeenCalled();
+      expect(state.save.mock.calls).toEqual([[false]]);
     }
     selected("Fish Audio");
   },
@@ -317,7 +321,7 @@ it("clears stale voices if the refresh fails after activating a provider", async
   selected("Other provider");
   expect(container.textContent).not.toContain("fish-audio voice");
   expect(container.textContent).toContain("Could not load voice settings");
-  expect(state.save).not.toHaveBeenCalled();
+  expect(state.save.mock.calls).toEqual([[false]]);
 });
 
 it("edits a Space's override in that Space, leaving this device's voice and sounds out", async () => {

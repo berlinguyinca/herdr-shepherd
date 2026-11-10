@@ -43,20 +43,20 @@ PRD="$(git rev-parse --show-toplevel)/.agents/skills/pr-watch/pr-digest"
 
 2. Read the `VERDICT` line and act:
 
-   | verdict | do |
-   |---|---|
-   | `green` | Check the completion gate below, then report. |
-   | `failures` | Triage below. |
-   | `open-comments` | Answer them below. |
-   | `pending` | Checks are still running (you woke early, or one registered late). Back to 1. |
-   | `out-of-sync` | Push or reconcile, then back to 1. |
+   | verdict         | do                                                                            |
+   | --------------- | ----------------------------------------------------------------------------- |
+   | `green`         | Check the completion gate below, then report.                                 |
+   | `failures`      | Triage below.                                                                 |
+   | `open-comments` | Answer them below.                                                            |
+   | `pending`       | Checks are still running (you woke early, or one registered late). Back to 1. |
+   | `out-of-sync`   | Push or reconcile, then back to 1.                                            |
 
 3. After any push or reply, go back to 1 once. A verdict is only good for the
    SHA it was taken on; never mix observations from two commits.
 
 ## Failures
 
-Each `FAIL` line names the job and the step that broke. *"Later steps skipped"*
+Each `FAIL` line names the job and the step that broke. _"Later steps skipped"_
 does not establish whether tests ran: an assertion failure can skip subsequent
 steps too. Inspect `"$PRD" --logs <job-id>` before classifying the failure. Only
 rerun as infrastructure when the evidence establishes a setup/infrastructure
@@ -99,7 +99,7 @@ unanswered conversation comment the same as an open inline finding — both
 yield `VERDICT open-comments`. It skips known non-actionable noise (Vercel
 deploy tables, rate-limit notices, sticky bot summaries, screenshot galleries)
 but keeps actionable bot conversation comments in the open set. A conversation
-comment is handled only once *you* have posted a later conversation comment
+comment is handled only once _you_ have posted a later conversation comment
 that quotes its permalink; bot follow-ups do not close it. Quote the complete
 URL as a Markdown link or on its own; sentence-ending punctuation is accepted.
 An edit to an inline or conversation root after your reply reopens the finding
@@ -163,9 +163,31 @@ name you wrote, pick the frame, and edit the description
 Playwright workflow did not run for that SHA, there is no gallery; say so in
 the description instead of waiting for one.
 
-Report the PR link, final head, waits, fix rounds, what feedback you handled and
-declined, what you validated, any unresolved threads, and whether you finished
-clean or stopped at a limit. If you stopped at a limit, say what was pending.
+Screens you captured yourself (a native simulator, emulator, or a local browser)
+that show the change go in the description too. Leave out any that show private
+data: real names, emails, hostnames, server URLs, tokens. Reference the rest as
+local files in the body and upload them with `gh pr edit <n> --body-file
+<body.md> --attach ./<shot>.png` (gh 2.99 or newer), which rewrites each
+reference to the uploaded asset.
+
+## Reporting
+
+Be concise. Too much information is hard to digest, so leave out anything the
+user does not need to act on or know. Stay quiet while watching; speak up
+mid-loop only when you are blocked or need a decision.
+
+End with a few short lines, not sections:
+
+- The PR link and whether it is ready to merge. If it is and the change is low
+  risk, say so; still do not merge unless the user asked.
+- Any decision the user needs to make.
+- Review findings you declined that the user might reasonably disagree with,
+  one line each.
+- Tests only when something failed or a real risk went untested.
+- If you stopped at a limit, what was still pending.
+
+No routine checks that passed, no recap of each fix round, no restating what
+the change does at length.
 
 ## Reference
 

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
-import { bytesToBase64, MAX_CLIPBOARD_BYTES, type NativeMsg } from "./terminal-bridge";
+import type { NativeMsg } from "./terminal-bridge";
+import { bytesToBase64, MAX_CLIPBOARD_BYTES } from "./terminal-bridge";
 import { createTerminalHandler } from "./terminal-view-handler";
 
 const text = (value: string) => new TextEncoder().encode(value);

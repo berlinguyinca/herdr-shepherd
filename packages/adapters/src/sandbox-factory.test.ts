@@ -1,3 +1,4 @@
+import { SandboxKind } from "@rakazo/contracts";
 import { describe, expect, it, vi } from "vitest";
 import { NO_SANDBOX_MESSAGE } from "./none-sandbox.js";
 import { createSandboxProvider } from "./sandbox-factory.js";
@@ -75,6 +76,39 @@ describe("createSandboxProvider", () => {
     });
   });
 
+  it("returns the Incus provider without contacting the server", async () => {
+    const sandbox = await createSandboxProvider("incus", {
+      incusUrl: "https://incus.example.test:8443",
+      incusClientCert: "test-cert",
+      incusClientKey: "test-key",
+    });
+    expect(sandbox.describe()).toMatchObject({
+      id: "incus",
+      capabilities: { graphical: true, pty: true, persistentHome: false },
+    });
+  });
+
+  it("boots Incus as none until its address and client certificate are set", async () => {
+    const sandbox = await createSandboxProvider("incus", {
+      incusUrl: "https://incus.example.test:8443",
+      incusClientCert: "test-cert",
+    });
+    expect(sandbox.describe().id).toBe("none");
+    await expect(sandbox.provision({ botId: "b", homePath: "/unused" }, ctx)).rejects.toThrow(
+      /INCUS_SANDBOX_CLIENT_KEY/,
+    );
+  });
+
+  it("refuses an Incus API address without TLS", async () => {
+    await expect(
+      createSandboxProvider("incus", {
+        incusUrl: "http://incus.example.test:8443",
+        incusClientCert: "test-cert",
+        incusClientKey: "test-key",
+      }),
+    ).rejects.toThrow("must use https");
+  });
+
   it("returns the Wuying provider without contacting Alibaba Cloud", async () => {
     const sandbox = await createSandboxProvider("wuying", {
       wuyingAccessKeyId: "test-id",
@@ -110,7 +144,17 @@ describe("createSandboxProvider", () => {
 
   it("throws on unknown provider", async () => {
     await expect(createSandboxProvider("bogus", {})).rejects.toThrow(
-      'Unknown SANDBOX_PROVIDER "bogus". Use none | docker | e2b | novita | daytona | createos | boat | boxd | railway | kubernetes | wuying | desktop | fake.',
+      'Unknown SANDBOX_PROVIDER "bogus". Use none | docker | e2b | novita | daytona | createos | boat | boxd | railway | kubernetes | incus | wuying | desktop | fake.',
+    );
+  });
+
+  it("accepts only sandbox kinds, including none", async () => {
+    expect(SandboxKind.options).toContain("none");
+    for (const kind of SandboxKind.options) {
+      await expect(createSandboxProvider(kind, {})).resolves.toBeDefined();
+    }
+    await expect(createSandboxProvider("not-a-provider", {})).rejects.toThrow(
+      /Unknown SANDBOX_PROVIDER/,
     );
   });
 });

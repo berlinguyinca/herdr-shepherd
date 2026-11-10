@@ -1,19 +1,22 @@
 import { Trans, useLingui } from "@lingui/react/macro";
-import type { Bot, BotSection, Group, Space } from "@rakazo/contracts";
+import type { Bot, BotAvatarSet, BotSection, Group, Space } from "@rakazo/contracts";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@rakazo/ui-web";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { Settings, Trash2 } from "lucide-react";
 import type { ComponentProps, RefObject } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
+import { PAGE_PARAM } from "../../lib/pages";
+import { useSpaceQueries } from "../../lib/query";
 import type { Panel } from "../../lib/right-panel-state";
 import type { createSpaceRpc } from "../../lib/rpc";
 import { selectSpace } from "../../lib/rpc";
+import type { CommandPaletteAction } from "./command-palette";
 import { CommandPalette } from "./command-palette";
-import { isCommandPaletteHotkey } from "./command-palette-hotkey";
 import type { CreateBotDialogInput } from "./create-bot-dialog";
 import { CreateBotDialog } from "./create-bot-dialog";
 import {
@@ -52,15 +55,6 @@ export function useShellDialogs() {
   const [newSpaceOpen, setNewSpaceOpen] = useState(false);
   const [createBotOpen, setCreateBotOpen] = useState(false);
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (!isCommandPaletteHotkey(event)) return;
-      event.preventDefault();
-      setCommandPaletteOpen((open) => !open);
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
   return {
     deleteTarget,
     setDeleteTarget,
@@ -107,8 +101,11 @@ export function ShellDialogs({
   openSpaceSettings,
   closeMobileSidebar,
   createBot,
+  botAvatarSet,
   clearOpenThread,
+  discardChatAttachments,
   deleteRoutineDialogProps,
+  paletteActions,
 }: {
   dialogs: ShellDialogsState;
   rpc: ReturnType<typeof createSpaceRpc>;
@@ -124,8 +121,13 @@ export function ShellDialogs({
   openSpaceSettings: (spaceId: string) => void;
   closeMobileSidebar: () => void;
   createBot: (input: CreateBotDialogInput) => Promise<void>;
+  /** The account's set, which a new bot takes. */
+  botAvatarSet: BotAvatarSet;
   clearOpenThread: () => void;
+  /** Drops a deleted chat's pending attachments with their previews. */
+  discardChatAttachments: (threadKey: string) => void;
   deleteRoutineDialogProps: ComponentProps<typeof DeleteItemDialog> | null;
+  paletteActions: CommandPaletteAction[];
 }) {
   const { t } = useLingui();
   const {
@@ -156,6 +158,14 @@ export function ShellDialogs({
   const spaceMenuTarget = spaceMenu
     ? (spaces.find((space) => space.id === spaceMenu.id) ?? null)
     : null;
+  const queries = useSpaceQueries();
+  const [pageSearch, setPageSearch] = useState("");
+  const pageQuery = useDeferredValue(pageSearch.trim());
+  const pages = useQuery({
+    ...queries.pages.list.queryOptions({ input: pageQuery ? { query: pageQuery } : {} }),
+    enabled: commandPaletteOpen,
+    placeholderData: keepPreviousData,
+  });
   return (
     <>
       {spaceMenu ? (
@@ -216,6 +226,7 @@ export function ShellDialogs({
           onCancel={() => setDeleteTarget(null)}
           onConfirm={async (deleteMemories) => {
             await rpc.bots.remove({ botId: deleteTarget.id, deleteMemories });
+            discardChatAttachments(deleteTarget.id);
             setDeleteTarget(null);
             setPanel(null);
             await refreshBots(true);
@@ -230,6 +241,7 @@ export function ShellDialogs({
           onCancel={() => setDeleteGroupTarget(null)}
           onConfirm={async () => {
             await rpc.groups.remove({ groupId: deleteGroupTarget.id });
+            discardChatAttachments(deleteGroupTarget.id);
             setDeleteGroupTarget(null);
             setPanel(null);
             await refreshBots(true);
@@ -307,10 +319,28 @@ export function ShellDialogs({
           closeMobileSidebar();
           navigate(`/app/${id}`);
         }}
+        pages={pages.data?.items.filter((page) => page.groupId || page.botId)}
+        onSearchChange={setPageSearch}
+        onSelectPage={(page) => {
+          closeMobileSidebar();
+          const chat = page.groupId ? `/app/g/${page.groupId}` : `/app/${page.botId}`;
+          navigate(`${chat}?${PAGE_PARAM}=${encodeURIComponent(page.id)}`);
+        }}
+        actions={paletteActions.map((action) => ({
+          ...action,
+          onSelect: () => {
+            closeMobileSidebar();
+            action.onSelect();
+          },
+        }))}
       />
 
       {createBotOpen ? (
-        <CreateBotDialog onCancel={() => setCreateBotOpen(false)} onCreate={createBot} />
+        <CreateBotDialog
+          avatarSet={botAvatarSet}
+          onCancel={() => setCreateBotOpen(false)}
+          onCreate={createBot}
+        />
       ) : null}
 
       {newSpaceOpen ? (

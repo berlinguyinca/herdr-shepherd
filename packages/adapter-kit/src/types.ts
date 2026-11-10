@@ -1,4 +1,6 @@
 import type {
+  BillingCancellationReason,
+  ByokTier,
   CacheCapabilities as ConnectionCacheCapabilities,
   ConnectionCatalogItem,
   ModelApiProtocol,
@@ -267,8 +269,12 @@ export interface ConnectorTool {
   readOnly?: boolean;
   /** Set when the tool runs other actions named in its arguments; see ToolBatch. */
   batch?: ToolBatch;
+  /** What the person sees for a call, when the name the model uses would read badly. */
+  label?: string;
   /** In-process routing metadata. It is never exposed to the model. */
   route?: ConnectorRoute;
+  /** The `ui://` resource an MCP server shows this tool's result with (MCP Apps). */
+  appResourceUri?: string;
 }
 
 /**
@@ -287,8 +293,12 @@ export interface ConnectorRoute {
   toolName: string;
   resourceId?: string;
   resourceRevision?: string | number;
+  /** Authorized local connection selected by this tool. Never fall back to another account. */
+  connectionId?: string;
   /** Source label for lazy catalog name indexes. Never exposed as a model schema field. */
   catalogGroup?: string;
+  /** The `ui://` resource that shows this tool's result; see ConnectorApp. */
+  appResourceUri?: string;
 }
 
 export interface ConnectorCall {
@@ -297,11 +307,26 @@ export interface ConnectorCall {
   connectionId?: string;
   executionId: string;
   route?: ConnectorRoute;
+  /** Read the tool's app after a successful call. Only a caller that shows it asks. */
+  withApp?: boolean;
+}
+
+/**
+ * An MCP server's app for one successful call (MCP Apps): HTML the client shows sandboxed with
+ * the call's input and result. Declared domains are already narrowed to the ones allowed.
+ */
+export interface ConnectorApp {
+  server: string;
+  html: string;
+  csp: { connectDomains?: string[]; resourceDomains?: string[] };
+  prefersBorder?: boolean;
 }
 
 export type ConnectorEvent =
   | { type: "log"; message: string }
   | { type: "result"; data: unknown }
+  /** Follows the call's `result` when its tool has an app. */
+  | { type: "app"; app: ConnectorApp }
   | { type: "error"; message: string; logIds?: string[] };
 
 export interface ConnectorCapabilities {
@@ -502,6 +527,17 @@ export interface AgentRunModel {
   oauth?: {
     credential: AgentModelOAuthCredential;
     persist?: (credential: AgentModelOAuthCredential) => Promise<void>;
+    /**
+     * Refreshes the stored credential under the lock every refresh of it shares,
+     * calling `refresh` on the stored copy only if no other refresh already rotated it.
+     */
+    refresh?: (
+      held: AgentModelOAuthCredential,
+      refresh: (
+        stored: AgentModelOAuthCredential,
+        signal: AbortSignal,
+      ) => Promise<AgentModelOAuthCredential | undefined>,
+    ) => Promise<AgentModelOAuthCredential>;
     /** Drop the stored credential after a terminal provider rejection. */
     retire?: (
       reason: ModelCredentialRetireReason,
@@ -518,6 +554,11 @@ export interface AgentRunRequest {
   /** Awaited producer-side accounting, independent of event-consumer cancellation. */
   onUsage?: (event: Extract<AgentRuntimeEvent, { type: "usage" }>) => void | Promise<void>;
   contextStrategy?: AgentContextStrategy;
+  /**
+   * MCP servers that must return tool results whole. Direct tools match `slugs`
+   * (`mcp__<slug>__<tool>`); catalog calls match `ids` (`<server id>:<tool>`).
+   */
+  verbatimMcpServers?: { ids: readonly string[]; slugs: readonly string[] };
   /** Exclusive workflow cost bucket; retrieval tool turns are detected for answer calls. */
   usageOperationKind?: UsageOperationKind;
   botId: string;
@@ -526,12 +567,24 @@ export interface AgentRunRequest {
   routineId?: string | null;
   sourceMessageId?: string | null;
   prompt: string;
+  /**
+   * Group threads and shared spaces: the label the model sees on the prompt, the same as on
+   * history ("User", or the person's name in a space several people share).
+   */
+  promptSpeaker?: string;
   instructions: string;
   history: Array<{
     id?: string;
     createdAt?: string;
     role: "user" | "assistant" | "system";
     content: string;
+    /**
+     * Who wrote this message when it is neither this bot nor the human of a personal direct chat:
+     * another bot's current name, or the person: "User", or their name in a space several people
+     * share. The runtime shows such a message to the model as a user turn that starts with
+     * "[speaker]: ".
+     */
+    speaker?: string;
     /** Images attached to this message, hydrated only for recent user turns. */
     images?: AgentInputImage[];
   }>;
@@ -542,6 +595,8 @@ export interface AgentRunRequest {
   currentTurnImageFileFallback?: boolean;
   tools: ConnectorTool[];
   model: AgentRunModel;
+  /** Optional explicitly authenticated vision target for same-run computer mode. */
+  computerModel?: AgentRunModel;
   /** Ordered, user-selected models eligible after provider unavailability. */
   fallbackModels?: Array<Pick<AgentRunModel, "provider" | "id" | "connectionId">>;
   /** Resolve one configured backup lazily so healthy primary turns do no extra auth work. */
@@ -551,7 +606,8 @@ export interface AgentRunRequest {
     connectionId?: string,
   ) => Promise<AgentRunModel>;
   /** Persist the selected backup against the active run lease before requesting it. */
-  onModelChange?: (provider: string, modelId: string) => Promise<void>;
+  /** `computerMode` is set when the switch enters computer mode rather than changing the run's model. */
+  onModelChange?: (provider: string, modelId: string, computerMode?: boolean) => Promise<void>;
   /** Resolve an explicitly requested helper model within the active user and space scope. */
   resolveModel?: (provider: string, modelId: string) => Promise<AgentRunModel>;
   resumeFromCheckpoint?: string;
@@ -580,6 +636,12 @@ export interface AgentRunRequest {
   onToolCompleted?: (completion: AgentToolCompletion) => Promise<void> | void;
   /** Atomically claim durable user steering at the runtime's next safe turn boundary. */
   claimSteering?: (seenIds: string[]) => Promise<AgentSteeringMessage[]>;
+  /**
+   * Known run secret values, live for the run. The runtime redacts them from a tool
+   * argument that is kept outside the tool call itself (the ask card's detail) before
+   * any copy of it is stored, recorded or replayed.
+   */
+  secrets?: readonly string[];
 }
 
 export interface ScriptedTurn {
@@ -610,6 +672,15 @@ export interface AgentUsage {
   pricingVersion?: string | null;
   pricingSnapshot?: Record<string, unknown> | null;
   usageSource?: string | null;
+  /** Our own count for a call that reached the provider but ended without a reported cost,
+   * deliberately low. `ifStopped` is a full count for an aborted call, priced at full rates when
+   * the user stopped its run, so stopping a call is never a discount.
+   */
+  countedTokens?: {
+    inputTokens: number;
+    outputTokens: number;
+    ifStopped?: { inputTokens: number; outputTokens: number };
+  } | null;
 }
 
 export type UsageOperationKind = "answer" | "setup" | "retrieval" | "subagent" | "compaction";
@@ -650,7 +721,16 @@ export type AgentRuntimeEvent =
       /** Provider-generated tool status rather than assistant-authored narration. */
       activity?: true;
     }
-  | { type: "tool"; name: string; args: Record<string, unknown>; executionId: string }
+  | {
+      type: "tool";
+      name: string;
+      args: Record<string, unknown>;
+      executionId: string;
+      /** The model reached this deferred built-in through use_tool. */
+      viaUseTool?: boolean;
+      /** Which model response made the call; calls from one response share it. */
+      response?: number;
+    }
   | {
       type: "ask";
       executionId?: string;
@@ -703,6 +783,8 @@ export interface VoiceCapabilities {
   catalog: boolean;
   synthesize: boolean;
   transcribe: boolean;
+  /** The provider can filter its listed voices by language. */
+  languages?: boolean;
 }
 
 export interface VoiceVerifyResult {
@@ -714,7 +796,10 @@ export interface VoiceSynthesizeRequest {
   text: string;
   voiceId: string;
   apiKey: string;
-  /** Connection speech model. Fish uses this, then `FISH_TTS_MODEL`, then s2.1-pro. */
+  /**
+   * Connection speech model, for providers whose catalog entry sets `speechModel`. Without
+   * one, each adapter uses its own default.
+   */
   model?: string;
   signal?: AbortSignal;
 }
@@ -743,12 +828,16 @@ export interface BackgroundJobPayloads {
   "skill.teaching-expire": { skillId: string };
   /** The bot's call rang out: mark it missed if nobody answered. */
   "call.expire": { threadId: string; callId: string };
-  "history.compact": { threadId: string };
+  "history.compact": { threadId: string; userId?: string };
   "messaging.deliver": { runId?: string };
+  /** A running chat-app run's interim messages; the run is not marked mirrored. */
+  "messaging.progress": { runId: string };
   "messaging.credential-cleanup": { installationId: string; ref: string };
   /** Reconcile durable remote-agent intent; scope is loaded from the database. */
   "cloud_agent.poll": { agentId: string };
   "purchase.poll": { purchaseId: string };
+  /** Check a submitted video and post it when ready; the ID is the bot-visible job ID. */
+  "media.poll": { jobId: string };
   /** Read an Expo push receipt; the token is identified by its digest, never stored. */
   "push.receipt": { userId: string; ticketId: string; tokenDigest: string };
 }
@@ -810,11 +899,19 @@ export interface ArtifactPut {
 }
 
 export interface NotificationMessage {
+  /**
+   * Verified sender metadata. `avatar` is a bounded thumbnail at most 96px, base64 encoded;
+   * `avatarLarge` is the same drawing at up to 120px for devices that draw the sender larger
+   * than Android's 96px limit, when one fits the payload budget.
+   */
+  sender?: { botId: string; name: string; avatar?: string; avatarLarge?: string };
   kind: "completion" | "failure" | "help" | "takeover";
   title: string;
   body: string;
   botId: string;
   threadId: string;
+  /** The finished run, so a device that also polls for finished work does not alert twice. */
+  runId?: string;
   /** Group chat that owns threadId, so a tap does not open the bot's direct thread. */
   groupId?: string;
   /** Unread chats to show on the app icon, when the sender knows them. */
@@ -823,7 +920,12 @@ export interface NotificationMessage {
 
 /** A product-authored transactional email, independent of its delivery vendor. */
 export interface TransactionalEmail {
-  to: string;
+  to: string | string[];
+  /** Sends as this address, such as a bot's own, instead of the provider's configured one. */
+  from?: string;
+  cc?: string[];
+  /** Where replies go, instead of the provider's configured reply-to address. */
+  replyTo?: string;
   subject: string;
   text: string;
   html?: string;
@@ -891,6 +993,19 @@ export interface MessagingInboundMessage {
   channelName: string | null;
   /** Group roster addresses when the platform reports them; often empty. */
   participants: string[];
+  /**
+   * When the platform says this roster was current, when it reports a time for
+   * the event; a roster older than the newest one already processed for the
+   * channel changes no membership.
+   */
+  rosterAt?: Date;
+  /**
+   * Member departures this event reports one at a time (Telegram service
+   * messages on a platform that sends no roster): addresses that left or were
+   * removed, plus our own bot leaving, which ends every membership because
+   * nothing more can be delivered to that channel.
+   */
+  departures?: { addresses: string[]; botLeft: boolean };
   content: string;
   mediaUrl: string | null;
   /** Files the platform only serves to the bot's credentials (Slack url_private, …). */
@@ -1015,18 +1130,46 @@ export interface BrowserCapabilities {
 
 export interface BrowserNavigateRequest {
   url: string;
+  /** Folder in the computer's home that a file download is saved to; without it, none is saved. */
+  downloads?: string;
   signal?: AbortSignal;
+}
+
+/** A file the page downloaded: where it was saved, or why it was not. */
+export interface BrowserDownload {
+  name?: string;
+  path?: string;
+  /** Bytes saved, or so far while it is still downloading. */
+  size?: number;
+  type?: string;
+  /** Still downloading when the result was sent; the file appears at `path` once it is done. */
+  state?: "downloading";
+  error?: string;
 }
 
 export interface BrowserNavigateResult {
   url: string;
   title: string;
+  /** The page it reached, as a snapshot shows it, when that could be read in time. */
+  tree?: string;
+  elements?: BrowserSnapshotNode[];
+  /** The page was still loading or waiting on its own requests when it was captured. */
+  loading?: boolean;
+  downloads?: BrowserDownload[];
   /** When set, the page tool could not operate; use computer_act instead. */
   fallback?: "computer_act";
   error?: string;
+  /** What the page did that the bot should know, such as an alert that was closed. */
+  note?: string;
+  /** A JavaScript dialog the page has open on the screen, which page tools cannot answer. */
+  dialog?: string;
 }
 
 export interface BrowserSnapshotRequest {
+  /** Words to find controls by anywhere on the page, such as "newsletter signup". */
+  query?: string;
+  /** Folder in the computer's home that a PDF the tab shows is saved to; without it, none is saved. */
+  downloads?: string;
   signal?: AbortSignal;
 }
 
@@ -1051,8 +1194,13 @@ export interface BrowserSnapshotResult {
   elements: BrowserSnapshotNode[];
   /** The page was still loading or waiting on its own requests when it was captured. */
   loading?: boolean;
+  downloads?: BrowserDownload[];
   fallback?: "computer_act";
   error?: string;
+  /** What the page did that the bot should know, such as an alert that was closed. */
+  note?: string;
+  /** A JavaScript dialog the page has open on the screen, which page tools cannot answer. */
+  dialog?: string;
 }
 
 export type BrowserActKind = "click" | "fill" | "type" | "upload";
@@ -1060,7 +1208,20 @@ export type BrowserActKind = "click" | "fill" | "type" | "upload";
 export const MAX_BROWSER_UPLOAD_FILES = 10;
 
 export type BrowserActStep =
-  | { kind: "click"; ref: string }
+  /**
+   * `approved`, `site`, `label`, `amount`: the user approved this click, which completes a purchase, on
+   * that site, as the card showed the button and total. The click is refused if either has changed.
+   */
+  | {
+      kind: "click";
+      ref: string;
+      approved?: boolean;
+      site?: string;
+      label?: string;
+      amount?: string;
+      /** The page's total the card showed beside the button, or empty when it showed none. */
+      total?: string;
+    }
   /** Attaches computer files to a file input without opening a native file chooser. */
   | { kind: "upload"; ref: string; paths: string[]; roots?: string[] }
   | {
@@ -1074,7 +1235,7 @@ export type BrowserActStep =
        * field) or visible field ("username"), or an approved purchase's card detail. A card fill
        * always carries `origin`.
        */
-      field?: "username" | "password" | "card";
+      field?: "username" | "password" | "card" | "code";
     }
   | {
       kind: "fill";
@@ -1094,6 +1255,8 @@ export type BrowserActStep =
 
 export interface BrowserActRequest {
   actions: BrowserActStep[];
+  /** Folder in the computer's home that a file download is saved to; without it, none is saved. */
+  downloads?: string;
   signal?: AbortSignal;
 }
 
@@ -1109,17 +1272,75 @@ export interface BrowserActResult {
   elements?: BrowserSnapshotNode[];
   /** The page was still loading or waiting on its own requests when that snapshot was taken. */
   loading?: boolean;
+  downloads?: BrowserDownload[];
   fallback?: "computer_act";
   error?: string;
+  /** What the page did that the bot should know, such as an alert that was closed. */
+  note?: string;
+  /** A JavaScript dialog the page has open on the screen, which page tools cannot answer. */
+  dialog?: string;
+}
+
+/** A purchase step as the page shows it: the label and amount are page text. */
+export interface BrowserPurchase {
+  /** The page's host. An approval holds for this site only. */
+  site: string;
+  label: string;
+  amount: string;
+  /** Whether the amount is the one the button names or the total the page shows. */
+  amountSource?: "button" | "page";
+  /** The total the page shows beside a button that names its own amount; older computers omit it. */
+  total?: string;
+  /** The order lines the page lists above its total, as page text; none when it lists none or is older. */
+  items?: BrowserPurchaseItem[];
+}
+
+/** An order line as the checkout page shows it, such as an item with its quantity, or delivery. */
+export interface BrowserPurchaseItem {
+  name: string;
+  amount: string;
+}
+
+export interface BrowserPurchaseCheckRequest {
+  /** The steps of a browser_act call; only clicks are looked at. */
+  actions?: Array<{ kind: string; ref?: string }>;
+  /**
+   * Ask about clicks or a key on the screen, which name no element. `points` are the clicks' spots in screen
+   * pixels; `enter` is a key that submits or presses the focused control.
+   */
+  desktop?: boolean;
+  enter?: boolean;
+  points?: Array<{ x: number; y: number }>;
+  /** A click whose spot cannot be told (the page may have changed under it): the page decides. */
+  unplaced?: boolean;
+  signal?: AbortSignal;
+}
+
+/** `steps`: the indexes of the clicks that would complete the purchase. */
+export interface BrowserPurchaseCheckResult {
+  purchase: (BrowserPurchase & { steps: number[] }) | null;
 }
 
 /** A sandbox must route these commands through its owned screen, never generic host execution. */
 export type PageBrowserCommand =
-  | { command: "navigate"; url: string }
-  | { command: "snapshot" }
-  | { command: "act"; actions: BrowserActStep[] };
+  | { command: "navigate"; url: string; downloads?: string }
+  | { command: "snapshot"; query?: string; downloads?: string }
+  | { command: "act"; actions: BrowserActStep[]; downloads?: string }
+  | {
+      command: "purchase_check";
+      actions?: BrowserPurchaseCheckRequest["actions"];
+      desktop?: boolean;
+      enter?: boolean;
+      points?: BrowserPurchaseCheckRequest["points"];
+      unplaced?: boolean;
+    };
 
-export type PageBrowserResult = Partial<BrowserSnapshotResult & BrowserActResult> & { ok: boolean };
+export type PageBrowserResult = Partial<BrowserSnapshotResult & BrowserActResult> & {
+  ok: boolean;
+  /** A purchase check: the page's host, and what the purchase is as the page shows it. */
+  site?: string;
+  purchase?: unknown;
+};
 
 export type CloudAgentStatus = "running" | "finished" | "failed" | "cancelled" | "expired";
 
@@ -1245,6 +1466,10 @@ export interface BillingCreditCheckoutRequest {
 }
 
 export interface BillingByokCheckoutRequest extends Omit<BillingCreditCheckoutRequest, "monthly"> {
+  /** How often `amountCents` bills; monthly when omitted. */
+  interval?: "month" | "year";
+  /** Standard when omitted. */
+  tier?: ByokTier;
   /** Omitted when the customer has already used its trial. */
   trialDays?: number;
 }
@@ -1258,13 +1483,30 @@ export interface BillingSubscriptionSnapshot {
   status: BillingSubscriptionStatus;
   seats: number;
   trialEndsAt: Date | null;
+  /** Start of the period being billed, or of the trial while one runs. */
+  currentPeriodStartsAt: Date | null;
   currentPeriodEndsAt: Date | null;
   cancelAtPeriodEnd: boolean;
   endedAt: Date | null;
   /** The flat own-key plan, which grants access without credits. */
   byokPlan?: boolean;
+  /** What the own-key plan bills each period, which stays at the price it was bought at. */
+  byokPriceCents?: number;
+  /** The own-key plan's billing period. */
+  byokInterval?: "month" | "year";
+  /** The own-key plan's tier, which the provider reports with the plan. */
+  byokTier?: ByokTier;
   /** Stable identity of the subscription's card across customers, when the provider has one. */
   cardFingerprint?: string;
+  cancellationReason?: BillingCancellationReason;
+  cancellationComment?: string;
+}
+
+/** One own-key plan: its tier, how often it bills, and what it bills each period. */
+export interface BillingByokPlan {
+  tier: ByokTier;
+  interval: "month" | "year";
+  amountCents: number;
 }
 
 export interface BillingCheckoutRequest {

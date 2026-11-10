@@ -24,6 +24,8 @@ import {
   checkpointRunComputerWorkspace,
   deletedTeamBotFolders,
   ensureComputerWorkspaceLayout,
+  PORTABLE_TRANSFER_BATCH_BYTES,
+  PortableFileBatcher,
   removeComputerWorkspaceDirectories,
   removeDeletedBotWorkspaces,
   restoreComputerWorkspace,
@@ -684,7 +686,7 @@ describe("Team bot folder cleanup", () => {
     );
   });
 
-  it("stops waiting for the cleanup once its time budget runs out", async () => {
+  it("stops waiting for the cleanup once its time budget runs out, leaving the rest for the next boot", async () => {
     const { prisma } = deletedBots("deleted-bot");
     let commandSignal: AbortSignal | undefined;
     // Never finishes and ignores aborts, like a wedged provider call.
@@ -704,7 +706,7 @@ describe("Team bot folder cleanup", () => {
         context,
         20,
       ),
-    ).rejects.toThrow("team bot folder cleanup ran out of time");
+    ).resolves.toBeUndefined();
     expect(commandSignal?.aborted).toBe(true);
   });
 
@@ -760,3 +762,19 @@ function localWorkspaceSandbox(workspace: string) {
     },
   } as unknown as SandboxProvider;
 }
+
+describe("PortableFileBatcher", () => {
+  it("hands back a batch once a file would pass the file count or the byte budget", () => {
+    const batcher = new PortableFileBatcher<number>(2, (size) => size);
+    const sent = [1, 2, 3, PORTABLE_TRANSFER_BATCH_BYTES, 4].map((size) => batcher.add(size));
+    expect(sent).toEqual([undefined, undefined, [1, 2], [3], [PORTABLE_TRANSFER_BATCH_BYTES]]);
+    expect(batcher.take()).toEqual([4]);
+    expect(batcher.take()).toEqual([]);
+  });
+
+  it("hands back an empty batch when an oversized file comes first", () => {
+    const batcher = new PortableFileBatcher<number>(8, (size) => size);
+    expect(batcher.add(PORTABLE_TRANSFER_BATCH_BYTES + 1)).toEqual([]);
+    expect(batcher.take()).toEqual([PORTABLE_TRANSFER_BATCH_BYTES + 1]);
+  });
+});

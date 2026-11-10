@@ -52,6 +52,22 @@ class FakeSink(http.server.BaseHTTPRequestHandler):
         pass
 
 
+class BaseImageTests(unittest.TestCase):
+    def test_literal_base_images_are_pinned_by_digest(self):
+        for dockerfile in sorted(ROOT.parent.rglob("Dockerfile*")):
+            stages = set()
+            for number, line in enumerate(dockerfile.read_text().splitlines(), 1):
+                parts = line.split()
+                if not parts or parts[0].upper() != "FROM":
+                    continue
+                image = next(part for part in parts[1:] if not part.startswith("--"))
+                if "$" not in image and image.lower() not in stages and image != "scratch":
+                    with self.subTest(file=str(dockerfile.relative_to(ROOT.parent)), line=number):
+                        self.assertRegex(image, r"@sha256:[0-9a-f]{64}$")
+                if len(parts) >= 4 and parts[-2].upper() == "AS":
+                    stages.add(parts[-1].lower())
+
+
 class AuditShipTests(unittest.TestCase):
     KEYS = audit_ship.parse_known_keys("SHA256:known/key+1= SHA256:laptopkey=laptop")
 
@@ -651,6 +667,8 @@ class HostCheckTests(unittest.TestCase):
             audit_env = root / "audit-ship.env"
             source = source.replace("/etc/rakazo/audit-ship.env", str(audit_env))
             source = source.replace("/usr/sbin/sshd", str(bin_dir / "sshd"))
+            reboot_required = root / "reboot-required"
+            source = source.replace("/run/reboot-required", str(reboot_required))
             source = source.replace(
                 "/usr/local/sbin/rakazo-host-alert", str(bin_dir / "alert")
             )
@@ -691,6 +709,13 @@ class HostCheckTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 0, result.stderr)
             plaintext.unlink()
+            reboot_required.touch()
+            result = subprocess.run(
+                ["bash", str(script)], env=env, capture_output=True, text=True
+            )
+            self.assertNotEqual(result.returncode, 0)
+            self.assertIn("need a reboot", alert_log.read_text())
+            reboot_required.unlink()
             rules.write_text(
                 "### tuple ### allow any 2222 0.0.0.0/0 any 0.0.0.0/0 in\n"
             )

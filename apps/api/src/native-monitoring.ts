@@ -1,5 +1,6 @@
 import { promisify } from "node:util";
 import { gunzip } from "node:zlib";
+import { AnalyticsScreen } from "@rakazo/contracts";
 import {
   CORRELATION_TAG_KEYS,
   isMonitoringUserId,
@@ -86,6 +87,35 @@ export function sanitizeNativeEvent(
     safeTags["mobile.platform"] = tags["mobile.platform"];
   if (surface === "mobile" && tags["startup.previous_launch"] === "true")
     safeTags["startup.previous_launch"] = "true";
+  // The app sets a coarse screen name, never a route param; this rejects anything else.
+  // A replayed startup error carries the current launch's screen, not the one it happened on.
+  if (
+    surface === "mobile" &&
+    tags["startup.previous_launch"] !== "true" &&
+    (tags.screen === "other" || AnalyticsScreen.safeParse(tags.screen).success)
+  )
+    safeTags.screen = tags.screen as string;
+  if (surface === "desktop") {
+    const name = tags["process.name"];
+    const exitCode = tags["process.exit_code"];
+    if (typeof name === "string" && /^[a-zA-Z0-9_. -]{1,100}$/.test(name))
+      safeTags["process.name"] = name;
+    if (typeof exitCode === "string" && /^-?\d{1,10}$/.test(exitCode))
+      safeTags["process.exit_code"] = exitCode;
+    const route = tags["renderer.route"];
+    const uptime = tags["renderer.uptime_min"];
+    const memory = tags["renderer.memory_mb"];
+    if (
+      typeof route === "string" &&
+      /^(\/[a-z:-]{0,24})+$|^[a-z-]{1,20}:$|^unknown$/.test(route) &&
+      route.length <= 100
+    )
+      safeTags["renderer.route"] = route;
+    if (typeof uptime === "string" && /^\d{1,7}$/.test(uptime))
+      safeTags["renderer.uptime_min"] = uptime;
+    if (typeof memory === "string" && /^\d{1,6}(,\d{1,6}){0,9}$/.test(memory))
+      safeTags["renderer.memory_mb"] = memory;
+  }
   for (const key of [...CORRELATION_TAG_KEYS, "operation"]) {
     const value = tags[key];
     if (typeof value === "string" && value.length <= 200 && /^[a-zA-Z0-9_.:-]+$/.test(value))
@@ -114,6 +144,8 @@ export function sanitizeNativeEvent(
         return safeImage;
       }),
     };
+  // Native code records breadcrumbs the app's own filter never sees.
+  if (surface === "mobile") event.breadcrumbs = input.breadcrumbs;
   if (!event.message && !event.exception) event.message = `${surface} native process crashed`;
   // Never attribute a cached crash from an earlier native session to the current signed-in user.
   const userId = object(input.user).id;

@@ -1,13 +1,61 @@
 import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 import type { Bot, Routine } from "@rakazo/contracts";
-import { activeBotId, captureScreenshot, completeOnboarding, rpc, signup } from "./helpers";
+import {
+  activeBotId,
+  captureScreenshot,
+  completeOnboarding,
+  openBotPanelTab,
+  rpc,
+  signup,
+} from "./helpers";
 
 async function addScheduleTrigger(page: Page, freq: string) {
   await page.getByRole("button", { name: "Add trigger" }).click();
   await page.getByRole("menuitem", { name: "On a schedule" }).hover();
   await page.getByRole("menuitem", { name: freq, exact: true }).click();
 }
+
+test("a delayed schedule is visible only while the routine is active", async ({
+  page,
+}, testInfo) => {
+  await signup(page, `routine-delay-${Date.now()}@rakazo.test`, "password12", "Routine delay");
+  await completeOnboarding(page);
+  const botId = activeBotId(page);
+  const routine = await rpc<Routine>(page, "routines/create", {
+    botId,
+    name: "Morning report",
+    prompt: "Prepare the report.",
+    crons: ["0 8 * * *"],
+    timezone: "UTC",
+    active: false,
+  });
+  let scheduleDelayed = true;
+  await page.route("**/rpc/routines/list", async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    body.json = body.json.map((item: Routine) =>
+      item.id === routine.id ? { ...item, active: true, scheduleDelayed } : item,
+    );
+    await route.fulfill({ response, json: body });
+  });
+  await page.reload();
+  await openBotPanelTab(page, "Routines");
+  await page.getByRole("button", { name: /Morning report/ }).click();
+  const delay = page.getByRole("status").filter({ hasText: "Schedule delayed" });
+  await expect(delay).toBeVisible();
+  await captureScreenshot(page, testInfo, "routine-schedule-delayed");
+  const name = page.locator("label:has-text('Name') input");
+  await name.fill("Unsaved report name");
+  scheduleDelayed = false;
+  await expect(delay).toHaveCount(0, { timeout: 35_000 });
+  await expect(name).toHaveValue("Unsaved report name");
+  scheduleDelayed = true;
+  await expect(delay).toBeVisible({ timeout: 35_000 });
+  await expect(name).toHaveValue("Unsaved report name");
+  await page.getByRole("switch", { name: "Active", exact: true }).click();
+  await expect(delay).toHaveCount(0);
+});
 
 async function saveAndReturn(page: Page, procedure: "routines/create" | "routines/update") {
   const saved = page.waitForResponse(
@@ -40,7 +88,7 @@ test("routine editing updates in place, preserves timezone, deletion persists, a
   expect(created.nextRunAt).not.toBeNull();
   expect(localSchedule(created.nextRunAt!, created.timezone)).toMatchObject({ hour: 9, minute: 0 });
   await page.reload();
-  await page.getByRole("button", { name: "Agent computer", exact: true }).click();
+  await openBotPanelTab(page, "Routines");
 
   await page.getByRole("button", { name: /Tokyo check-in/ }).click();
   await page.locator("label:has-text('Name') input").fill("Weekday check-in");
@@ -143,6 +191,42 @@ test("routine editing updates in place, preserves timezone, deletion persists, a
   await expect(updatedButton).toHaveCount(0);
 });
 
+test("an email trigger claims the bot's address and saves who can start it", async ({
+  page,
+}, testInfo) => {
+  const stamp = Date.now();
+  await signup(page, `routine-email-${stamp}@rakazo.test`, "password12", "Routine Email");
+  await completeOnboarding(page);
+  const botId = activeBotId(page);
+  await openBotPanelTab(page, "Routines");
+
+  await page.getByRole("button", { name: "Create Routine" }).click();
+  await page.locator("label:has-text('Name') input").fill("Inbox triage");
+  await page.locator("label:has-text('Instruction') textarea").fill("Summarize what I forward.");
+  await page.getByRole("button", { name: "Add trigger" }).click();
+  await page.getByRole("menuitem", { name: "Email" }).click();
+
+  const name = page.getByRole("textbox", { name: "Email address" });
+  await expect(name).not.toHaveValue("");
+  await name.fill("postmaster");
+  await page.getByRole("button", { name: "Claim" }).click();
+  await expect(page.getByRole("alert")).toHaveText("That address isn't available");
+  await name.fill(`triage-${stamp}`);
+  await page.getByRole("button", { name: "Claim" }).click();
+  await expect(page.getByText(`triage-${stamp}@bots.rakazo.test`)).toBeVisible();
+  await page.getByRole("combobox", { name: "Who can start it" }).selectOption("domain");
+  await captureScreenshot(page, testInfo, "routine-email-trigger");
+
+  expect(await saveAndReturn(page, "routines/create")).toMatchObject({ emailSenders: "domain" });
+  await expect(page.getByRole("button", { name: /Inbox triage/ })).toContainText("Email");
+  const [saved] = await rpc<Routine[]>(page, "routines/list", { botId });
+  expect(saved).toMatchObject({ name: "Inbox triage", crons: [], emailSenders: "domain" });
+  expect(await rpc(page, "bots/emailAddress", { botId })).toEqual({
+    domain: "bots.rakazo.test",
+    address: `triage-${stamp}@bots.rakazo.test`,
+  });
+});
+
 test("a successful routine create is not reported as failed when refresh fails", {
   tag: "@nightly",
 }, async ({ page }) => {
@@ -151,7 +235,7 @@ test("a successful routine create is not reported as failed when refresh fails",
   await completeOnboarding(page);
   const botId = activeBotId(page);
 
-  await page.getByRole("button", { name: "Agent computer", exact: true }).click();
+  await openBotPanelTab(page, "Routines");
   await page.getByRole("button", { name: "Create Routine" }).click();
   await page.locator("label:has-text('Name') input").fill("Persisted routine");
   await page.locator("label:has-text('Instruction') textarea").fill("Run once each morning");
@@ -216,7 +300,7 @@ test("switching bots while a routine save is pending does not reopen stale state
   ]);
   await page.reload();
 
-  await page.getByRole("button", { name: "Agent computer", exact: true }).click();
+  await openBotPanelTab(page, "Routines");
   await page.getByRole("button", { name: /First routine/ }).click();
   await page.locator("label:has-text('Name') input").fill("First routine updated");
 
@@ -256,7 +340,7 @@ test("switching bots while a routine save is pending does not reopen stale state
   await expect(page.getByTestId("side-panel")).toHaveAttribute("data-panel", "closed");
   await expect(page.getByRole("alert")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Agent computer", exact: true }).click();
+  await openBotPanelTab(page, "Routines");
   await expect(page.getByRole("button", { name: /Second routine/ })).toHaveCount(1);
   await expect(page.getByRole("button", { name: /First routine/ })).toHaveCount(0);
 
@@ -320,7 +404,7 @@ test("change-trigger screenshot walkthrough", { tag: "@nightly" }, async ({ page
   await completeOnboarding(page);
   const botId = activeBotId(page);
 
-  await page.getByRole("button", { name: "Agent computer", exact: true }).click();
+  await openBotPanelTab(page, "Routines");
   await expect(page.getByRole("button", { name: "Create Routine" })).toBeVisible();
   await expect(page.getByText(/Booting up .* computer/)).toBeHidden();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");

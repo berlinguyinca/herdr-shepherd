@@ -8,10 +8,22 @@ const mocks = vi.hoisted(() => ({
   writePrivateFile: vi.fn(async () => {}),
   readdir: vi.fn(async () => [{ name: "crash.dmp", isFile: () => true }]),
   stat: vi.fn(async () => ({ mtimeMs: 200 })),
+  contents: {
+    id: 7,
+    isDestroyed: () => false,
+    isCrashed: () => false,
+    getOSProcessId: () => 42,
+    getURL: () => "https://app.example.com/app/clx9f2k3m0000abcd?q=private",
+  },
 }));
 vi.mock("electron", () => ({
-  app: { getPath: (key: string) => `/fake/${key}`, on: mocks.on },
+  app: {
+    getPath: (key: string) => `/fake/${key}`,
+    on: mocks.on,
+    getAppMetrics: () => [{ pid: 42, creationTime: 0, memory: { workingSetSize: 2_200 * 1024 } }],
+  },
   crashReporter: { start: mocks.start },
+  webContents: { getAllWebContents: () => [mocks.contents] },
 }));
 vi.mock("node:fs/promises", () => ({ readdir: mocks.readdir, stat: mocks.stat }));
 vi.mock("./setup-store.js", () => ({
@@ -45,6 +57,53 @@ describe("native crash metadata", () => {
     expect(mocks.start).toHaveBeenCalledTimes(1);
     expect(capture).toHaveBeenCalledTimes(1);
     expect(mocks.readdir).toHaveBeenCalledTimes(3);
+  });
+
+  it("names the child process that stopped unexpectedly", async () => {
+    mocks.readPrivateFile.mockResolvedValue(null);
+    const capture = vi.fn();
+    const native = await import("./native-crashes.js");
+    native.configureNativeCrashReporting(base, capture);
+    const gone = mocks.on.mock.calls.find(([name]) => name === "child-process-gone")?.[1];
+    gone?.({}, { type: "Utility", reason: "abnormal-exit", exitCode: 1, name: "Audio Service" });
+    gone?.({}, { type: "Utility", reason: "clean-exit", exitCode: 0 });
+    expect(capture).toHaveBeenCalledOnce();
+    expect(capture).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Child process stopped (Utility, abnormal-exit)" }),
+      "desktop.child",
+      { "native.crash": "true", "process.name": "Audio Service", "process.exit_code": "1" },
+    );
+  });
+
+  it("reports the renderer's route, uptime and memory trend when it stops", async () => {
+    vi.useFakeTimers({ now: 30 * 60_000, toFake: ["setInterval", "Date"] });
+    try {
+      mocks.readPrivateFile.mockResolvedValue(null);
+      const capture = vi.fn();
+      const native = await import("./native-crashes.js");
+      native.configureNativeCrashReporting(base, capture);
+      vi.advanceTimersByTime(120_000);
+      expect(capture).toHaveBeenCalledOnce();
+      expect(capture).toHaveBeenCalledWith(
+        expect.objectContaining({ message: "Renderer memory high" }),
+        "desktop.renderer",
+        { "renderer.route": "/app/:id", "renderer.uptime_min": "31", "renderer.memory_mb": "2200" },
+      );
+      const gone = mocks.on.mock.calls.find(([name]) => name === "render-process-gone")?.[1];
+      gone?.({}, mocks.contents, { reason: "oom", exitCode: 0 });
+      expect(capture).toHaveBeenLastCalledWith(
+        expect.objectContaining({ message: "Renderer stopped (oom)" }),
+        "desktop.renderer",
+        {
+          "renderer.route": "/app/:id",
+          "renderer.uptime_min": "32",
+          "renderer.memory_mb": "2200,2200",
+          "native.crash": "true",
+        },
+      );
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it.each([null, { ...checkpoint, enabled: false }])(

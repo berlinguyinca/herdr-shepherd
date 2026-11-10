@@ -1,6 +1,7 @@
 import { splitMessage, WhatsAppApiError } from "@chat-adapter/whatsapp";
 import type { AdapterContext } from "@rakazo/adapter-kit";
 import { getLogger } from "@rakazo/logging";
+import { SendblueAdapter } from "chat-adapter-sendblue";
 import { describe, expect, it, vi } from "vitest";
 import { ChatSdkMessagingSurface } from "./chat-sdk-surface.js";
 import { Domain } from "./lark/thread-id.js";
@@ -13,6 +14,7 @@ import {
   messagingPlatformsFromEnv,
   parseSendblueStatuses,
   parseWhatsAppStatuses,
+  photonProjectsFromEnv,
   splitOutboundBody,
   telegramBotsFromEnv,
 } from "./messaging-platforms.js";
@@ -34,6 +36,8 @@ const fullEnv: MessagingEnvironmentValues = {
   larkAppId: "cli-fake",
   larkAppSecret: "lark-secret",
   larkVerificationToken: "lark-verify",
+  photonProjectId: "photon-project",
+  photonProjectSecret: "photon-secret",
 };
 
 function providers(env: MessagingEnvironmentValues): string[] {
@@ -43,7 +47,14 @@ function providers(env: MessagingEnvironmentValues): string[] {
 describe("messagingPlatformsFromEnv", () => {
   it("mounts nothing without credentials and everything with full credentials", () => {
     expect(providers({})).toEqual([]);
-    expect(providers(fullEnv)).toEqual(["sendblue", "slack", "whatsapp", "telegram", "lark"]);
+    expect(providers(fullEnv)).toEqual([
+      "sendblue",
+      "slack",
+      "whatsapp",
+      "telegram",
+      "lark",
+      "photon",
+    ]);
   });
 
   it("publishes the iMessage line so people know where to send a link code", () => {
@@ -120,6 +131,7 @@ describe("messagingPlatformsFromEnv", () => {
     ]);
     expect((platforms[1]!.adapter as unknown as { mode: string }).mode).toBe("webhook");
     expect(platforms[1]!.capabilities.files).toBe(true);
+    expect(platforms[1]!.capabilities.groups).toBe(true);
   });
 
   it("reads named Telegram bots from TELEGRAM_BOT_TOKEN_<NAME> pairs", () => {
@@ -195,6 +207,107 @@ describe("messagingPlatformsFromEnv", () => {
     },
   );
 
+  it("mounts each named Photon project as its own photon-<name> provider", () => {
+    const platforms = messagingPlatformsFromEnv(
+      {
+        photonProjectId: "photon-project",
+        photonProjectSecret: "photon-secret",
+        photonProjects: [
+          { name: "pm", projectId: "photon-pm", projectSecret: "pm-secret" },
+          {
+            name: "am",
+            projectId: "photon-am",
+            projectSecret: "am-secret",
+            webhookSecret: "am-hook",
+          },
+        ],
+      },
+      { pollInboundMessages: true },
+    );
+    expect(platforms.map((platform) => [platform.provider, platform.adapterName])).toEqual([
+      ["photon", "imessage"],
+      ["photon-pm", "imessage"],
+      ["photon-am", "imessage"],
+    ]);
+    const config = (index: number) =>
+      (platforms[index]!.adapter as unknown as { config: Record<string, unknown> }).config;
+    expect(config(1)).toMatchObject({ projectId: "photon-pm", pollInboundMessages: true });
+    expect(config(2)).toMatchObject({ projectId: "photon-am", webhookSecret: "am-hook" });
+  });
+
+  it("reads named Photon projects from PHOTON_PROJECT_ID_<NAME> pairs", () => {
+    expect(
+      photonProjectsFromEnv({
+        PHOTON_PROJECT_ID: "default",
+        PHOTON_PROJECT_SECRET: "default-secret",
+        PHOTON_PROJECT_ID_PM: " photon-pm ",
+        PHOTON_PROJECT_SECRET_PM: " pm-secret ",
+        PHOTON_PROJECT_ID_AM: "photon-am",
+        PHOTON_PROJECT_SECRET_AM: "am-secret",
+        PHOTON_WEBHOOK_SECRET_AM: " am-hook ",
+        PHOTON_PROJECT_ID_NOSECRET: "photon-nosecret",
+        PHOTON_PROJECT_ID_BAD_NAME: "photon-bad",
+        PHOTON_PROJECT_SECRET_BAD_NAME: "bad-secret",
+      }),
+    ).toEqual([
+      { name: "am", projectId: "photon-am", projectSecret: "am-secret", webhookSecret: "am-hook" },
+      { name: "pm", projectId: "photon-pm", projectSecret: "pm-secret", webhookSecret: undefined },
+    ]);
+  });
+
+  it("skips a named Photon project that reuses another provider's project", () => {
+    const warn = vi.spyOn(getLogger(), "warn");
+    try {
+      expect(
+        providers(
+          messagingEnvFromProcess({
+            PHOTON_PROJECT_ID: "photon-shared",
+            PHOTON_PROJECT_SECRET: "default-secret",
+            PHOTON_PROJECT_ID_COPY: " photon-shared ",
+            PHOTON_PROJECT_SECRET_COPY: "copy-secret",
+            PHOTON_PROJECT_ID_PM: "photon-pm",
+            PHOTON_PROJECT_SECRET_PM: "pm-secret",
+          }),
+        ),
+      ).toEqual(["photon", "photon-pm"]);
+      expect(warn).toHaveBeenCalledWith(
+        "skipping Photon project that reuses another provider's project",
+        { provider: "photon-copy" },
+      );
+      expect(JSON.stringify(warn.mock.calls)).not.toContain("photon-shared");
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it("requires both Photon credentials and maps PHOTON_* process env", () => {
+    expect(providers({ ...fullEnv, photonProjectSecret: undefined })).not.toContain("photon");
+    expect(providers({ ...fullEnv, photonProjectId: undefined })).not.toContain("photon");
+    expect(
+      messagingEnvFromProcess({
+        PHOTON_PROJECT_ID: " photon-project ",
+        PHOTON_PROJECT_SECRET: " photon-secret ",
+        PHOTON_WEBHOOK_SECRET: " ",
+      }),
+    ).toMatchObject({
+      photonProjectId: "photon-project",
+      photonProjectSecret: "photon-secret",
+      photonWebhookSecret: undefined,
+    });
+  });
+
+  it("streams Photon inbound only in the process that owns the inbound sink", () => {
+    const photon = (pollInboundMessages?: boolean) =>
+      (
+        messagingPlatformsFromEnv(
+          { photonProjectId: "photon-project", photonProjectSecret: "photon-secret" },
+          pollInboundMessages === undefined ? {} : { pollInboundMessages },
+        )[0]!.adapter as unknown as { config: { pollInboundMessages: boolean } }
+      ).config.pollInboundMessages;
+    expect(photon()).toBe(false);
+    expect(photon(true)).toBe(true);
+  });
+
   it("forces Lark into webhook inbound so worker initialize cannot open a long connection", () => {
     const lark = messagingPlatformsFromEnv({
       larkAppId: "cli-fake",
@@ -267,11 +380,12 @@ describe("messagingPlatformsFromEnv", () => {
     expect(capabilities.whatsapp).toEqual({ direct: true, groups: false, receipt: null });
     expect(capabilities.telegram).toEqual({
       direct: true,
-      groups: false,
+      groups: true,
       receipt: null,
       files: true,
     });
     expect(capabilities.lark).toEqual({ direct: true, groups: false, receipt: null });
+    expect(capabilities.photon).toEqual({ direct: true, groups: false, receipt: "typing" });
   });
 });
 
@@ -295,6 +409,16 @@ describe("sendblue platform hooks", () => {
     expect(sendblue.channelName!(null)).toBeNull();
   });
 
+  it("takes the roster's time from the message's send time", () => {
+    expect(sendblue.rosterAt!({ date_sent: "2026-11-04T10:01:00.000Z" })).toEqual(
+      new Date("2026-11-04T10:01:00.000Z"),
+    );
+    expect(sendblue.rosterAt!({ date_sent: "not-a-date" })).toBeNull();
+    expect(sendblue.rosterAt!({ date_sent: 42 })).toBeNull();
+    expect(sendblue.rosterAt!({})).toBeNull();
+    expect(sendblue.rosterAt!(null)).toBeNull();
+  });
+
   it("accepts only supported per-message transports", () => {
     for (const service of ["iMessage", "SMS", "RCS"]) {
       expect(sendblue.transport!({ service })).toBe(service);
@@ -307,6 +431,19 @@ describe("sendblue platform hooks", () => {
   it("derives deterministic provider-prefixed direct thread ids", () => {
     expect(sendblue.directThreadId!("+15551234567")).toMatch(/^sendblue:/);
     expect(sendblue.adapter.isDM?.(sendblue.directThreadId!("+15551234567"))).toBe(true);
+  });
+
+  it("encodes thread ids exactly as the Sendblue adapter does before it loads", () => {
+    const sdk = SendblueAdapter.prototype;
+    const direct = { fromNumber: "+15550009999", contactNumber: "+15551234567" };
+    const group = { fromNumber: "+15550009999", groupId: "group-1" };
+    expect(sendblue.directThreadId!(direct.contactNumber)).toBe(sdk.encodeThreadId(direct));
+    for (const data of [direct, group]) {
+      const threadId = sdk.encodeThreadId(data);
+      expect(sendblue.adapter.encodeThreadId(data)).toBe(threadId);
+      expect(sendblue.adapter.decodeThreadId(threadId)).toEqual(sdk.decodeThreadId(threadId));
+    }
+    expect(sendblue.adapter.isDM?.(sdk.encodeThreadId(group))).toBe(false);
   });
 });
 

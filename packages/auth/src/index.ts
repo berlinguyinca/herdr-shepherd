@@ -6,11 +6,17 @@ import {
   emailAllowed,
   isMessagingEmail,
   MAX_PASSWORD_LENGTH,
+  MESSAGING_EMAIL_SUFFIX,
   MIN_PASSWORD_LENGTH,
   signupPolicyFromEnv,
 } from "@rakazo/core";
 import type { PrismaClient, SecurityEventType } from "@rakazo/db";
-import { bootstrapUserSpace, personalOrganizationIds, recordSecurityEvent } from "@rakazo/db";
+import {
+  bootstrapUserSpace,
+  personalOrganizationIds,
+  recordSecurityEvent,
+  SpaceDeletionInProgressError,
+} from "@rakazo/db";
 import type { BetterAuthOptions, BetterAuthPlugin } from "better-auth";
 import { betterAuth } from "better-auth";
 import { prismaAdapter } from "better-auth/adapters/prisma";
@@ -34,22 +40,37 @@ import {
   signedBearer,
 } from "./account-security.js";
 import { breachedPasswordCheck } from "./breached-password.js";
-import { passwordResetEmail, signInCodeEmail, verificationEmail } from "./email.js";
+import { DEACTIVATED_AT_FIELD } from "./directory.js";
+import type { EmailLocaleOf } from "./email.js";
+import { emailLocale, passwordResetEmail, signInCodeEmail, verificationEmail } from "./email.js";
 import { hasRecentIdentityConfirmation, identityConfirmation } from "./identity-confirmation.js";
 import type { OidcConfig } from "./oidc.js";
 import { isCurrentOidcAccount, oidcDiscovery } from "./oidc.js";
+import type { OpenOwner } from "./open-owner.js";
+import { openOwner } from "./open-owner.js";
 import { passkeyRelyingParty } from "./passkey.js";
 import type { TokenKey } from "./token-storage.js";
 import { encryptStoredOAuthTokens, openIdToken, sealIdToken } from "./token-storage.js";
 
-export { passwordResetEmail, signInCodeEmail, verificationEmail } from "./email.js";
+export type { DirectoryAccountChange } from "./directory.js";
+export { createDirectory } from "./directory.js";
+export {
+  emailLocale,
+  passwordResetEmail,
+  signInCodeEmail,
+  verificationEmail,
+} from "./email.js";
+export type { HomeDeletionReason } from "./home-deletion-email.js";
+export { homeDeletionEmail } from "./home-deletion-email.js";
 export type { OidcConfig } from "./oidc.js";
 export { passkeyRelyingParty } from "./passkey.js";
 export {
+  integrationClaimConfirmEmail,
   pluginSubmissionAdminEmail,
   pluginSubmissionReceivedEmail,
   pluginSubmissionReviewedEmail,
 } from "./plugin-submission-email.js";
+export { referralEmail } from "./referral-email.js";
 export { welcomeEmail } from "./welcome-email.js";
 
 export interface AuthEnv {
@@ -63,6 +84,8 @@ export interface AuthEnv {
   webOrigin: string;
   signupsEnabled: string | undefined;
   signupAllowlist: string | undefined;
+  /** Admits a new account only while there is none, for a deployment that serves one person. */
+  singleAccount?: boolean;
   extraOrigins?: string[];
   /** SHA-256 signing certificate fingerprints of Android apps allowed to use this server's passkeys. */
   androidAppCertFingerprints?: string[];
@@ -74,8 +97,20 @@ export interface AuthEnv {
   afterDeleteSession?: (session: AuthSession) => Promise<void>;
   /** Runs when a password change replaces the caller's own session instead of ending it. */
   afterReplaceSession?: (previous: AuthSession, session: AuthSession) => Promise<void>;
-  afterSignIn?: (userId: string) => Promise<void>;
+  /** Runs after each sign-in, with the headers of the request that signed in. */
+  afterSignIn?: (userId: string, headers?: Headers) => Promise<void>;
+  /** The operator provisions accounts from a directory over SCIM (see `createDirectory`). */
+  directoryProvisioning?: boolean;
+  /**
+   * The deployment serves one person, whose account `openOwnerSession` opens with no credentials.
+   * Whoever calls that must already have proved the caller is on the owner's private network.
+   */
+  openOwner?: OpenOwner;
 }
+
+type OpenOwnerApi = {
+  openOwner(input: { headers: Headers; asResponse: true }): Promise<Response>;
+};
 
 type AuthSession = { id: string; userId: string };
 
@@ -142,7 +177,76 @@ export function authRateLimitOptions(nodeEnv = process.env.NODE_ENV) {
 export function createAuth(prisma: PrismaClient, env: AuthEnv) {
   if (env.passwordAuth === false && !env.oidc)
     throw new Error("Password auth requires OIDC when disabled");
+  // A failed lookup still sends the email, in the asking browser's language.
+  const emailLocaleOf: EmailLocaleOf = async (account, headers) => {
+    try {
+      const saved = await prisma.user.findUnique({ where: account, select: { locale: true } });
+      return emailLocale(saved?.locale, headers);
+    } catch {
+      return emailLocale(null, headers);
+    }
+  };
   const discovery = env.oidc ? oidcDiscovery(env.oidc) : undefined;
+  /** Whether another account with email sign-in already has a workspace. */
+  const hasAdmittedAccount = async (
+    client: Pick<PrismaClient, "user" | "spaceMember">,
+    exceptUserId?: string,
+  ) => {
+    const others = await client.user.findMany({
+      where: {
+        ...(exceptUserId ? { id: { not: exceptUserId } } : {}),
+        NOT: { email: { endsWith: MESSAGING_EMAIL_SUFFIX } },
+      },
+      select: { id: true },
+    });
+    return (
+      others.length > 0 &&
+      Boolean(
+        await client.spaceMember.findFirst({
+          where: { userId: { in: others.map((other) => other.id) } },
+          select: { userId: true },
+        }),
+      )
+    );
+  };
+  /** Refuses a new account early, before creating it, once a single-person deployment has one. */
+  const admission = async () => {
+    const policy = signupPolicyFromEnv(env);
+    if (!env.singleAccount || !policy.enabled) return policy;
+    return (await hasAdmittedAccount(prisma)) ? { ...policy, enabled: false } : policy;
+  };
+  /** Admits the sole account one at a time, so two first signups cannot both get in. */
+  const admitSoleAccount = (userId: string) =>
+    prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext('rakazo:single-account'))`;
+      if (await hasAdmittedAccount(tx, userId)) return false;
+      // Committed before the lock is released, so the next signup sees it.
+      await bootstrapUserSpace(prisma, { id: userId }, env);
+      return true;
+    });
+  /** The directory provisioned this account, or it is the open-owner account: admitted whatever the signup policy. */
+  const provisioned = async (userId: string, email?: string, path?: string) =>
+    // Only the server-only open endpoint admits the owner; no signup route can claim that email.
+    (Boolean(env.openOwner) && path === "/open" && email?.toLowerCase() === env.openOwner?.email) ||
+    (Boolean(env.directoryProvisioning) &&
+      Boolean(
+        await prisma.scimUser.findFirst({ where: { userId, active: true }, select: { id: true } }),
+      ));
+  /**
+   * The directory created this account and nobody has signed in to it yet. Every first
+   * sign-in, by any method, gives the account its workspace, so one without a workspace has
+   * never been used. Its first SSO sign-in with the same verified email claims it.
+   */
+  const claimable = async (userId: string) => {
+    if (!env.directoryProvisioning) return false;
+    const [subject, membership, user] = await Promise.all([
+      prisma.scimSubject.findUnique({ where: { userId }, select: { profileSourceId: true } }),
+      prisma.spaceMember.findFirst({ where: { userId }, select: { userId: true } }),
+      prisma.user.findUnique({ where: { id: userId }, select: { deactivatedAt: true } }),
+    ]);
+    // A deactivated account takes no new login, so nothing is linked while it is off.
+    return Boolean(subject?.profileSourceId) && !membership && !user?.deactivatedAt;
+  };
   // SSO-only deployments keep every email credential closed, codes included.
   const emailCodeSignIn = Boolean(env.email) && env.passwordAuth !== false;
   // SSO-only deployments keep the identity provider as the only way in.
@@ -158,7 +262,13 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
     logger: env.logger,
     secret: env.secret,
     baseURL: env.baseURL,
-    trustedOrigins: [...buildTrustedOrigins(env), "rakazo://"],
+    trustedOrigins: [
+      ...buildTrustedOrigins({
+        origins: [env.webOrigin, env.baseURL],
+        extraOrigins: env.extraOrigins,
+      }),
+      APP_SCHEME_ORIGIN,
+    ],
     account: {
       accountLinking: { enabled: true, disableImplicitLinking: true, trustedProviders: [] },
       encryptOAuthTokens: true,
@@ -195,11 +305,11 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
       },
       resetPasswordTokenExpiresIn: 60 * 60,
       sendResetPassword: env.email
-        ? async ({ user, url }) => {
+        ? async ({ user, url }, request) => {
             // Keep the response timing generic. Production providers track and retry the promise,
             // while the composition root drains accepted delivery during graceful shutdown.
-            void env.email
-              ?.send(await passwordResetEmail(user, url))
+            void emailLocaleOf({ id: user.id }, request?.headers)
+              .then(async (locale) => env.email?.send(await passwordResetEmail(user, url, locale)))
               .catch((error) => env.onEmailError?.(error));
           }
         : undefined,
@@ -210,17 +320,22 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
       sendOnSignIn: true,
       autoSignInAfterVerification: false,
       sendVerificationEmail: env.email
-        ? async ({ user, url }) => {
+        ? async ({ user, url }, request) => {
             const verificationUrl = new URL(url);
             verificationUrl.searchParams.set(
               "callbackURL",
               new URL("/sign-in", env.webOrigin).href,
             );
-            await env.email!.send(await verificationEmail(user.email, verificationUrl.href));
+            const locale = await emailLocaleOf({ id: user.id }, request?.headers);
+            await env.email!.send(
+              await verificationEmail(user.email, verificationUrl.href, locale),
+            );
           }
         : undefined,
     },
     user: {
+      // Set by the directory; read with every session so a deactivated account is refused.
+      additionalFields: DEACTIVATED_AT_FIELD,
       validateUserInfo: async ({ user, source }, ctx) => {
         if (source.method !== "oauth" || source.oauth?.providerId !== "oidc") return;
         const expectedUser = (await getOAuthState())?.serverContext?.reauthUserId;
@@ -231,10 +346,24 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
         if (isMessagingEmail(email)) return { error: "EMAIL_NOT_AVAILABLE" };
         if (source.action === "link-account") {
           if (!verified) return { error: "unable_to_link_account" };
+          // Without a link request, this is sign-in finding an account with the same email.
+          // Sign-in never links by email, except to claim an account the directory made.
+          if (!(await getOAuthState())?.link)
+            return (await claimable(String(user.id))) ? undefined : { error: "account_not_linked" };
+          // Anyone can register an address, so linking waits for verification. Without email
+          // nothing can verify; then only the account's own browser may link, since the
+          // native authorization proxy can plant a link state in any other.
+          const target = await ctx.context.internalAdapter.findUserById(String(user.id));
+          if (
+            !target ||
+            (!target.emailVerified &&
+              (env.email || (await sessionForAuthHook(ctx))?.user.id !== target.id))
+          )
+            return { error: "unable_to_link_account" };
           return;
         }
         if (source.action === "create-user") {
-          const policy = signupPolicyFromEnv(env);
+          const policy = await admission();
           if (!policy.enabled) return { error: "REGISTRATION_CLOSED" };
           if (!env.oidc?.allowSignupBypass && !emailAllowed(email, policy.allowlist))
             return { error: "EMAIL_NOT_ALLOWED" };
@@ -249,14 +378,26 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
           const credential = await ctx.context.internalAdapter.findCredentialAccount(user.id);
           if (credential?.password && stored?.email.toLowerCase() !== email)
             return { error: "email_does_not_match" };
-          // A previous verified claim must not mask a later false/missing claim.
-          await ctx.context.internalAdapter.updateUser(user.id, { email, emailVerified: verified });
+          // A previous verified claim must not mask a later false/missing claim, and an
+          // unverified claim must not move the account onto an address nobody proved.
+          await ctx.context.internalAdapter.updateUser(
+            user.id,
+            verified || stored?.email.toLowerCase() === email
+              ? { email, emailVerified: verified }
+              : { emailVerified: false },
+          );
         }
       },
       deleteUser: {
         enabled: true,
         beforeDelete: async (user) => {
-          await env.beforeDeleteUser?.(user.id);
+          try {
+            await env.beforeDeleteUser?.(user.id);
+          } catch (error) {
+            if (error instanceof SpaceDeletionInProgressError)
+              throw new APIError("CONFLICT", { message: error.message });
+            throw error;
+          }
           const organizationIds = await personalOrganizationIds(prisma, user.id);
 
           await prisma.$transaction(async (tx) => {
@@ -279,8 +420,15 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
     plugins: [
       signedBearer,
       expo(),
-      accountSecurity(env.email, env.oidc?.name, env.oidc?.issuer, env.passwordAuth !== false),
-      identityConfirmation(env.email),
+      accountSecurity(
+        env.email,
+        emailLocaleOf,
+        env.oidc?.name,
+        env.oidc?.issuer,
+        env.passwordAuth !== false,
+      ),
+      identityConfirmation(env.email, emailLocaleOf),
+      ...(env.openOwner ? [openOwner(env.openOwner)] : []),
       ...(discovery ? [discovery.plugin] : []),
       ...(emailCodeSignIn
         ? [
@@ -289,11 +437,13 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
               expiresIn: SIGN_IN_CODE_EXPIRES_IN_SECONDS,
               allowedAttempts: 3,
               storeOTP: "hashed",
-              sendVerificationOTP: async ({ email, otp }) => {
+              sendVerificationOTP: async ({ email, otp }, ctx) => {
                 // Like password reset, do not wait on delivery: a refused address
                 // answers at once, so waiting would reveal which addresses are admitted.
-                void env.email
-                  ?.send(await signInCodeEmail(email, otp))
+                void emailLocaleOf({ email }, ctx?.headers)
+                  .then(async (locale) =>
+                    env.email?.send(await signInCodeEmail(email, otp, locale)),
+                  )
                   .catch((error) => env.onEmailError?.(error));
               },
             }),
@@ -354,8 +504,9 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
             throw new APIError("BAD_REQUEST", { message: "Email is not available" });
           }
         }
+        // Open-owner mode has one passwordless account; no credential route may add a way into it.
         if (
-          env.passwordAuth === false &&
+          (env.passwordAuth === false || env.openOwner) &&
           [...CREDENTIAL_PATHS, "/reset-password", "/change-password", "/set-password"].includes(
             ctx.path,
           )
@@ -364,6 +515,20 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
             code: "PASSWORD_AUTH_DISABLED",
             message: "Password authentication is disabled",
           });
+        }
+        if (ctx.path === "/reset-password") {
+          // A reset proves the mailbox, not the logins someone added before it. Clean up
+          // first, so a failure leaves the token unused for another try.
+          const token = ctx.body?.token ?? ctx.query?.token;
+          const reset =
+            typeof token === "string"
+              ? await ctx.context.internalAdapter.findVerificationValue(`reset-password:${token}`)
+              : null;
+          const user =
+            reset && reset.expiresAt > new Date()
+              ? await ctx.context.internalAdapter.findUserById(reset.value)
+              : null;
+          if (user && !user.emailVerified) await revokeUnprovenCredentials(prisma, user.id);
         }
         if (isUnusedEmailCodePath(ctx.path, ctx.body)) throw new APIError("NOT_FOUND");
         if (ctx.path === SEND_SIGN_IN_CODE_PATH || ctx.path === CODE_SIGN_IN_PATH) {
@@ -374,17 +539,19 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
             .trim()
             .toLowerCase();
           if (!(await ctx.context.internalAdapter.findUserByEmail(email))) {
-            const admission = signupPolicyFromEnv(env);
-            if (!admission.enabled || !emailAllowed(email, admission.allowlist)) {
+            const policy = await admission();
+            if (!policy.enabled || !emailAllowed(email, policy.allowlist)) {
               if (ctx.path === SEND_SIGN_IN_CODE_PATH) return ctx.json({ success: true });
               throw new APIError("BAD_REQUEST", { code: "INVALID_OTP", message: "Invalid OTP" });
             }
           }
         }
         let policy =
-          ctx.path === "/sign-up/email" || ctx.path === "/sign-in/email"
-            ? signupPolicyFromEnv(env)
-            : undefined;
+          ctx.path === "/sign-up/email"
+            ? await admission()
+            : ctx.path === "/sign-in/email"
+              ? signupPolicyFromEnv(env)
+              : undefined;
         let requireEmailVerification = false;
         if (ctx.path === "/sign-up/email") {
           if (!policy?.enabled) {
@@ -410,15 +577,27 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
           requireEmailVerification = policy.allowlist.length > 0;
         }
         const { findSession, updateUser } = ctx.context.internalAdapter;
+        // An SSO sign-in may find an account the directory made; validateUserInfo decides.
+        const directoryClaim = Boolean(env.directoryProvisioning) && isOidcCallback(ctx);
         // Return a request-local override; mutating the shared auth options
         // would leak a concurrent request's policy into another signup.
         return {
           context: {
             context: {
-              ...(policy
+              ...(policy || directoryClaim
                 ? {
                     options: {
-                      emailAndPassword: { requireEmailVerification },
+                      ...(policy ? { emailAndPassword: { requireEmailVerification } } : {}),
+                      ...(directoryClaim
+                        ? {
+                            account: {
+                              accountLinking: {
+                                disableImplicitLinking: false,
+                                requireLocalEmailVerified: false,
+                              },
+                            },
+                          }
+                        : {}),
                     },
                   }
                 : {}),
@@ -440,6 +619,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
                 findSession: async (token: string) => {
                   const session = await findSession(token);
                   if (!session || isMessagingEmail(session.user.email)) return null;
+                  if (deactivated(session.user)) return null;
                   if (session.user.emailVerified) return session;
                   if (env.oidc?.allowSignupBypass) {
                     const accounts = await ctx.context.internalAdapter.findAccounts(
@@ -513,6 +693,12 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
                 message: "Email verification required",
               });
             }
+            if (deactivated(user)) {
+              throw new APIError("FORBIDDEN", {
+                code: "ACCOUNT_DEACTIVATED",
+                message: "This account is deactivated",
+              });
+            }
             if (!user.emailVerified && policy.allowlist.length > 0 && !bypassAllowlist) {
               throw new APIError("FORBIDDEN", {
                 code: "EMAIL_VERIFICATION_REQUIRED",
@@ -523,19 +709,25 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
             const membership = await prisma.spaceMember.findFirst({ where: { userId: user.id } });
             if (!membership) {
               if (
-                !policy.enabled ||
-                (!bypassAllowlist && !emailAllowed(user.email, policy.allowlist))
+                (!policy.enabled ||
+                  (!bypassAllowlist && !emailAllowed(user.email, policy.allowlist))) &&
+                !(await provisioned(user.id, user.email, ctx?.path))
               ) {
                 throw new APIError("FORBIDDEN", {
                   code: "REGISTRATION_CLOSED",
                   message: "Registration is closed",
                 });
               }
-              await bootstrapUserSpace(prisma, user, env);
+              if (!env.singleAccount) await bootstrapUserSpace(prisma, user, env);
+              else if (!(await admitSoleAccount(user.id)))
+                throw new APIError("FORBIDDEN", {
+                  code: "REGISTRATION_CLOSED",
+                  message: "Registration is closed",
+                });
             }
           },
           after: async (session, ctx) => {
-            await env.afterSignIn?.(session.userId);
+            await env.afterSignIn?.(session.userId, ctx?.headers);
             env.analytics?.capture(
               session.userId,
               { name: "signed_in" },
@@ -637,6 +829,11 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
     /** Encrypts OAuth tokens stored before encryption was enabled. Safe to rerun. */
     encryptStoredOAuthTokens: async () => encryptStoredOAuthTokens(prisma, await tokenKey()),
     ssoAvailability: () => discovery?.availability(),
+    /** A session response (with cookie) for the open-owner account; null when the mode is off. */
+    openOwnerSession: (headers: Headers) =>
+      env.openOwner
+        ? (auth.api as unknown as OpenOwnerApi).openOwner({ headers, asResponse: true })
+        : null,
     passkeyRpId: relyingParty?.rpID ?? null,
     hasRecentIdentityConfirmation: async (session: { sessionId: string; userId: string }) =>
       hasRecentIdentityConfirmation((await auth.$context).internalAdapter, session),
@@ -651,15 +848,17 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
 export type Auth = ReturnType<typeof createAuth>;
 
 async function revokeUnprovenCredentials(prisma: PrismaClient, userId: string) {
-  await prisma.$transaction([
-    prisma.passkey.deleteMany({ where: { userId } }),
-    prisma.messagingIdentity.deleteMany({ where: { userId } }),
-    prisma.messagingLinkCode.deleteMany({ where: { userId } }),
-    prisma.userDevice.updateMany({
+  // Auth requests carry a database context, which a batch $transaction([...]) cannot.
+  await prisma.$transaction(async (tx) => {
+    await tx.passkey.deleteMany({ where: { userId } });
+    await tx.account.deleteMany({ where: { userId, providerId: { not: "credential" } } });
+    await tx.messagingIdentity.deleteMany({ where: { userId } });
+    await tx.messagingLinkCode.deleteMany({ where: { userId } });
+    await tx.userDevice.updateMany({
       where: { userId, revokedAt: null },
       data: { revokedAt: new Date() },
-    }),
-  ]);
+    });
+  });
 }
 
 /**
@@ -732,11 +931,49 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null;
 }
 
-/** Assemble Better Auth trustedOrigins, adding localhost↔127.0.0.1 twins for loopback. */
-export function buildTrustedOrigins(env: Pick<AuthEnv, "webOrigin" | "baseURL" | "extraOrigins">) {
-  const configured = [env.webOrigin, env.baseURL, ...(env.extraOrigins ?? [])];
-  const twins = [env.webOrigin, env.baseURL].flatMap(loopbackTwinOrigins);
-  return [...new Set([...configured, ...twins])];
+export interface TrustedOriginsInput {
+  /** Trusted along with their localhost↔127.0.0.1 twins. */
+  origins: string[];
+  /** Trusted exactly as given. */
+  extraOrigins?: string[];
+  /**
+   * For matching a request's Origin header: also trust each origin's normalized form and its
+   * [::1] twin, and leave out empty values and the app scheme, which that check accepts first.
+   */
+  requestOrigins?: boolean;
+}
+
+/** The one trusted-origin list, for Better Auth and the API's request origin check. */
+export function buildTrustedOrigins({
+  origins,
+  extraOrigins = [],
+  requestOrigins = false,
+}: TrustedOriginsInput): string[] {
+  const listed = requestOrigins
+    ? origins.filter((origin) => origin && origin !== APP_SCHEME_ORIGIN)
+    : origins;
+  const variants = listed.flatMap(requestOrigins ? requestOriginVariants : loopbackTwinOrigins);
+  return [...new Set([...listed, ...extraOrigins, ...variants])];
+}
+
+const APP_SCHEME_ORIGIN = "rakazo://";
+
+function requestOriginVariants(origin: string): string[] {
+  const variants = loopbackTwinOrigins(origin);
+  try {
+    const url = new URL(origin);
+    if (url.protocol === "http:" || url.protocol === "https:") {
+      variants.push(url.origin);
+    }
+    if (url.hostname === "localhost" || url.hostname === "127.0.0.1") {
+      const v6 = new URL(origin);
+      v6.hostname = "[::1]";
+      variants.push(v6.origin);
+    }
+  } catch {
+    return variants;
+  }
+  return variants;
 }
 
 function isLoopbackHost(host: string): boolean {
@@ -744,7 +981,7 @@ function isLoopbackHost(host: string): boolean {
 }
 
 /** Same-scheme/port localhost and 127.0.0.1 variants when `origin` is loopback. */
-export function loopbackTwinOrigins(origin: string): string[] {
+function loopbackTwinOrigins(origin: string): string[] {
   try {
     const url = new URL(origin);
     if (!isLoopbackHost(url.hostname)) return [];
@@ -768,6 +1005,11 @@ export function loopbackTwinOrigins(origin: string): string[] {
  */
 export function isBlockedAuthPath(path: string): boolean {
   return path.startsWith("/organization");
+}
+
+/** Set while the directory has turned the account off. */
+function deactivated(user: object): boolean {
+  return "deactivatedAt" in user && Boolean(user.deactivatedAt);
 }
 
 function isOidcCallback(

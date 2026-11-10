@@ -13,6 +13,7 @@ import { mcpOAuthEnvReferences } from "@rakazo/contracts";
 import type { McpServer as McpServerRow, Prisma } from "@rakazo/db";
 import { itemSecretIn, spaceAvailability } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
+import { isAdmin } from "./admins.js";
 import { assertNameFreeWhereAvailable, userAddedAvailability } from "./availability.js";
 import { dismissMcpServerApprovals } from "./mcp-approval.js";
 import type { McpSecretMaterial } from "./mcp-material.js";
@@ -39,7 +40,9 @@ export function mcpServerDto(
     installId?: string | null;
     allSpaces?: boolean;
     availableIn?: Array<{ spaceId: string }>;
+    allBots?: boolean;
     enabled: boolean;
+    verbatimResults?: boolean;
     revision: number;
     healthStatus: string;
     healthMessage: string | null;
@@ -48,7 +51,7 @@ export function mcpServerDto(
     createdAt: Date;
     updatedAt: Date;
   },
-  oauth: McpOAuthSummary = { status: "none", clientId: null },
+  oauth: McpOAuthSummary = { status: "none", clientId: null, credential: true },
 ): McpServer {
   const keysOf = (value: unknown) =>
     value && typeof value === "object" && !Array.isArray(value) ? Object.keys(value) : [];
@@ -68,13 +71,16 @@ export function mcpServerDto(
     fileKeys: keysOf(row.files),
     headerKeys,
     installId: row.installId ?? null,
-    hasSecret: row.secretId !== null,
+    // A lone OAuth generation marker keeps a secret row without holding a credential.
+    hasSecret: row.secretId !== null && oauth.credential,
     oauthStatus: oauth.status,
     oauthClientId: oauth.clientId,
     enabled: row.enabled,
+    verbatimResults: row.verbatimResults ?? false,
     revision: row.revision,
     health: mcpServerHealthDto(row),
     availability: spaceAvailability({ ...row, allSpaces: row.allSpaces ?? false }),
+    allBots: row.allBots ?? false,
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString(),
   };
@@ -94,10 +100,24 @@ export function mcpStdioPolicy(deps: Pick<RouterDeps, "env">): McpStdioPolicy {
   };
 }
 
-/** Refuse a stdio server this deployment would never run. */
-export function assertMcpStdioCommand(command: string, deps: Pick<RouterDeps, "env">): void {
+/** A stdio server runs with the API's and worker's own access, so only admins add or change one. */
+export async function assertMcpStdioAdmin(
+  actor: Actor,
+  deps: Pick<RouterDeps, "env" | "prisma">,
+): Promise<void> {
+  if (!(await isAdmin(deps, actor.userId)))
+    throw new ORPCError("FORBIDDEN", { message: "Only admins can add local MCP servers" });
+}
+
+/** Refuse a stdio server this deployment would never run, or one a non-admin adds. */
+export async function assertMcpStdioCommand(
+  command: string,
+  actor: Actor,
+  deps: Pick<RouterDeps, "env" | "prisma">,
+): Promise<void> {
   const refusal = mcpStdioRefusal(command, mcpStdioPolicy(deps));
   if (refusal) throw new ORPCError("BAD_REQUEST", { message: refusal });
+  await assertMcpStdioAdmin(actor, deps);
 }
 
 export async function assertMcpRemoteEndpoint(
@@ -223,10 +243,12 @@ export function createMcpServers(
       await deps.mcp.probe(server, { spaceId: actor.spaceId, userId: actor.userId });
     } catch {
       getLogger().error("mcp server probe failed", { "mcp.server.id": server.id });
-      await recordMcpServerHealth(deps.prisma, server.id, {
-        status: "error",
-        message: "Could not check this MCP server",
-      });
+      await recordMcpServerHealth(
+        deps.prisma,
+        server.id,
+        { status: "error", message: "Could not check this MCP server" },
+        server.revision,
+      );
     }
   };
   /**
@@ -243,7 +265,7 @@ export function createMcpServers(
       status: "unknown" | "installing",
       message: string | null,
     ): Promise<McpServerRow> => {
-      await recordMcpServerHealth(deps.prisma, row.id, { status, message });
+      await recordMcpServerHealth(deps.prisma, row.id, { status, message }, row.revision);
       return {
         ...row,
         healthStatus: status,
@@ -272,7 +294,7 @@ export function createMcpServers(
   const prepareMcpServer = async (actor: Actor, input: McpServerConfigInput) => {
     await assertMcpRemoteEndpoint("endpoint" in input ? input.endpoint : null, deps);
     if (input.transport === "stdio") {
-      assertMcpStdioCommand(input.command, deps);
+      await assertMcpStdioCommand(input.command, actor, deps);
       assertMcpOAuthTemplates(input.env, input.files ?? {}, Boolean(input.oauthClient));
       await assertMcpRemoteEndpoint(input.oauthClient?.authorizationServer, deps);
     }
@@ -286,7 +308,7 @@ export function createMcpServers(
     actor: Actor,
     input: McpServerConfigInput,
     stored: Awaited<ReturnType<typeof prepareMcpServer>>,
-    // What the user adds reaches all their spaces; an import stays in its space.
+    // What the user adds reaches all their spaces and agents; an import stays with its agent.
     options: { everywhere?: boolean } = {},
   ) => {
     if (options.everywhere)
@@ -313,6 +335,7 @@ export function createMcpServers(
         spaceId: actor.spaceId,
         userId: actor.userId,
         allSpaces: options.everywhere ?? false,
+        allBots: options.everywhere ?? false,
         slug: input.slug,
         name: input.name,
         description: input.description,
@@ -331,6 +354,7 @@ export function createMcpServers(
           : {}) as Prisma.InputJsonValue,
         secretId: stored?.id,
         enabled: input.enabled,
+        verbatimResults: input.verbatimResults,
       },
     });
   };

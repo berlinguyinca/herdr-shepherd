@@ -48,6 +48,14 @@ describe("disabled ticket board", () => {
   );
 });
 
+it("answers a signed-out caller with not found while the board is off", async () => {
+  const client = createRouterClient(
+    createRouter({ prisma: {}, env: { ticketBoardEnabled: false } } as unknown as RouterDeps),
+    { context: { actor: null } },
+  );
+  await expect(client.boards.get()).rejects.toMatchObject({ code: "NOT_FOUND" });
+});
+
 it("rejects an out-of-range ticket reference before querying tickets", async () => {
   const findFirst = vi.fn(async () => null);
   const prisma = {
@@ -66,6 +74,19 @@ it("rejects an out-of-range ticket reference before querying tickets", async () 
   expect(findFirst).not.toHaveBeenCalled();
 });
 
+it("refuses a signed-out caller before querying the board", async () => {
+  const findUnique = vi.fn();
+  const client = createRouterClient(
+    createRouter({
+      prisma: { board: { findUnique } },
+      env: { ticketBoardEnabled: true },
+    } as unknown as RouterDeps),
+    { context: { actor: null } },
+  );
+  await expect(client.boards.get()).rejects.toMatchObject({ code: "UNAUTHORIZED" });
+  expect(findUnique).not.toHaveBeenCalled();
+});
+
 it.each([false, true])("includes the board capability in me (%s)", async (ticketBoardEnabled) => {
   const prisma = {
     user: {
@@ -73,6 +94,7 @@ it.each([false, true])("includes the board capability in me (%s)", async (ticket
         email: "user@rakazo.test",
         name: "Test",
         avatarStyle: "robot",
+        secrets: [],
       })),
     },
     userModelPreference: { findFirst: vi.fn(async () => null) },

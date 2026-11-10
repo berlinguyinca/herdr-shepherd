@@ -12,6 +12,7 @@ import {
 } from "@rakazo/logging/monitoring";
 import type * as SentryReact from "@sentry/react";
 import type { ErrorInfo } from "react";
+import { desktopBridge } from "./desktop";
 import { importChunk, recoveringByReload } from "./preload-recovery";
 
 // Load the SDK only when the connected API enables reporting.
@@ -120,8 +121,11 @@ async function loadSentry(fetchImpl: typeof fetch): Promise<typeof SentryReact |
     // The API is unreachable; the app shows its own connection error.
     return undefined;
   }
-  explicitlyDisabled = !config.dsn;
-  if (!config.dsn) return undefined;
+  const desktopReports = await desktopBridge()
+    ?.monitoring?.enabled()
+    .catch(() => false);
+  explicitlyDisabled = !config.dsn || desktopReports === false;
+  if (!config.dsn || explicitlyDisabled) return undefined;
   // Errors queued during startup count the user too, unless a sign-out or a newer answer came first.
   if (signedInState !== false && userId === undefined && isMonitoringUserId(config.userId))
     userId = config.userId;
@@ -159,18 +163,30 @@ async function loadSentry(fetchImpl: typeof fetch): Promise<typeof SentryReact |
   return Sentry;
 }
 
-/** Scripts that browsers and extensions inject, and page translation rewriting React's DOM. */
+/**
+ * Scripts that browsers and extensions inject, page translation rewriting React's DOM, and the
+ * headless browser email link scanners open pages in.
+ */
 const INJECTED =
-  /window\.(?:__firefox__|ethereum)\b|Failed to execute '(?:removeChild|insertBefore)' on 'Node'/;
+  /window\.(?:__firefox__|ethereum)\b|Failed to execute '(?:removeChild|insertBefore)' on 'Node'|^Object Not Found Matching Id:/;
+
+/**
+ * A lazy chunk that did not load (Chrome, Safari, Firefox wording): a dropped connection or a
+ * deploy the recovery reload could not fix. The error boundary offers a refresh.
+ */
+const CHUNK_LOAD =
+  /^(?:Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module)/;
 
 /**
  * The network rather than the code (offline, a timeout or cancellation, a gateway answer while the
- * server restarts), or someone else's code: this app only throws errors, never bare objects.
+ * server restarts, a chunk that did not load), or someone else's code: this app only throws
+ * errors, never bare objects.
  */
 function isNotAppBug(error: unknown): boolean {
   if (typeof error === "object" && error !== null && !(error instanceof Error)) return true;
   if (isAbandonedRequest(error) || isServerUnreachable(error)) return true;
-  return error instanceof Error && INJECTED.test(error.message);
+  const message = error instanceof Error ? error.message : typeof error === "string" ? error : "";
+  return INJECTED.test(message) || CHUNK_LOAD.test(message);
 }
 
 /**

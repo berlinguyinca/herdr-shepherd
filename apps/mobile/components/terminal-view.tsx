@@ -3,16 +3,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { KeyboardAvoidingView, useKeyboardState } from "react-native-keyboard-controller";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import WebView, { type WebViewMessageEvent } from "react-native-webview";
+import type { WebViewMessageEvent } from "react-native-webview";
+import WebView from "react-native-webview";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import { useTerminal } from "../lib/terminal";
+import type { NativeMsg, PageState } from "../lib/terminal-bridge";
 import {
   createLoadGate,
   createOutputBatcher,
   encodeToWeb,
-  type NativeMsg,
-  type PageState,
   pageReducer,
   terminalFontSize,
 } from "../lib/terminal-bridge";
@@ -107,7 +107,7 @@ function TerminalPage({
   );
   const stateRef = useRef(state);
   stateRef.current = state;
-  const web = useRef<WebView>(null);
+  const web = useRef<WebView<object>>(null);
   const [ready, setReady] = useState(false);
   const page = useRef<PageState>({ generation: 0, ready: false, dropped: false, uncapped });
   const advance = (event: "ready" | "gone" | "overflow") => {

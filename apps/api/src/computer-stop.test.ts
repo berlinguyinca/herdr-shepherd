@@ -4,10 +4,25 @@ import path from "node:path";
 import { RPCHandler } from "@orpc/server/fetch";
 import type { AdapterContext } from "@rakazo/adapter-kit";
 import { FakeSandboxProvider, LocalAgentHomeStore, provisionComputer } from "@rakazo/adapters";
+import type * as Db from "@rakazo/db";
 import type { PrismaClient } from "@rakazo/db";
 import { describe, expect, it, vi } from "vitest";
 import type { RouterDeps } from "./router.js";
 import { createRouter } from "./router.js";
+
+// The plan's size is read from billing, which these Prisma doubles do not model.
+vi.mock("@rakazo/db", async (importOriginal) => ({
+  ...(await importOriginal<typeof Db>()),
+  planComputerSize: vi.fn(async () => "standard"),
+}));
+
+function deferred() {
+  let resolve!: () => void;
+  const promise = new Promise<void>((done) => {
+    resolve = done;
+  });
+  return { promise, resolve };
+}
 
 describe("Stop during a computer reconnect", () => {
   it.each([false, true])(
@@ -42,8 +57,8 @@ describe("Stop during a computer reconnect", () => {
       const beforeBoot = { ...row };
       // Simulate an unavailable status probe: reuse must fall back to reconnecting.
       vi.spyOn(sandbox, "isRunning").mockRejectedValue(new Error("status unavailable"));
-      const entered = Promise.withResolvers<void>();
-      const resume = Promise.withResolvers<void>();
+      const entered = deferred();
+      const resume = deferred();
       const provision = sandbox.provision.bind(sandbox);
       vi.spyOn(sandbox, "provision").mockImplementation(async (request, ctx) => {
         entered.resolve();
@@ -52,6 +67,7 @@ describe("Stop during a computer reconnect", () => {
       });
       const stop = vi.spyOn(sandbox, "stop");
       const prisma = {
+        spaceMember: { count: vi.fn(async () => 1) },
         bot: {
           findFirst: vi.fn(async () => ({
             id: "bot",
@@ -120,16 +136,29 @@ describe("Stop during a computer reconnect", () => {
         await entered.promise;
         expect(row.state).toBe("booting");
         const handler = new RPCHandler(createRouter(deps));
-        const requestStop = () =>
-          handler.handle(
+        const requestStop = async () => {
+          const { response } = await handler.handle(
             new Request("https://api.example.test/rpc/computer/stop", {
               method: "POST",
               headers: { "content-type": "application/json" },
               body: JSON.stringify({ json: { botId: "bot" } }),
             }),
-            { prefix: "/rpc", context: { actor: { userId: "user", spaceId: "space" } } },
+            {
+              prefix: "/rpc",
+              context: {
+                actor: {
+                  userId: "user",
+                  spaceId: "space",
+                  email: "user@example.test",
+                  isDeploymentOwner: false,
+                },
+              },
+            },
           );
-        const { response } = await requestStop();
+          if (!response) throw new Error("no response");
+          return response;
+        };
+        const response = await requestStop();
         resume.resolve();
         const error = await bootResult;
         expect({
@@ -141,7 +170,7 @@ describe("Stop during a computer reconnect", () => {
         expect(stop).not.toHaveBeenCalled();
         // Stop can succeed once the reconnect has finished; nothing resumes it afterward.
         const stopped = await requestStop();
-        expect(stopped.response.status).toBe(200);
+        expect(stopped.status).toBe(200);
         expect(row.state).toBe("stopped");
         expect(sandbox.boxes.get(ref.id)?.running).toBe(false);
       } finally {

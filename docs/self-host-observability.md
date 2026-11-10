@@ -145,6 +145,7 @@ The API and worker append a row to `security_events` and write a `security.event
 
 - sign-up, sign-in, sign-out, and failed sign-in or sign-up
 - session revocation, password and passkey changes, and account deletion
+- accounts the identity provider deactivated or reactivated ([SCIM](./self-host-accounts.md#directory-provisioning-scim))
 - model, MCP, connector, voice, memory, and secret credentials created, changed, or removed
 - deployment settings changes, approval decisions, and approval policy changes
 - refused private or internal destinations (`egress.refused`) and auth rate-limit hits
@@ -152,6 +153,7 @@ The API and worker append a row to `security_events` and write a `security.event
 Each event has the user, space, client address, user agent, time, and a few identifiers. Events
 never include message content, secrets, or tokens. Rows older than `SECURITY_EVENT_RETENTION_DAYS`
 (default 90) are deleted, and Postgres rejects updates to the rows that remain.
+An account's own events are also written to its organization's [audit log](./self-host-audit-log.md).
 
 Operators read recent events through server-side database/log tooling. For example, query Postgres:
 
@@ -228,7 +230,8 @@ Monitoring is opt-in. Install `host-alert.py` as `/usr/local/sbin/rakazo-host-al
 `check-host.sh` as `/usr/local/sbin/rakazo-host-check`, and `check-services.py` as
 `/usr/local/sbin/rakazo-check-services` (all executable), then install the supplied host-check service
 and timer and enable `rakazo-host-check.timer`. Checks run every five minutes and report low disk
-space, failed backups, a verified backup older than 36 hours, or missing configured IPv4 SSH rules.
+space, failed backups, a verified backup older than 36 hours, missing configured IPv4 SSH rules, or
+installed updates waiting for a reboot.
 To also check API and worker containers, set `RAKAZO_MONITOR_COMPOSE_PROJECT` in `backup.env` to
 the Compose project name (`rakazo-prod` for production). The worker probe checks heartbeat and
 reconciliation freshness. Leave the variable unset if container monitoring is managed elsewhere.
@@ -279,9 +282,9 @@ check alerts when a sink is configured but the shipper is not running.
 Alert in the destination, not on the host. Starting points, written as Axiom APL here but plain
 filters in any log store:
 
-| Alert | Query |
-| --- | --- |
-| Login with an unnamed key | `where event == "ssh.login" and key_name == "unknown"` |
-| Watched file changed | `where event == "file.change"` outside your own deploys and maintenance |
+| Alert                               | Query                                                                                                 |
+| ----------------------------------- | ----------------------------------------------------------------------------------------------------- |
+| Login with an unnamed key           | `where event == "ssh.login" and key_name == "unknown"`                                                |
+| Watched file changed                | `where event == "file.change"` outside your own deploys and maintenance                               |
 | Root use outside the deploy account | `where (event == "sudo.command" and user != "deploy") or event == "su" or event == "identity.change"` |
-| Shipping stopped | no `shipper.heartbeat` from a `host` for more than two heartbeat intervals |
+| Shipping stopped                    | no `shipper.heartbeat` from a `host` for more than two heartbeat intervals                            |

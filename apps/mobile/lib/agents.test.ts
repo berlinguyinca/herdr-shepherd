@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const stream = vi.hoisted(() => vi.fn());
 const call = vi.hoisted(() => vi.fn());
-vi.mock("./api", () => ({ streamRpc: stream, rpc: call }));
+vi.mock("./api", () => ({ rpc: call }));
+vi.mock("./api-live", () => ({ streamRpc: stream }));
 vi.mock("./query", () => ({
   rpcQuery: vi.fn((proc, input) => ({ queryKey: [proc, input], queryFn: () => call(proc, input) })),
 }));

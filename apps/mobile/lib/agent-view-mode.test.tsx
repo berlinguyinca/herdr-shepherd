@@ -3,6 +3,7 @@ import { MAX_FONT_SCALE } from "@rakazo/ui-tokens";
 import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { ViewMode } from "./agent-view-mode";
 import {
   AGENT_VIEW_MODES_KEY,
   createViewModeStore,
@@ -12,7 +13,6 @@ import {
   rememberMode,
   terminalKeyboardOffset,
   useViewMode,
-  type ViewMode,
   viewModeLocked,
 } from "./agent-view-mode";
 

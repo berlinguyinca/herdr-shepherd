@@ -6,7 +6,7 @@ export type ModelConnectionRequest = {
   provider: string;
   /** The connection to manage, or null to add another one for the provider. */
   credentialId: string | null;
-  /** Prefills an OpenAI-compatible endpoint, such as the Ollama Cloud preset. */
+  /** Prefills an OpenAI-compatible endpoint, such as a hosted preset. */
   baseUrl?: string;
   /** Only the main model's empty first slot takes the new connection's model on connect. */
   makeDefault: boolean;
@@ -18,6 +18,9 @@ export type ModelConnectionRequest = {
    */
   onConnected?: (choice: ModelRoleChoice) => Promise<Href | undefined>;
 };
+
+/** Connecting checks the key and a test request with the provider, which a slow one can stretch past the default RPC timeout. */
+export const MODEL_CONNECT_TIMEOUT_MS = 60_000;
 
 let nextId = 0;
 const requests = new Map<string, ModelConnectionRequest>();

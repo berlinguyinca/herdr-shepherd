@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const stream = vi.hoisted(() => vi.fn());
 const call = vi.hoisted(() => vi.fn());
-vi.mock("./api", () => ({ streamRpc: stream, rpc: call }));
+vi.mock("./api", () => ({ rpc: call }));
+vi.mock("./api-live", () => ({ streamRpc: stream }));
 
-import { createTerminalClient, type TerminalOutput } from "./terminal";
+import type { TerminalOutput } from "./terminal";
+import { createTerminalClient } from "./terminal";
 
 type Json = Record<string, unknown>;
 type Emit = (json: unknown) => void;

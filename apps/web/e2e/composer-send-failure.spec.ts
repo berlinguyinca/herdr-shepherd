@@ -39,45 +39,45 @@ test("a routine that already ran is not put back when the thread refresh fails",
   const chip = page.getByTestId("mention-chip");
   await expect(chip).toHaveText("@daily-digest");
 
-  const testRun = page.waitForResponse(
-    (response) => response.url().includes("/rpc/routines/testRun") && response.ok(),
+  const ran = page.waitForResponse(
+    (response) => response.url().includes("/rpc/threads/sendWithRoutines") && response.ok(),
+  );
+  const refreshFailed = page.waitForEvent("requestfailed", (request) =>
+    request.url().includes("/rpc/threads/get"),
   );
   await page.route("**/rpc/threads/get", (route) => route.abort("internetdisconnected"));
   await composer.press("Enter");
-  await testRun;
+  await ran;
+  await refreshFailed;
 
-  await expect(page.getByTestId("composer-error")).toBeVisible();
+  // The server took the send and the routine ran, so the send counts as done even though
+  // the refresh after it failed: no error, and nothing comes back for a retry that would
+  // run the routine twice.
   await expect(chip).toHaveCount(0);
   await expect(composer).toHaveValue("");
+  await expect(page.getByTestId("composer-error")).toHaveCount(0);
 });
 
-test("a message is not put back when one of its routines already ran", { tag: "@nightly" }, async ({
-  page,
-}) => {
+test("a failed send with routines gives back the message and its routines", {
+  tag: "@nightly",
+}, async ({ page }) => {
   const composer = await openComposer(page, "send-failure-routines");
   await createRoutine(page, "daily-digest");
-  const failing = await createRoutine(page, "weekly-review");
+  await createRoutine(page, "weekly-review");
   await page.reload();
   await mentionRoutine(page, composer, "daily-digest");
   await mentionRoutine(page, composer, "weekly-review");
-  await expect(page.getByTestId("mention-chip")).toHaveCount(2);
-
-  await page.route("**/rpc/routines/testRun", (route) => {
-    const input = route.request().postDataJSON() as { json: { routineId: string } };
-    return input.json.routineId === failing.id
-      ? route.abort("internetdisconnected")
-      : route.continue();
-  });
-  const accepted = page.waitForResponse(
-    (response) => response.url().includes("/rpc/routines/testRun") && response.ok(),
-  );
   await composer.pressSequentially("and the notes");
+  const draft = await composer.inputValue();
+
+  await page.route("**/rpc/threads/sendWithRoutines", (route) =>
+    route.abort("internetdisconnected"),
+  );
   await composer.press("Enter");
-  await accepted;
 
   await expect(page.getByTestId("composer-error")).toBeVisible();
-  await expect(page.getByTestId("mention-chip")).toHaveCount(0);
-  await expect(composer).toHaveValue("");
+  await expect(page.getByTestId("mention-chip")).toHaveCount(2);
+  await expect(composer).toHaveValue(draft);
 });
 
 test("an unchanged routine retry after a lost response reuses the run", {
@@ -89,11 +89,11 @@ test("an unchanged routine retry after a lost response reuses the run", {
   await mentionRoutine(page, composer, "daily-digest");
   const nonces: string[] = [];
   const runIds: string[] = [];
-  await page.route("**/rpc/routines/testRun", async (route) => {
+  await page.route("**/rpc/threads/sendWithRoutines", async (route) => {
     nonces.push(route.request().postDataJSON().json.clientNonce);
     const response = await route.fetch();
     expect(response.ok()).toBe(true);
-    runIds.push((await response.json()).json.runId);
+    runIds.push(...(await response.json()).json.routineRunIds);
     if (nonces.length === 1) await route.abort("internetdisconnected");
     else await route.fulfill({ response });
   });
@@ -101,7 +101,7 @@ test("an unchanged routine retry after a lost response reuses the run", {
   await expect(page.getByTestId("composer-error")).toBeVisible();
   await expect(page.getByTestId("mention-chip")).toHaveText("@daily-digest");
   const retryResponse = page.waitForResponse(
-    (response) => response.url().includes("/rpc/routines/testRun") && response.ok(),
+    (response) => response.url().includes("/rpc/threads/sendWithRoutines") && response.ok(),
   );
   await composer.press("Enter");
   await retryResponse;
@@ -178,4 +178,48 @@ test("separate picks with matching file metadata upload their own bytes", {
     Buffer.from("first").toString("base64"),
     Buffer.from("other").toString("base64"),
   ]);
+});
+
+test("a retried send after an edit reuses the attachment's uploaded artifact", {
+  tag: "@nightly",
+}, async ({ page }) => {
+  const composer = await openComposer(page, "attachment-retry");
+  const botId = activeBotId(page);
+  const uploadNonces: string[] = [];
+  await page.route("**/rpc/artifacts/create", async (route) => {
+    uploadNonces.push(route.request().postDataJSON().json.clientNonce);
+    await route.continue();
+  });
+  await page.locator('input[type="file"]').evaluate((element) => {
+    const input = element as HTMLInputElement;
+    const file = new File(["retry-me"], "notes.txt", { type: "text/plain" });
+    const transfer = new DataTransfer();
+    transfer.items.add(file);
+    input.files = transfer.files;
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  });
+  await composer.fill("process the file");
+  let sends = 0;
+  await page.route("**/rpc/threads/send", async (route) => {
+    sends += 1;
+    if (sends === 1) await route.abort("internetdisconnected");
+    else await route.continue();
+  });
+  await composer.press("Enter");
+  await expect(page.getByTestId("composer-error")).toBeVisible();
+  // Editing the draft gives the retry a new send nonce; the file is unchanged,
+  // so its upload must replay the artifact the first attempt already stored.
+  await composer.fill("process the file now");
+  await composer.press("Enter");
+  await expect(
+    page.getByTestId("transcript").getByText("process the file now", { exact: true }),
+  ).toBeVisible();
+
+  expect(uploadNonces).toHaveLength(2);
+  expect(uploadNonces[1]).toBe(uploadNonces[0]);
+  const artifacts = await rpc<{ items: Array<{ name: string }> }>(page, "artifacts/listSpace", {
+    botId,
+    limit: 60,
+  });
+  expect(artifacts.items.filter((artifact) => artifact.name === "notes.txt")).toHaveLength(1);
 });

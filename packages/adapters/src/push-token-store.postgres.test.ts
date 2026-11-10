@@ -4,8 +4,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { credentialDigest } from "./credential-digest.js";
 import { PrismaPushTokenStore, PushSessionEndedError } from "./push-token-store.js";
 
-const suite =
-  process.env.VERIFY_DATABASE && process.env.DATABASE_URL ? describe.sequential : describe.skip;
+const suite = process.env.VERIFY_DATABASE && process.env.DATABASE_URL ? describe : describe.skip;
 suite("database push registrations", () => {
   let a: ReturnType<typeof createDb>;
   let b: ReturnType<typeof createDb>;
@@ -68,6 +67,13 @@ suite("database push registrations", () => {
     await runAsTenant({ userId: user("b"), spaceId: "unused" }, async () => {
       expect(await a.prisma.pushToken.findMany()).toEqual([]);
     });
+  });
+
+  it("keeps the native presentation capability across replicas and clears it on legacy registration", async () => {
+    await api.save(user("a"), token("a"), session("a"), "android_sender");
+    expect((await worker.load(user("a")))?.presentation).toBe("android_sender");
+    await api.save(user("a"), token("a"), session("a"));
+    expect((await worker.load(user("a")))?.presentation).toBeUndefined();
   });
 
   it("serializes concurrent device handovers so only one account owns a token", async () => {

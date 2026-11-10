@@ -6,19 +6,20 @@ import type { ComputerRef, PortableFile, StreamedPortableFile } from "@rakazo/ad
 import {
   SandboxDamagedError,
   SandboxRateLimitError,
+  SandboxSizeUnavailableError,
   SandboxUnavailableError,
   SandboxUnresponsiveError,
   WorkspaceTooLargeError,
 } from "@rakazo/adapter-kit";
-import { screenDisplayArgv, shellQuote } from "@rakazo/core/node/desktop-runtime";
+import {
+  desktopWorkCommand,
+  screenDisplayArgv,
+  shellQuote,
+} from "@rakazo/core/node/desktop-runtime";
 import { createLogger, createTestSink, installLogger } from "@rakazo/logging";
 import { parse } from "shell-quote";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  BOAT_COMPUTER_SNAPSHOT,
-  BoatSandboxProvider,
-  boatComputerSnapshotName,
-} from "./boat-sandbox.js";
+import { BOAT_COMPUTER_SNAPSHOT, BoatSandboxProvider } from "./boat-sandbox.js";
 import type { BoatRecovery } from "./boat-sandbox.test-support.js";
 import {
   BOAT_ARTIFACT_MAX_BYTES,
@@ -26,7 +27,10 @@ import {
   FakeBoatApi,
   serveFakeBoatDownload,
 } from "./boat-sandbox.test-support.js";
+import { computerSnapshotName } from "./computer-base-snapshot.js";
+import { ComputerBrowserProvider } from "./computer-browser.js";
 import { PREPARE_LINUX_DESKTOP } from "./linux-desktop.js";
+import { installPageBrowserCommand } from "./page-browser-install.js";
 import { isSandboxGoneError } from "./sandbox-errors.js";
 
 // Polling waits advance a virtual clock, so state and deadline tests run instantly.
@@ -126,6 +130,101 @@ function reconnect(provider: BoatSandboxProvider, computer: ComputerRef, savedAt
 }
 
 describe("BoatSandboxProvider", () => {
+  describe("computer sizes", () => {
+    it("creates a new computer on the machine type for its size", async () => {
+      const api = new FakeBoatApi();
+      const provider = new BoatSandboxProvider({ apiKey: "test-key" }, api);
+      await provider.provision({ botId: "bot-a", homePath: "/unused", size: "large" }, context);
+      expect(api.creates.at(-1)?.type).toBe("large");
+      await provider.provision({ botId: "bot-b", homePath: "/unused" }, context);
+      expect(api.creates.at(-1)?.type).toBeUndefined();
+    });
+
+    it("moves a stopped computer to its size on resume and leaves a running one alone", async () => {
+      const resume = vi.spyOn(FakeBoatApi.prototype, "resume");
+      const { api, provider, computer } = await boat();
+      const request = {
+        botId: computer.botId,
+        homePath: "/unused",
+        providerRef: computer.providerRef,
+        providerKind: "boat" as const,
+        size: "xlarge" as const,
+      };
+      api.availableTypes.add("xlarge");
+
+      await expect(provider.provision(request, context)).resolves.toMatchObject({
+        started: false,
+      });
+      expect(resume).not.toHaveBeenCalled();
+
+      api.setState(computer.id, "archived");
+      await expect(provider.provision(request, context)).resolves.toMatchObject({
+        started: true,
+      });
+      expect(resume).toHaveBeenCalledWith(
+        {
+          sandboxId: computer.id,
+          resumeRequest: { noEnv: true, ttlSeconds: 7200, type: "xlarge" },
+        },
+        { signal: expect.any(AbortSignal) },
+      );
+    });
+
+    it("moves a computer Boat recovers by resuming to its size", async () => {
+      const resume = vi.spyOn(FakeBoatApi.prototype, "resume");
+      const { api, provider, computer } = await boat();
+      api.fail(computer.id, "no_machine");
+
+      await provider.provision(
+        {
+          botId: computer.botId,
+          homePath: "/unused",
+          providerRef: computer.providerRef,
+          providerKind: "boat",
+          size: "large",
+        },
+        context,
+      );
+
+      expect(resume).toHaveBeenCalledWith(
+        {
+          sandboxId: computer.id,
+          resumeRequest: { noEnv: true, ttlSeconds: 7200, type: "large" },
+        },
+        { signal: expect.any(AbortSignal) },
+      );
+    });
+
+    it("reports a size Boat refuses as unavailable and keeps the computer as it was", async () => {
+      const { api, provider, computer } = await boat();
+      api.setState(computer.id, "archived");
+      const request = {
+        botId: computer.botId,
+        homePath: "/unused",
+        providerRef: computer.providerRef,
+        providerKind: "boat" as const,
+      };
+
+      await expect(provider.provision({ ...request, size: "xlarge" }, context)).rejects.toEqual(
+        expect.objectContaining({ name: "SandboxSizeUnavailableError", reason: "not_offered" }),
+      );
+      api.tooSmallTypes.add("default");
+      await expect(provider.provision({ ...request, size: "standard" }, context)).rejects.toEqual(
+        expect.objectContaining({ name: "SandboxSizeUnavailableError", reason: "too_small" }),
+      );
+      expect(api.state(computer.id)).toBe("archived");
+      // Without a size it resumes as it was.
+      await expect(provider.provision(request, context)).resolves.toMatchObject({
+        providerRef: computer.providerRef,
+        started: true,
+      });
+
+      await expect(
+        provider.provision({ botId: "bot-b", homePath: "/unused", size: "xlarge" }, context),
+      ).rejects.toBeInstanceOf(SandboxSizeUnavailableError);
+    });
+  });
+
   it("logs actual creates and resumes without counting reuse or exposing request content", async () => {
     const sink = createTestSink();
     installLogger(createLogger({ service: "test", sinks: [sink] }));
@@ -236,6 +335,24 @@ describe("BoatSandboxProvider", () => {
     ]);
   });
 
+  // Node's fetch drops a response with no headers after 300 seconds, however long Boat would wait.
+  it("follows the workspace archive in the background instead of waiting on one request", async () => {
+    const command = vi.spyOn(FakeBoatApi.prototype, "command");
+    const { provider, computer } = await boat();
+    await provider.writeFile(
+      computer,
+      { path: "notes.txt", content: Uint8Array.from([1]) },
+      context,
+    );
+
+    await readExport(provider.exportWorkspace(computer, context));
+    const archive = command.mock.calls
+      .map(([request]) => request.commandRequest)
+      .find((request) => request.command.includes("rakazo-workspace-archive-"));
+    expect(archive).toMatchObject({ detached: true });
+    expect(archive).not.toHaveProperty("timeoutSeconds");
+  });
+
   it("keeps command secrets out of command text and removes the env file as the command starts", async () => {
     const command = vi.spyOn(FakeBoatApi.prototype, "command");
     const writeFile = vi.spyOn(FakeBoatApi.prototype, "writeFile");
@@ -265,7 +382,7 @@ describe("BoatSandboxProvider", () => {
     // The same command opens, deletes, and loads the file before running argv.
     const run = parse(commands.find((text) => text.includes(envFile)) ?? "").at(-1);
     expect(run).toBe(
-      `exec 3< '${envFile}' || exit 1; rm -f -- '${envFile}'; . /dev/fd/3 || exit 1; exec 3<&-; ${screenDisplayArgv(["printenv", "FAKE_TOKEN"], context.botId, 20).map(shellQuote).join(" ")}`,
+      `exec 3< '${envFile}' || exit 1; rm -f -- '${envFile}'; eval "$(cat <&3 || echo exit 1)" || exit 1; exec 3<&-; ${screenDisplayArgv(["printenv", "FAKE_TOKEN"], context.botId, 20).map(shellQuote).join(" ")}`,
     );
     expect(api.files(computer.id).has(envFile)).toBe(false);
   });
@@ -285,6 +402,54 @@ describe("BoatSandboxProvider", () => {
     await expect(run()).rejects.toThrow("invalid environment variable name");
     expect(writeFile).not.toHaveBeenCalled();
     expect(command).not.toHaveBeenCalled();
+  });
+
+  it("reports a timed out command that has no env file", async () => {
+    const command = FakeBoatApi.prototype.command;
+    vi.spyOn(FakeBoatApi.prototype, "command").mockImplementation(async function (
+      this: FakeBoatApi,
+      request,
+    ) {
+      const text = request.commandRequest.command;
+      // The command is still running when its timeout fires, so it never marks itself done.
+      if (text.startsWith("test -f") && text.includes("completed-124")) {
+        return {
+          ok: true,
+          type: "command.finished",
+          success: false,
+          exitCode: 1,
+          stdout: "",
+          stderr: "",
+          timedOut: false,
+        };
+      }
+      return text.includes("still-working")
+        ? {
+            ok: true,
+            type: "command.finished",
+            success: false,
+            exitCode: 124,
+            stdout: "",
+            stderr: "",
+            timedOut: false,
+          }
+        : command.call(this, request);
+    });
+    const { provider, computer } = await boat();
+
+    const events = [];
+    for await (const event of provider.execute(
+      computer,
+      { argv: ["still-working"], timeoutMs: 1_000 },
+      context,
+    )) {
+      events.push(event);
+    }
+
+    expect(events).toEqual([
+      { type: "stderr", data: "command timed out after 1000 ms\n" },
+      { type: "exit", code: 124 },
+    ]);
   });
 
   it("removes the env file when the command never starts", async () => {
@@ -328,7 +493,7 @@ describe("BoatSandboxProvider", () => {
     });
     expect(resume).toHaveBeenCalledWith(
       { sandboxId: computer.id, resumeRequest: { noEnv: true, ttlSeconds: 7200 } },
-      { signal: context.signal },
+      { signal: expect.any(AbortSignal) },
     );
   });
 
@@ -472,6 +637,26 @@ describe("BoatSandboxProvider", () => {
       { type: "stdout", data: "awake\n" },
       { type: "exit", code: 0 },
     ]);
+  });
+
+  it("reports a machine still refused as stopped after waking it as a computer that did not start", async () => {
+    const command = FakeBoatApi.prototype.command;
+    let machineStops = false;
+    vi.spyOn(FakeBoatApi.prototype, "command").mockImplementation(async function (
+      this: FakeBoatApi,
+      ...args
+    ) {
+      if (!machineStops) return command.apply(this, args);
+      throw boatError(409, "machine_not_running", "Sandbox machine is not running.");
+    });
+    const { provider, computer } = await boat();
+    await provider.prepare(computer, context);
+    machineStops = true;
+
+    const error = await (async () => {
+      for await (const _ of provider.exportWorkspace(computer, context));
+    })().catch((failure: unknown) => failure);
+    expect(error).toBeInstanceOf(SandboxUnavailableError);
   });
 
   it("waits for a resume another job already started instead of failing", async () => {
@@ -838,7 +1023,9 @@ describe("BoatSandboxProvider", () => {
       const { api, provider, computer } = await boat();
       api.damage(computer.id);
 
-      await expect(provider.stop(computer, context)).rejects.toThrow("did not reach archived");
+      const stopped = provider.stop(computer, context);
+      await expect(stopped).rejects.toBeInstanceOf(SandboxUnresponsiveError);
+      await expect(stopped).rejects.toThrow("did not reach archived");
 
       expect(stop).toHaveBeenCalledExactlyOnceWith(
         { sandboxId: computer.id },
@@ -920,7 +1107,7 @@ describe("BoatSandboxProvider", () => {
         return { deadline, caller, signal: (init as RequestInit).signal };
       };
       const byDeadline = await statusRead();
-      expect(timeout).toHaveBeenLastCalledWith(10_000);
+      expect(timeout).toHaveBeenCalledWith(10_000);
       expect(byDeadline.signal?.aborted).toBe(false);
       byDeadline.deadline.abort();
       expect(byDeadline.signal?.aborted).toBe(true);
@@ -1174,18 +1361,24 @@ describe("BoatSandboxProvider", () => {
   it.each([
     ["an unexpected failure", new Error("attach broke"), "Error"],
     ["a Boat server error", boatError(500, "internal", "upstream"), "SandboxUnresponsiveError"],
-  ])("fails a long command when %s ends the attach to its output", async (_name, failure, name) => {
-    const attach = vi.spyOn(FakeBoatApi.prototype, "attachCommandRaw");
-    const status = vi.spyOn(FakeBoatApi.prototype, "commandStatus");
-    const { provider, computer } = await boat();
-    await provider.prepare(computer, context);
-    attach.mockRejectedValue(failure);
+  ])(
+    "fails and stops a long command when %s ends the attach to its output",
+    async (_name, failure, name) => {
+      const command = vi.spyOn(FakeBoatApi.prototype, "command");
+      const attach = vi.spyOn(FakeBoatApi.prototype, "attachCommandRaw");
+      const status = vi.spyOn(FakeBoatApi.prototype, "commandStatus");
+      const { provider, computer } = await boat();
+      await provider.prepare(computer, context);
+      attach.mockRejectedValue(failure);
 
-    await expect(
-      drain(provider.execute(computer, { argv: ["echo", "x"], timeoutMs: 20 * 60_000 }, context)),
-    ).rejects.toMatchObject({ name });
-    expect(status).not.toHaveBeenCalled();
-  });
+      await expect(
+        drain(provider.execute(computer, { argv: ["echo", "x"], timeoutMs: 20 * 60_000 }, context)),
+      ).rejects.toMatchObject({ name });
+      expect(status).not.toHaveBeenCalled();
+      const sent = command.mock.calls.map(([request]) => request.commandRequest.command);
+      expect(sent.some((script) => script.includes("pkill"))).toBe(true);
+    },
+  );
 
   it("follows a long command on Boat's output stream, reattaching where each connection ended", async () => {
     const attach = vi.spyOn(FakeBoatApi.prototype, "attachCommandRaw");
@@ -1563,6 +1756,29 @@ describe("BoatSandboxProvider", () => {
     expect(run).toHaveBeenCalledOnce();
   });
 
+  it("restores over read-only files a kept disk already holds", async () => {
+    const { api, provider, computer } = await boat();
+    const pack = "/home/user/rakazo-home/repo/.git/objects/pack/pack-1.idx";
+    api.files(computer.id).set(pack, {
+      content: Uint8Array.from([1]),
+      executable: false,
+      readOnly: true,
+    });
+    async function* files() {
+      yield { path: "repo/.git/objects/pack/pack-1.idx", content: Uint8Array.from([2]) };
+    }
+
+    await provider.importWorkspace(computer, files(), context);
+
+    expect(api.files(computer.id).get(pack)?.content).toEqual(Uint8Array.from([2]));
+  });
+
+  it("lists a folder that is not there as empty", async () => {
+    const { provider, computer } = await boat();
+
+    expect(await provider.listFiles(computer, "deleted", context)).toEqual([]);
+  });
+
   it.each([
     ["exit 1", { exitCode: 1, timedOut: false }, "could not list Boat workspace (exit 1)"],
     ["timeout", { exitCode: 124, timedOut: true }, "could not list Boat workspace (timed out)"],
@@ -1877,6 +2093,127 @@ describe("BoatSandboxProvider", () => {
     expect(provider.describe().capabilities.multiScreen).toBe(true);
   });
 
+  it("installs the page browser and drives this screen's Chrome with the request on stdin", async () => {
+    const command = vi.spyOn(FakeBoatApi.prototype, "command");
+    const { api, provider, computer } = await boat();
+    await provider.prepare(computer, context);
+    expect(scripts(command)).toContain(installPageBrowserCommand());
+
+    const seen: Array<{ command: string; input: string }> = [];
+    api.withInput = (script, input) => {
+      seen.push({ command: script, input });
+      return {
+        stdout: JSON.stringify({
+          ok: true,
+          completed: 1,
+          url: "https://example.com/",
+          title: "Example",
+          tree: '- textbox "Password" [e1]',
+          elements: [{ ref: "e1", role: "textbox", name: "Password" }],
+        }),
+      };
+    };
+    const fill = {
+      kind: "fill" as const,
+      ref: "e1",
+      text: "hunter2",
+      origin: "https://example.com",
+      field: "password" as const,
+    };
+    const browser = new ComputerBrowserProvider({ sandbox: provider });
+    expect(browser.describe().capabilities.page).toBe(true);
+    await expect(browser.act(computer, { actions: [fill] }, context)).resolves.toMatchObject({
+      ok: true,
+      completed: 1,
+      url: "https://example.com/",
+    });
+
+    // The saved login reaches the helper on stdin, never in a command Boat logs.
+    expect(seen).toEqual([
+      {
+        command: desktopWorkCommand(
+          "bot-a",
+          undefined,
+          0,
+          "DISPLAY=:20 RAKAZO_CDP_PORT=9241 HOME='/home/user/rakazo-home' RAKAZO_BROWSER_ARGS_STDIN=1 /usr/local/bin/rakazo-page-browser act",
+        ),
+        input: `${JSON.stringify({ command: "act", actions: [fill] })}\n`,
+      },
+    ]);
+    expect(scripts(command).some((script) => script.includes("hunter2"))).toBe(false);
+  });
+
+  it("still prepares the computer when the page browser cannot be installed", async () => {
+    const { api, provider, computer } = await boat();
+    const command = api.command.bind(api);
+    vi.spyOn(api, "command").mockImplementation(async (request) =>
+      String(parse(request.commandRequest.command).at(-1)) === installPageBrowserCommand()
+        ? {
+            ok: true,
+            type: "command.finished",
+            success: false,
+            exitCode: 22,
+            stdout: "",
+            stderr: "curl: (22) The requested URL returned error: 503\n",
+            timedOut: false,
+          }
+        : command(request),
+    );
+
+    await expect(provider.prepare(computer, context)).resolves.toBeUndefined();
+    await expect(provider.observe(computer, context)).resolves.toMatchObject({ width: 1280 });
+  });
+
+  it("falls back to desktop tools when the page browser cannot answer", async () => {
+    const { api, provider, computer } = await boat();
+    await provider.prepare(computer, context);
+    const browser = new ComputerBrowserProvider({ sandbox: provider });
+
+    api.withInput = () => ({
+      stdout: JSON.stringify({
+        ok: false,
+        error: "CDP not ready on port 9241: refused",
+        fallback: "computer_act",
+      }),
+    });
+    await expect(browser.snapshot(computer, {}, context)).resolves.toMatchObject({
+      fallback: "computer_act",
+      error: "CDP not ready on port 9241: refused",
+    });
+
+    // An older computer image refuses a command it does not know with exit 2.
+    api.withInput = () => ({
+      exitCode: 2,
+      stdout: JSON.stringify({
+        ok: false,
+        error: "unknown command: purchase_check",
+        fallback: "computer_act",
+      }),
+    });
+    await expect(
+      browser.purchaseCheck(
+        computer,
+        { desktop: true, enter: false, points: [{ x: 10, y: 10 }], unplaced: false },
+        context,
+      ),
+    ).resolves.toEqual({ purchase: null });
+
+    api.withInput = () => ({ exitCode: 1, stdout: "Traceback" });
+    await expect(
+      browser.act(computer, { actions: [{ kind: "click", ref: "e1" }] }, context),
+    ).resolves.toMatchObject({
+      ok: false,
+      uncertain: true,
+      fallback: "computer_act",
+      error: "Page browser unavailable or interrupted",
+    });
+
+    api.withInput = () => ({ stdout: JSON.stringify({ ok: true }) });
+    await expect(
+      browser.navigate(computer, { url: "https://example.com" }, context),
+    ).resolves.toMatchObject({ fallback: "computer_act" });
+  });
+
   it("authenticates takeover and terminal streams without a browser cookie bootstrap", async () => {
     const { provider, computer } = await boat();
     await provider.prepare(computer, context);
@@ -2015,10 +2352,20 @@ describe("Boat computer snapshot", () => {
 
   it("names the snapshot after the setup it captures", () => {
     expect(BOAT_COMPUTER_SNAPSHOT).toMatch(/^rakazo-computer-[0-9a-f]{12}$/);
-    expect(boatComputerSnapshotName(["mkdir -p a", PREPARE_LINUX_DESKTOP])).not.toBe(
-      boatComputerSnapshotName(["mkdir -p b", PREPARE_LINUX_DESKTOP]),
+    expect(computerSnapshotName(["mkdir -p a", PREPARE_LINUX_DESKTOP])).not.toBe(
+      computerSnapshotName(["mkdir -p b", PREPARE_LINUX_DESKTOP]),
     );
-    expect(boatComputerSnapshotName(["a", "b"])).toBe(boatComputerSnapshotName(["a", "b"]));
+    expect(computerSnapshotName(["a", "b"])).toBe(computerSnapshotName(["a", "b"]));
+  });
+
+  it("carries agent-browser but leaves the page-browser files to each boot", async () => {
+    const command = vi.spyOn(FakeBoatApi.prototype, "command");
+    const api = new FakeBoatApi();
+    api.savedSnapshots.clear();
+    await new BoatSandboxProvider({ apiKey: "test-key" }, api).buildComputerSnapshot();
+    const setup = scripts(command).join("\n");
+    expect(setup).toContain("agent-browser-linux-");
+    expect(setup).not.toContain("rakazo-page-browser");
   });
 
   it("starts new computers from the ready snapshot with only their own env", async () => {

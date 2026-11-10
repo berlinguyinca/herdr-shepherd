@@ -8,7 +8,8 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import AgentScreen from "../app/agent";
 import Agents from "../app/agents";
 import { agentRouteId } from "./agent-route";
-import { rpc, streamRpc } from "./api";
+import { rpc } from "./api";
+import { streamRpc } from "./api-live";
 import { queryClient } from "./query";
 import { InboxBesideContext } from "./side-insets";
 
@@ -202,7 +203,8 @@ vi.mock("./i18n", () => ({
   }),
   t: (text: string) => text,
 }));
-vi.mock("./api", () => ({ rpc: vi.fn(), streamRpc: vi.fn() }));
+vi.mock("./api", () => ({ rpc: vi.fn() }));
+vi.mock("./api-live", () => ({ streamRpc: vi.fn() }));
 vi.mock("./query", async () => {
   const { QueryClient } = await import("@tanstack/react-query");
   const client = new QueryClient({ defaultOptions: { queries: { retry: false, staleTime: 0 } } });
