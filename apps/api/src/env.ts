@@ -30,6 +30,8 @@ import {
   uploadSizeFromEnv,
 } from "@rakazo/core";
 import { getLogger, monitoringPseudonymSecret } from "@rakazo/logging";
+import type { AccessMode } from "./open-owner.js";
+import { resolveAccessMode } from "./open-owner.js";
 
 export { resolveCloudAgentProvider, resolveSandboxProvider } from "@rakazo/adapters";
 
@@ -59,6 +61,10 @@ export interface AppEnv {
   privacyPolicyUrl?: string;
   apiUrl: string;
   apiHost: string;
+  /** `open-owner` serves one person with no login, on loopback or Tailscale only. */
+  accessMode: AccessMode;
+  ownerEmail: string;
+  ownerName: string;
   /** Proxies whose forwarded client address is believed; empty means local networks. */
   trustedProxies: string[];
   clientIpHeader: string;
@@ -256,6 +262,9 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
     privacyPolicyUrl: optional(source.PRIVACY_POLICY_URL),
     apiUrl: source.API_URL ?? "http://127.0.0.1:3100",
     apiHost: source.API_HOST ?? "127.0.0.1",
+    accessMode: resolveAccessMode(source.RAKAZO_ACCESS_MODE),
+    ownerEmail: (optional(source.RAKAZO_OWNER_EMAIL) ?? "owner@rakazo.local").toLowerCase(),
+    ownerName: optional(source.RAKAZO_OWNER_NAME) ?? "Owner",
     trustedProxies: (source.TRUSTED_PROXIES ?? "")
       .split(/[\s,]+/)
       .map((value) => value.trim())
