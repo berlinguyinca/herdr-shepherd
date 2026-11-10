@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { createRouterClient } from "@orpc/server";
 import type { Actor } from "@rakazo/contracts";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RouterDeps } from "./router.js";
 import { createRouter } from "./router.js";
 
@@ -13,7 +13,20 @@ import { createRouter } from "./router.js";
  */
 type Seen = { headers: IncomingMessage["headers"]; url: string };
 const servers: ReturnType<typeof createServer>[] = [];
+// A runner's proxy settings must not change how the guarded fetch builds its dispatcher.
+beforeEach(() => {
+  for (const name of [
+    "http_proxy",
+    "https_proxy",
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "no_proxy",
+    "NO_PROXY",
+  ])
+    vi.stubEnv(name, "");
+});
 afterEach(async () => {
+  vi.unstubAllEnvs();
   await Promise.all(
     servers.splice(0).map((server) => new Promise((resolve) => server.close(resolve))),
   );
@@ -68,11 +81,16 @@ function build(options: { rows?: Row[]; allowPrivate?: boolean; catalogTarget?: 
       load: async (ciphertext: string) =>
         rows.find((row) => row.secretId === ciphertext)?.plaintext ?? "",
     },
-    // The catalog endpoint is public; a real transport forwards it to the local server.
+    // The catalog endpoint is public; a real transport forwards it to the local server. The
+    // guarded fetch's own dispatcher (proxy and DNS aware) is dropped, so no lookup of the
+    // public hostname or proxy setting on the machine can affect the test.
     modelConnectionFetch: (input: RequestInfo | URL, init?: RequestInit) => {
       const url = new URL(input instanceof Request ? input.url : String(input));
       forwarded.push(url.href);
-      return fetch(`${options.catalogTarget}${url.pathname}`, init);
+      const { dispatcher: _dispatcher, ...rest } = (init ?? {}) as RequestInit & {
+        dispatcher?: unknown;
+      };
+      return fetch(`${options.catalogTarget}${url.pathname}`, rest);
     },
     env: { sandboxProvider: "fake", mcpAllowPrivateEndpoint: options.allowPrivate ?? true },
   } as unknown as RouterDeps;
