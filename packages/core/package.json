@@ -29,6 +29,11 @@
       "development": "./src/node/load-root-env.ts",
       "default": "./src/node/load-root-env.ts"
     },
+    "./node/owner-network": {
+      "types": "./src/node/owner-network.ts",
+      "development": "./src/node/owner-network.ts",
+      "default": "./src/node/owner-network.ts"
+    },
     "./node/shutdown-signals": {
       "types": "./src/node/shutdown-signals.ts",
       "development": "./src/node/shutdown-signals.ts",
