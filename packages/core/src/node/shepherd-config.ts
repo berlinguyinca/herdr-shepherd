@@ -150,7 +150,8 @@ export function shepherdConfigEnv(config: ShepherdConfig): Record<string, string
   return env;
 }
 
-function configPath(env: NodeJS.ProcessEnv, cwd: string): string | undefined {
+/** The file the loader reads: `RAKAZO_CONFIG`, else the nearest `shepherd.yaml` upward from `cwd`. */
+export function configPath(env: NodeJS.ProcessEnv, cwd: string): string | undefined {
   const explicit = env.RAKAZO_CONFIG?.trim();
   if (explicit) return path.resolve(cwd, explicit);
   let dir = cwd;
