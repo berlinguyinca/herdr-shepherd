@@ -5263,8 +5263,8 @@ msgid "Paste a replacement key"
 msgstr "Wklej nowy klucz"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
-msgid "Paste the OpenAI-compatible address from your server. Rakazo adds /v1 if needed."
-msgstr "Wklej ze swojego serwera adres zgodny z OpenAI. Rakazo doda /v1, jeśli będzie potrzebne."
+msgid "Paste the OpenAI-compatible address from your server. Shepherd adds /v1 if needed."
+msgstr "Wklej ze swojego serwera adres zgodny z OpenAI. Shepherd doda /v1, jeśli będzie potrzebne."
 
 #: src/pages/shell/agent-import.tsx
 msgid "Paste the reply"
