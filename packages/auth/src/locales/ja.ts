@@ -59,13 +59,13 @@ export const JA_MESSAGES: Record<string, string> = {
     "{name}はShepherdプラグインマーケットプレイスに掲載されました。",
   "We couldn't list {name} in the Shepherd plugin marketplace.":
     "{name}をShepherdプラグインマーケットプレイスに掲載できませんでした。",
-  "Confirm your Shepherd page claim": "Shepherd のページ所有権申請を確認してください",
+  "Confirm your Shepherd page claim": "Shepherdのページ所有権申請を確認してください",
   "Confirm claim": "所有権申請を確認",
   "We review every claim once it's confirmed and will email you when it's done.":
     "所有権申請は確認後にすべて審査し、完了したらメールでお知らせします。",
   "This link expires in one day. If you did not claim a page, ignore this email.":
     "このリンクの有効期限は1日です。ページの所有権を申請していない場合は、このメールを無視してください。",
-  "Your Shepherd page claim: {name}": "Shepherd のページ所有権申請: {name}",
+  "Your Shepherd page claim: {name}": "Shepherdのページ所有権申請: {name}",
   "Your changes to the {name} page are approved.": "{name} ページへの変更が承認されました。",
   "We couldn't approve your changes to the {name} page.":
     "{name} ページへの変更を承認できませんでした。",

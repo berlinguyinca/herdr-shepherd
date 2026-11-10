@@ -5471,7 +5471,7 @@ msgstr "Abrufen und schreiben"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "Recall from this peer; save to Shepherd’s own peers."
-msgstr "Aus diesem Peer abrufen; in Rakazos eigenen Peers speichern."
+msgstr "Aus diesem Peer abrufen; in Shepherds eigenen Peers speichern."
 
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 msgid "Recall only"

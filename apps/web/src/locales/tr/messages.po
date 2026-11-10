@@ -880,7 +880,7 @@ msgstr "Bir kez izin ver"
 
 #: src/lib/dictation.ts
 msgid "Allow Shepherd to use Speech Recognition and the microphone in System Settings."
-msgstr "Shepherd'nun Konuşma Tanıma ve mikrofonu kullanmasına Sistem Ayarları'ndan izin ver."
+msgstr "Shepherd'Ä±n Konuşma Tanıma ve mikrofonu kullanmasına Sistem Ayarları'ndan izin ver."
 
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 msgid "Allow writing"
@@ -1629,7 +1629,7 @@ msgstr "Klasör seç"
 #: src/components/ModelCredits.tsx
 #: src/components/SubscriptionGate.tsx
 msgid "Choose how to use Shepherd"
-msgstr "Shepherd'yu nasıl kullanacağını seç"
+msgstr "Shepherd'Ä± nasıl kullanacağını seç"
 
 #: src/components/vault/VaultItemEditor.tsx
 msgid "City"
@@ -3274,7 +3274,7 @@ msgstr "{day} tarihinde sona eriyor"
 
 #: src/components/GitHubStarPrompt.tsx
 msgid "Enjoying Shepherd?"
-msgstr "Shepherd'yu beğendin mi?"
+msgstr "Shepherd'Ä± beğendin mi?"
 
 #: src/lib/user-error.ts
 msgid "Enter a password"
@@ -3793,7 +3793,7 @@ msgstr "Nasıl kontrol edilir"
 
 #: src/components/SignupSurvey.tsx
 msgid "How will you use Shepherd?"
-msgstr "Shepherd'yu nasıl kullanacaksın?"
+msgstr "Shepherd'Ä± nasıl kullanacaksın?"
 
 #: src/pages/shell/computer-release-actions.tsx
 msgid "I’m done"
@@ -5050,7 +5050,7 @@ msgstr "Gezinmeyi aç"
 #: src/pages/Invite.tsx
 #: src/pages/SharedPage.tsx
 msgid "Open Shepherd"
-msgstr "Shepherd'yu aç"
+msgstr "Shepherd'Ä± aç"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Open work"
@@ -5471,7 +5471,7 @@ msgstr "Hatırla ve yaz"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "Recall from this peer; save to Shepherd’s own peers."
-msgstr "Bu eşten hatırla; Shepherd’nun kendi eşlerine kaydet."
+msgstr "Bu eşten hatırla; Shepherd’ın kendi eşlerine kaydet."
 
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 msgid "Recall only"
@@ -5903,7 +5903,7 @@ msgstr "{0} aramasına dön"
 #: src/pages/McpOAuthCallback.tsx
 #: src/pages/SlackInstallCallback.tsx
 msgid "Return to Shepherd"
-msgstr "Shepherd'ya dön"
+msgstr "Shepherd'a dön"
 
 #: src/lib/model-connection-preflight.ts
 msgid "Review provider settings and test again."
@@ -7596,7 +7596,7 @@ msgstr "Haftalık"
 
 #: src/components/SignupSurvey.tsx
 msgid "Welcome to Shepherd"
-msgstr "Shepherd'ya hoş geldin"
+msgstr "Shepherd'a hoş geldin"
 
 #: src/pages/shell/dialogs.tsx
 msgid "What about its memories?"
@@ -7608,7 +7608,7 @@ msgstr "Bu alan neleri kullanabilir?"
 
 #: src/components/SignupSurvey.tsx
 msgid "What do you most want Shepherd to help with?"
-msgstr "Shepherd'nun en çok neye yardım etmesini istiyorsun?"
+msgstr "Shepherd'Ä±n en çok neye yardım etmesini istiyorsun?"
 
 #: src/pages/shell/message-cards.tsx
 msgid "What do you want me on first?"

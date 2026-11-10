@@ -470,7 +470,7 @@ describe("setup", () => {
     ui.resolveCheck({ ok: true, url: "https://one.example" });
     await flush();
     expect(element("status").textContent).toBe(
-      "Shepherd odpowiedziało pod adresem https://one.example.",
+      "Shepherd odpowiedział pod adresem https://one.example.",
     );
 
     selectMode("new");
