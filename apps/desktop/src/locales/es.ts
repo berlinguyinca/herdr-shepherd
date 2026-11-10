@@ -4,7 +4,7 @@ export const ES_MESSAGES: Record<string, string> = {
   "Check for Updates…": "Buscar actualizaciones…",
   "Computer Access…": "Acceso a la computadora…",
   "Revoke Local Computer Access": "Revocar el acceso a la computadora local",
-  "Change Rakazo Server…": "Cambiar servidor de Rakazo…",
+  "Change Shepherd Server…": "Cambiar servidor de Shepherd…",
   "Stop Local Stack": "Detener stack local",
   "Hide {name}": "Ocultar {name}",
   "Hide Others": "Ocultar otros",
@@ -38,12 +38,12 @@ export const ES_MESSAGES: Record<string, string> = {
   "Bring All to Front": "Traer todo al frente",
 
   // Updates
-  "Rakazo {version} is ready to install.": "Rakazo {version} está listo para instalarse.",
+  "Shepherd {version} is ready to install.": "Shepherd {version} está listo para instalarse.",
   Restart: "Reiniciar",
   Later: "Más tarde",
   "Could not install the update.": "No se pudo instalar la actualización.",
   "Could not check for updates.": "No se pudieron buscar actualizaciones.",
-  "Rakazo is up to date.": "Rakazo está actualizado.",
+  "Shepherd is up to date.": "Shepherd está actualizado.",
   "Version {version}": "Versión {version}",
   "Automatic updates are turned off for this install.":
     "Las actualizaciones automáticas están desactivadas en esta instalación.",
@@ -51,12 +51,12 @@ export const ES_MESSAGES: Record<string, string> = {
     "Las actualizaciones automáticas solo funcionan en una versión instalada.",
   "No desktop releases are published for this build yet.":
     "Todavía no hay versiones de escritorio publicadas para esta compilación.",
-  "Move Rakazo to Applications to install updates.":
-    "Mueve Rakazo a Aplicaciones para instalar actualizaciones.",
+  "Move Shepherd to Applications to install updates.":
+    "Mueve Shepherd a Aplicaciones para instalar actualizaciones.",
   "Free up disk space to install updates.":
     "Libera espacio en el disco para instalar actualizaciones.",
-  "This update could not be verified. Reinstall Rakazo from a trusted download.":
-    "No se pudo verificar esta actualización. Vuelve a instalar Rakazo desde una descarga de confianza.",
+  "This update could not be verified. Reinstall Shepherd from a trusted download.":
+    "No se pudo verificar esta actualización. Vuelve a instalar Shepherd desde una descarga de confianza.",
   "The update could not be completed. Try again later.":
     "No se pudo completar la actualización. Inténtalo de nuevo más tarde.",
   "Could not reach the update server.": "No se pudo conectar con el servidor de actualizaciones.",
@@ -79,14 +79,15 @@ export const ES_MESSAGES: Record<string, string> = {
     "Ya hay un inicio de sesión en curso. Cancélalo y vuelve a intentarlo.",
   "Could not open browser sign-in. Close other sign-in attempts and retry.":
     "No se pudo abrir el inicio de sesión en el navegador. Cierra los otros intentos de inicio de sesión y vuelve a intentarlo.",
-  "Sign-in callback rejected. Return to Rakazo to retry.":
-    "Se rechazó la respuesta del inicio de sesión. Vuelve a Rakazo para intentarlo de nuevo.",
-  "You can close this tab and return to Rakazo.": "Puedes cerrar esta pestaña y volver a Rakazo.",
+  "Sign-in callback rejected. Return to Shepherd to retry.":
+    "Se rechazó la respuesta del inicio de sesión. Vuelve a Shepherd para intentarlo de nuevo.",
+  "You can close this tab and return to Shepherd.":
+    "Puedes cerrar esta pestaña y volver a Shepherd.",
 
   // Setup window
-  "Set up Rakazo": "Configurar Rakazo",
-  "Quit Rakazo": "Salir de Rakazo",
-  "Welcome to Rakazo": "Te damos la bienvenida a Rakazo",
+  "Set up Shepherd": "Configurar Shepherd",
+  "Quit Shepherd": "Salir de Shepherd",
+  "Welcome to Shepherd": "Te damos la bienvenida a Shepherd",
   "Choose which server this app should use.": "Elige qué servidor debe usar esta app.",
   Instance: "Instancia",
   "This computer": "Esta computadora",
@@ -101,14 +102,14 @@ export const ES_MESSAGES: Record<string, string> = {
   "Check again": "Volver a comprobar",
   Retry: "Reintentar",
   "Getting ready…": "Preparando…",
-  "Downloading Rakazo…": "Descargando Rakazo…",
-  "Starting Rakazo…": "Iniciando Rakazo…",
+  "Downloading Shepherd…": "Descargando Shepherd…",
+  "Starting Shepherd…": "Iniciando Shepherd…",
   "Almost ready…": "Casi listo…",
-  "Rakazo is ready.": "Rakazo está listo.",
+  "Shepherd is ready.": "Shepherd está listo.",
   "{size} downloaded": "{size} descargados",
   "Connecting…": "Conectando…",
   "Checking…": "Comprobando…",
-  "Rakazo answered at {url}.": "Rakazo respondió en {url}.",
+  "Shepherd answered at {url}.": "Shepherd respondió en {url}.",
   "Enter a server address first.": "Primero introduce la dirección de un servidor.",
   "Could not save that address.": "No se pudo guardar esa dirección.",
   "Could not save that address. Try again.":
@@ -120,8 +121,8 @@ export const ES_MESSAGES: Record<string, string> = {
   "Could not run the connection check. Try again.":
     "No se pudo comprobar la conexión. Inténtalo de nuevo.",
   "Setup bridge unavailable.": "El puente de configuración no está disponible.",
-  "Setup could not start. Quit Rakazo and try again.":
-    "No se pudo iniciar la configuración. Sal de Rakazo e inténtalo de nuevo.",
+  "Setup could not start. Quit Shepherd and try again.":
+    "No se pudo iniciar la configuración. Sal de Shepherd e inténtalo de nuevo.",
 
   // Connecting to a server
   "Enter a server address.": "Introduce la dirección de un servidor.",
@@ -130,10 +131,10 @@ export const ES_MESSAGES: Record<string, string> = {
   "Enter a valid server address. Public servers require HTTPS; a new local instance must use localhost.":
     "Introduce una dirección de servidor válida. Los servidores públicos requieren HTTPS; una nueva instancia local debe usar localhost.",
   "Invalid custom headers": "Encabezados personalizados no válidos",
-  "That address redirects elsewhere. Enter the final Rakazo server address.":
-    "Esa dirección redirige a otro lugar. Introduce la dirección final del servidor de Rakazo.",
-  "That address did not respond like a Rakazo server.":
-    "Esa dirección no respondió como un servidor de Rakazo.",
+  "That address redirects elsewhere. Enter the final Shepherd server address.":
+    "Esa dirección redirige a otro lugar. Introduce la dirección final del servidor de Shepherd.",
+  "That address did not respond like a Shepherd server.":
+    "Esa dirección no respondió como un servidor de Shepherd.",
   "The server answered with HTTP {status}.": "El servidor respondió con HTTP {status}.",
   "Timed out reaching that address.": "Se agotó el tiempo al intentar acceder a esa dirección.",
   "Nothing is listening at that address yet.": "Todavía no hay nada escuchando en esa dirección.",
@@ -158,8 +159,8 @@ export const ES_MESSAGES: Record<string, string> = {
     "No se pudo guardar la configuración. Se restauró la instancia anterior.",
   "Connected, but could not save setup for the next launch. Try Continue again.":
     "Se conectó, pero no se pudo guardar la configuración para el próximo inicio. Vuelve a pulsar Continuar.",
-  "The app-managed Rakazo services are not ready. Retry setup.":
-    "Los servicios de Rakazo que administra la app no están listos. Vuelve a intentar la configuración.",
+  "The app-managed Shepherd services are not ready. Retry setup.":
+    "Los servicios de Shepherd que administra la app no están listos. Vuelve a intentar la configuración.",
 
   // Docker
   "Docker is not installed on this computer.": "Docker no está instalado en esta computadora.",
@@ -185,10 +186,10 @@ export const ES_MESSAGES: Record<string, string> = {
     "Docker dejó de responder. Inicia Docker y vuelve a intentarlo.",
   "Docker Compose is missing. Install Docker Desktop or the docker-compose-plugin, then retry.":
     "Falta Docker Compose. Instala Docker Desktop o docker-compose-plugin y vuelve a intentarlo.",
-  "Downloading Rakazo images failed. Check the output below, then retry.":
-    "No se pudieron descargar las imágenes de Rakazo. Revisa la salida de abajo y vuelve a intentarlo.",
-  "Rakazo services did not start. Check the output below, then retry.":
-    "Los servicios de Rakazo no se iniciaron. Revisa la salida de abajo y vuelve a intentarlo.",
+  "Downloading Shepherd images failed. Check the output below, then retry.":
+    "No se pudieron descargar las imágenes de Shepherd. Revisa la salida de abajo y vuelve a intentarlo.",
+  "Shepherd services did not start. Check the output below, then retry.":
+    "Los servicios de Shepherd no se iniciaron. Revisa la salida de abajo y vuelve a intentarlo.",
   "The stack started but the web app did not answer. Retry, and check the output below.":
     "El stack se inició, pero la app web no respondió. Vuelve a intentarlo y revisa la salida de abajo.",
   "Could not prepare the local stack. Retry.":

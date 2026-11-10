@@ -102,7 +102,7 @@ Keep an installation without email on a trusted local network.
 ## Verification and password recovery email
 
 Password changes for signed-in users require no email configuration. Forgotten-password recovery
-appears on sign-in only when a transactional email provider is available. Rakazo uses a
+appears on sign-in only when a transactional email provider is available. Shepherd uses a
 provider-neutral contract with Resend API and SMTP adapters. Templates render locally with React
 Email into HTML and plain text, independent of the sending provider.
 
@@ -112,7 +112,7 @@ to that domain, then configure:
 ```env
 EMAIL_PROVIDER=resend
 EMAIL_API_KEY=replace-with-sending-api-key
-EMAIL_FROM=Rakazo <hello@mail.example.com>
+EMAIL_FROM=Shepherd <hello@mail.example.com>
 ```
 
 Disable click and open tracking for account email in the provider's domain settings. Resend delivery
@@ -123,7 +123,7 @@ For Amazon SES or another SMTP server, use:
 
 ```env
 SMTP_URL=smtps://smtp-user:replace-with-password@smtp.example.com:465
-EMAIL_FROM=Rakazo <no-reply@example.com>
+EMAIL_FROM=Shepherd <no-reply@example.com>
 ```
 
 Set `EMAIL_REPLY_TO` to send replies somewhere other than `EMAIL_FROM`.
@@ -136,7 +136,7 @@ Resend also supports SMTP: use `smtp.resend.com`, username `resend`, and an API 
 SES, use the regional SMTP endpoint and SES SMTP credentials; these are different from ordinary AWS
 access keys. Verify the sender/domain with the provider before testing delivery. Keep credentials in
 `.env`, never in tracked files. `smtps://` uses implicit TLS; `smtp://` is also supported but requires
-STARTTLS. Rakazo rejects configuration that disables TLS or certificate verification.
+STARTTLS. Shepherd rejects configuration that disables TLS or certificate verification.
 
 Local source development can use the offline email emulator instead. It captures email without
 contacting a provider:
@@ -181,7 +181,7 @@ AUTH_PASSWORD_ENABLED=true
 OIDC_ALLOW_SIGNUP_BYPASS=false
 ```
 
-The issuer must be HTTPS and exactly match the discovery document's issuer. Rakazo loads
+The issuer must be HTTPS and exactly match the discovery document's issuer. Shepherd loads
 `<issuer>/.well-known/openid-configuration`, verifies ID tokens against discovery JWKS with
 issuer, audience and nonce checks, and uses authorization codes with PKCE. Additional scopes
 may be space- or comma-separated; `openid email profile` are always requested. `OIDC_NAME`
@@ -253,7 +253,7 @@ invalid, expired or wrong-account codes fail. No password needs to be created fo
 
 ## Directory provisioning (SCIM)
 
-Your identity provider can add people to Rakazo and remove them over SCIM 2.0. Generate a token
+Your identity provider can add people to Shepherd and remove them over SCIM 2.0. Generate a token
 (`openssl rand -hex 32`) and set it on the API:
 
 ```env
@@ -265,7 +265,7 @@ In the identity provider, set the SCIM base URL to `https://app.example.com/api/
 group requests are refused. Rotating it means changing the value and restarting the API.
 
 - **Adding a person** creates an account with their email, unverified, and no password. It
-  joins Rakazo even while signup is closed or the allowlist would refuse it, so
+  joins Shepherd even while signup is closed or the allowlist would refuse it, so
   `SIGNUPS_ENABLED=false` with SCIM admits exactly the people the directory assigns. They sign in
   through [SSO](#openid-connect-sso) (the first SSO sign-in with the same verified email claims the
   account) or with an emailed sign-in code.

@@ -1,6 +1,6 @@
-# Contributing to Rakazo
+# Contributing to Shepherd
 
-Thanks for helping improve Rakazo. Keep changes focused and testable.
+Thanks for helping improve Shepherd. Keep changes focused and testable.
 
 ## Run locally
 

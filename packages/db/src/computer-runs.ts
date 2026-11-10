@@ -44,7 +44,7 @@ export async function recordComputerRunStart(
   startedAt: Date,
   previousEnd: ComputerRunEnd = "reconciled",
 ): Promise<void> {
-  // Host computers run on the user's own machine, and Electron, not Rakazo, sees them stop.
+  // Host computers run on the user's own machine, and Electron, not Shepherd, sees them stop.
   if (computer.kind === "desktop") return;
   try {
     await prisma.$executeRaw`

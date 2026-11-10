@@ -46,7 +46,7 @@ async function provideComputerImage(docker: Docker, image: string, context: stri
     );
     return;
   }
-  // Every Rakazo build path tags the stock image rakazo/computer. Any other name may be a custom
+  // Every Shepherd build path tags the stock image rakazo/computer. Any other name may be a custom
   // build, such as a Brave image, which a stock build must not replace. dockerode's tar packer
   // crashes the process on a context file it cannot read.
   if (!/^rakazo\/computer(:[\w][\w.-]*)?$/.test(image) || !(await contextReadable(context))) {

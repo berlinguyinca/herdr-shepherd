@@ -9,7 +9,7 @@ export const HERMES_INSTRUCTION_FILES = [
   ["HERMES.md", "working"],
   [".hermes.md", "working"],
 ] as const;
-/** Hermes keeps memory under `memories/`; Rakazo keeps the same names at the root. */
+/** Hermes keeps memory under `memories/`; Shepherd keeps the same names at the root. */
 export const HERMES_MEMORY_FILES = [
   ["memories/MEMORY.md", "MEMORY.md"],
   ["memories/USER.md", "USER.md"],
@@ -33,7 +33,7 @@ export function parseHermes(
 ): AgentImportParse {
   const byName = fileMap(files);
   const bundled = bundledSkillNames(byName.get(BUNDLED_MANIFEST) ?? "");
-  // Offering Hermes' own library would flood Rakazo's; only the user's skills are imported.
+  // Offering Hermes' own library would flood Shepherd's; only the user's skills are imported.
   const all = skillItems(byName, skillFiles);
   const builtIn = all.skills.filter((skill) => {
     const folder = skill.id.split("/").at(-2) ?? "";

@@ -880,8 +880,8 @@ msgid "Allow once"
 msgstr "允許一次"
 
 #: src/lib/dictation.ts
-msgid "Allow Rakazo to use Speech Recognition and the microphone in System Settings."
-msgstr "請在系統設定中允許 Rakazo 使用語音辨識和麥克風。"
+msgid "Allow Shepherd to use Speech Recognition and the microphone in System Settings."
+msgstr "請在系統設定中允許 Shepherd 使用語音辨識和麥克風。"
 
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 msgid "Allow writing"
@@ -1288,10 +1288,6 @@ msgstr "機器人"
 #: src/pages/shell/avatar-studio-popover.tsx
 #: src/pages/shell/message-view.tsx
 #: src/pages/SpaceSearch.tsx
-msgid "Bot"
-msgstr "機器人"
-
-#. js-lingui-explicit-id
 #: src/lib/browser-notifications.ts
 msgid "Bot"
 msgstr "機器人"
@@ -1633,8 +1629,8 @@ msgstr "選擇資料夾"
 
 #: src/components/ModelCredits.tsx
 #: src/components/SubscriptionGate.tsx
-msgid "Choose how to use Rakazo"
-msgstr "選擇 Rakazo 的使用方式"
+msgid "Choose how to use Shepherd"
+msgstr "選擇 Shepherd 的使用方式"
 
 #: src/components/vault/VaultItemEditor.tsx
 msgid "City"
@@ -1970,8 +1966,8 @@ msgstr "請先連結此模型的供應商。"
 
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
-msgid "Connect your own API key in Models or choose Rakazo credits in Billing."
-msgstr "請在「模型」中連接你自己的 API 金鑰，或在「帳務」中選擇 Rakazo 點數。"
+msgid "Connect your own API key in Models or choose Shepherd credits in Billing."
+msgstr "請在「模型」中連接你自己的 API 金鑰，或在「帳務」中選擇 Shepherd 點數。"
 
 #: src/components/bot-templates/bot-templates-dialog.tsx
 #: src/components/ComputerDeviceSettings.tsx
@@ -2791,8 +2787,8 @@ msgid "Create space"
 msgstr "建立空間"
 
 #: src/pages/Auth.tsx
-msgid "Create your Rakazo"
-msgstr "建立你的 Rakazo"
+msgid "Create your Shepherd"
+msgstr "建立你的 Shepherd"
 
 #: src/components/AskCard.tsx
 msgid "Created"
@@ -3278,8 +3274,8 @@ msgid "Ends {day}"
 msgstr "於 {day} 結束"
 
 #: src/components/GitHubStarPrompt.tsx
-msgid "Enjoying Rakazo?"
-msgstr "喜歡 Rakazo 嗎？"
+msgid "Enjoying Shepherd?"
+msgstr "喜歡 Shepherd 嗎？"
 
 #: src/lib/user-error.ts
 msgid "Enter a password"
@@ -3445,10 +3441,6 @@ msgstr "外部對話"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 #: src/pages/onboarding/model-step.tsx
-msgid "Extra high"
-msgstr "極高"
-
-#. js-lingui-explicit-id
 #: src/lib/model-catalog.ts
 msgid "Extra high"
 msgstr "極高"
@@ -3755,10 +3747,6 @@ msgstr "隱藏文字紀錄"
 #: src/lib/ticket-priority.ts
 #: src/pages/model-settings/compatible-model-fields.tsx
 #: src/pages/onboarding/model-step.tsx
-msgid "High"
-msgstr "高"
-
-#. js-lingui-explicit-id
 #: src/lib/model-catalog.ts
 msgid "High"
 msgstr "高"
@@ -3805,8 +3793,8 @@ msgid "How to check"
 msgstr "如何檢查"
 
 #: src/components/SignupSurvey.tsx
-msgid "How will you use Rakazo?"
-msgstr "你會如何使用 Rakazo？"
+msgid "How will you use Shepherd?"
+msgstr "你會如何使用 Shepherd？"
 
 #: src/pages/shell/computer-release-actions.tsx
 msgid "I’m done"
@@ -3826,9 +3814,6 @@ msgstr "忽略"
 
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
-msgid "Image input is not configured for this model."
-msgstr "此模型尚未設定圖片輸入。"
-
 #: src/lib/user-error.ts
 msgid "Image input is not configured for this model."
 msgstr "此模型尚未設定圖片輸入。"
@@ -4222,10 +4207,6 @@ msgstr "似乎包含金鑰"
 #: src/lib/ticket-priority.ts
 #: src/pages/model-settings/compatible-model-fields.tsx
 #: src/pages/onboarding/model-step.tsx
-msgid "Low"
-msgstr "低"
-
-#. js-lingui-explicit-id
 #: src/lib/model-catalog.ts
 msgid "Low"
 msgstr "低"
@@ -4294,10 +4275,6 @@ msgstr "行銷"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 #: src/pages/onboarding/model-step.tsx
-msgid "Max"
-msgstr "最大"
-
-#. js-lingui-explicit-id
 #: src/lib/model-catalog.ts
 msgid "Max"
 msgstr "最大"
@@ -4333,10 +4310,6 @@ msgstr "MCP 伺服器"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 #: src/pages/onboarding/model-step.tsx
-msgid "Medium"
-msgstr "中"
-
-#. js-lingui-explicit-id
 #: src/lib/model-catalog.ts
 msgid "Medium"
 msgstr "中"
@@ -4392,10 +4365,6 @@ msgstr "提及：{mentions}"
 #: src/pages/shell/chat-shared.ts
 #: src/pages/shell/composer.tsx
 #: src/pages/SpaceSearch.tsx
-msgid "Message"
-msgstr "訊息"
-
-#. js-lingui-explicit-id
 #: src/lib/browser-notifications.ts
 msgid "Message"
 msgstr "訊息"
@@ -4444,10 +4413,6 @@ msgstr "麥克風失敗"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 #: src/pages/onboarding/model-step.tsx
-msgid "Minimal"
-msgstr "最低"
-
-#. js-lingui-explicit-id
 #: src/lib/model-catalog.ts
 msgid "Minimal"
 msgstr "最低"
@@ -4925,8 +4890,8 @@ msgid "Not imported"
 msgstr "未匯入"
 
 #: src/pages/shell/import-status.ts
-msgid "Not in Rakazo's catalog"
-msgstr "不在 Rakazo 目錄中"
+msgid "Not in Shepherd's catalog"
+msgstr "不在 Shepherd 目錄中"
 
 #: src/pages/plugins/plugin-browse.tsx
 msgid "Not in the plugin catalog"
@@ -4939,12 +4904,12 @@ msgstr "暫不"
 
 #: src/pages/shell/agent-import-plan.tsx
 #: src/pages/shell/import-status.ts
-msgid "Not supported in Rakazo"
-msgstr "Rakazo 不支援"
+msgid "Not supported in Shepherd"
+msgstr "Shepherd 不支援"
 
 #: src/pages/shell/agent-import-plan.tsx
-msgid "Not used by Rakazo"
-msgstr "Rakazo 不使用"
+msgid "Not used by Shepherd"
+msgstr "Shepherd 不使用"
 
 #: src/components/McpServerHealthLine.tsx
 #: src/pages/plugins/parts.tsx
@@ -5085,8 +5050,8 @@ msgstr "開啟導覽"
 #: src/components/pages/PublicPageShell.tsx
 #: src/pages/Invite.tsx
 #: src/pages/SharedPage.tsx
-msgid "Open Rakazo"
-msgstr "開啟 Rakazo"
+msgid "Open Shepherd"
+msgstr "開啟 Shepherd"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Open work"
@@ -5265,7 +5230,7 @@ msgstr "貼上替換金鑰"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 msgid "Paste the OpenAI-compatible address from your server. Shepherd adds /v1 if needed."
-msgstr "貼上伺服器的 OpenAI 相容地址。需要時 Rakazo 會補上 /v1。"
+msgstr "貼上伺服器的 OpenAI 相容地址。需要時 Shepherd 會補上 /v1。"
 
 #: src/pages/shell/agent-import.tsx
 msgid "Paste the reply"
@@ -5461,16 +5426,16 @@ msgstr "排隊中"
 
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/shell/avatar-studio-popover.tsx
-msgid "Rakazo"
-msgstr "Rakazo"
+msgid "Shepherd"
+msgstr "Shepherd"
 
 #: src/pages/onboarding/use-onboarding-model.ts
-msgid "Rakazo credits"
-msgstr "Rakazo 額度"
+msgid "Shepherd credits"
+msgstr "Shepherd 額度"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
-msgid "rakazo-shared and IDs starting with bot- are reserved for Rakazo."
-msgstr "rakazo-shared 與以 bot- 開頭的 ID 保留給 Rakazo 使用。"
+msgid "rakazo-shared and IDs starting with bot- are reserved for Shepherd."
+msgstr "rakazo-shared 與以 bot- 開頭的 ID 保留給 Shepherd 使用。"
 
 #: src/pages/shell/message-hover-actions.tsx
 msgid "React"
@@ -5506,8 +5471,8 @@ msgid "Recall and write"
 msgstr "回想與寫入"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
-msgid "Recall from this peer; save to Rakazo’s own peers."
-msgstr "從此 peer 讀取；儲存至 Rakazo 自己的 peer。"
+msgid "Recall from this peer; save to Shepherd’s own peers."
+msgstr "從此 peer 讀取；儲存至 Shepherd 自己的 peer。"
 
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 msgid "Recall only"
@@ -5938,8 +5903,8 @@ msgstr "返回與 {0} 的通話"
 
 #: src/pages/McpOAuthCallback.tsx
 #: src/pages/SlackInstallCallback.tsx
-msgid "Return to Rakazo"
-msgstr "返回 Rakazo"
+msgid "Return to Shepherd"
+msgstr "返回 Shepherd"
 
 #: src/lib/model-connection-preflight.ts
 msgid "Review provider settings and test again."
@@ -6441,8 +6406,8 @@ msgid "Sign in at <0>{0}</0>, then paste the code here."
 msgstr "在 <0>{0}</0> 登入，然後將代碼貼到這裡。"
 
 #: src/pages/Auth.tsx
-msgid "Sign in to Rakazo"
-msgstr "登入 Rakazo"
+msgid "Sign in to Shepherd"
+msgstr "登入 Shepherd"
 
 #: src/lib/user-error.ts
 msgid "Sign in to your existing account to link SSO"
@@ -7052,9 +7017,6 @@ msgstr "這臺 Mac"
 
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
-msgid "This model cannot read images. Choose a model that supports images."
-msgstr "此模型無法讀取圖片。請選擇支援圖片的模型。"
-
 #: src/lib/user-error.ts
 msgid "This model cannot read images. Choose a model that supports images."
 msgstr "此模型無法讀取圖片。請選擇支援圖片的模型。"
@@ -7129,8 +7091,8 @@ msgid "This server's tool result does not fit the model. Turn off Keep tool resu
 msgstr "此伺服器的工具結果超出模型容量。請關閉該伺服器的「保留完整工具結果」，或選擇其他模型。"
 
 #: src/pages/model-settings/connection-controls.tsx
-msgid "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider."
-msgstr "此訂閱登入在 Rakazo 中尚不可用。請使用部署憑證或選擇其他供應商。"
+msgid "This subscription sign-in is not available in Shepherd yet. Use a deployment credential or choose another provider."
+msgstr "此訂閱登入在 Shepherd 中尚不可用。請使用部署憑證或選擇其他供應商。"
 
 #: src/components/bot-templates/bot-templates-dialog.tsx
 msgid "This template was just updated. Check it again."
@@ -7486,8 +7448,8 @@ msgid "Use Protected input for passwords."
 msgstr "輸入密碼時，請使用受保護的輸入。"
 
 #: src/components/ModelCredits.tsx
-msgid "Use Rakazo credits"
-msgstr "使用 Rakazo 額度"
+msgid "Use Shepherd credits"
+msgstr "使用 Shepherd 額度"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "Use up to 512 letters, digits, _ or -."
@@ -7634,8 +7596,8 @@ msgid "Weekly"
 msgstr "每週"
 
 #: src/components/SignupSurvey.tsx
-msgid "Welcome to Rakazo"
-msgstr "歡迎使用 Rakazo"
+msgid "Welcome to Shepherd"
+msgstr "歡迎使用 Shepherd"
 
 #: src/pages/shell/dialogs.tsx
 msgid "What about its memories?"
@@ -7646,8 +7608,8 @@ msgid "What can this space use?"
 msgstr "此空間可以使用什麼？"
 
 #: src/components/SignupSurvey.tsx
-msgid "What do you most want Rakazo to help with?"
-msgstr "你最希望 Rakazo 幫你做什麼？"
+msgid "What do you most want Shepherd to help with?"
+msgstr "你最希望 Shepherd 幫你做什麼？"
 
 #: src/pages/shell/message-cards.tsx
 msgid "What do you want me on first?"

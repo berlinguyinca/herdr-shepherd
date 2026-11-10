@@ -7,10 +7,10 @@ signs up for a service. Your own mail to it starts the bot, and mail can start i
 optional and off until you set it up.
 
 You need a domain (or subdomain) that receives mail for every name on it, and something that
-hands each message to Rakazo. Rakazo does not run a mail server itself: any mail relay that can
+hands each message to Shepherd. Shepherd does not run a mail server itself: any mail relay that can
 make an HTTPS request works.
 
-## Configure Rakazo
+## Configure Shepherd
 
 Set both on the API, and `INBOUND_EMAIL_DOMAIN` on the worker too, so each bot knows its address.
 Then restart them:
@@ -26,7 +26,7 @@ settings, by asking the bot in chat, or when adding an **Email** trigger to a ro
 addresses are listed in the Vault. Names are lowercase, never change, and are never given to
 another bot, even after the bot is deleted.
 
-## Hand mail to Rakazo
+## Hand mail to Shepherd
 
 The relay posts each message, unchanged, once per recipient:
 
@@ -38,7 +38,7 @@ Content-Type: message/rfc822
 <the raw message>
 ```
 
-Rakazo answers `200` for every message it accepted, including mail it drops, so the relay never
+Shepherd answers `200` for every message it accepted, including mail it drops, so the relay never
 retries or bounces it. `401` means the secret is wrong and `413` means the message is over 25 MB.
 Treat any other error as temporary and retry.
 
@@ -64,7 +64,7 @@ export default {
       body: message.raw,
     });
     if (response.status === 413) message.setReject("Message too large");
-    else if (!response.ok) throw new Error(`Rakazo answered ${response.status}`);
+    else if (!response.ok) throw new Error(`Shepherd answered ${response.status}`);
   },
 };
 ```
@@ -147,7 +147,7 @@ between them, each to at most 10 people, and never includes a secret the run has
 
 ## Who can start work
 
-Rakazo checks each message's DKIM signature itself. A message is verified only when it is signed
+Shepherd checks each message's DKIM signature itself. A message is verified only when it is signed
 by the domain in its **From** address and that signature covers its **To** and **Cc**. Many
 services sign with another domain, so their mail is saved as unverified: the bot can still read
 it but is told its sender could be forged. Signed mail that doesn't name the bot in **To** or
@@ -157,7 +157,7 @@ too, without its files.
 Microsoft 365 never signs **To** or **Cc**, so on its own its signature can't show the message
 was meant for the bot: anyone the sender wrote to could resend it. Such mail is verified only
 when it is signed by the From domain with its **Date**, is less than a day old, and your relay
-saw it arrive straight from a server that domain's SPF record allows. Rakazo trusts that last
+saw it arrive straight from a server that domain's SPF record allows. Shepherd trusts that last
 result only from the relay you name by its ARC signing domain, and checks the relay's ARC seal
 itself:
 

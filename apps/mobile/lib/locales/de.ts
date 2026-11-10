@@ -1042,7 +1042,6 @@ export const DE_MESSAGES: Record<string, string> = {
   Memory: "Gedächtnis",
   "Privacy policies": "Datenschutzerklärungen",
   Shepherd: "Shepherd",
-  Rakazo: "Rakazo",
   "Withdraw all permissions": "Alle Berechtigungen widerrufen",
   "Withdraw all permissions?": "Alle Berechtigungen widerrufen?",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":

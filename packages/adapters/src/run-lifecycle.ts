@@ -471,7 +471,7 @@ export async function retryRunSetup(
   const setupMessage = redactSecrets(userRunError(setupError), runSecrets);
   const reportedSetupError = sanitizedError(setupError, (text) => redactSecrets(text, runSecrets));
   // An outage at the computer provider, or a paused turn's tool going offline, is retried like
-  // any setup failure, but is not a Rakazo bug to report.
+  // any setup failure, but is not a Shepherd bug to report.
   const providerOutage =
     setupError instanceof SandboxUnavailableError ||
     setupError instanceof SandboxUnresponsiveError ||

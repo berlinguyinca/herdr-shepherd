@@ -1,5 +1,5 @@
 #!/usr/bin/python3 -I
-"""Token-auth desktop control for the Rakazo supervisor."""
+"""Token-auth desktop control for the Shepherd supervisor."""
 
 import base64
 import ctypes

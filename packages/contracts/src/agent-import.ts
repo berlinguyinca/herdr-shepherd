@@ -50,7 +50,7 @@ export const AgentImportSourceSchema = z.enum(["openclaw", "hermes", "document",
 export type AgentImportSource = z.infer<typeof AgentImportSourceSchema>;
 
 /**
- * Why an item may not work in Rakazo. Items with a warning start unticked;
+ * Why an item may not work in Shepherd. Items with a warning start unticked;
  * `unsupported_command` cannot run at all and cannot be selected.
  */
 export const AgentImportWarningSchema = z.enum([

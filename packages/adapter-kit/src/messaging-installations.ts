@@ -1,7 +1,7 @@
 import type { MessagingSurface } from "./interfaces.js";
 import type { MessagingCapabilities } from "./types.js";
 
-/** A verified external workspace belongs to exactly one Rakazo space. */
+/** A verified external workspace belongs to exactly one Shepherd space. */
 export interface MessagingInstallation {
   id: string;
   provider: string;

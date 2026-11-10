@@ -127,14 +127,14 @@ describe("account import archive", () => {
     const bytes = buildArchive([
       ["manifest.json", JSON.stringify({ ...manifestFor([]), format: "other-export" })],
     ]);
-    await expect(importBytes(bytes)).rejects.toThrow("not a readable Rakazo export");
+    await expect(importBytes(bytes)).rejects.toThrow("not a readable Shepherd export");
   });
 
   it("rejects a newer version", async () => {
     const bytes = buildArchive([
       ["manifest.json", JSON.stringify({ ...manifestFor([]), version: 2 })],
     ]);
-    await expect(importBytes(bytes)).rejects.toThrow("newer version of Rakazo");
+    await expect(importBytes(bytes)).rejects.toThrow("newer version of Shepherd");
   });
 
   it("rejects an archive that does not start with the manifest", async () => {
@@ -142,19 +142,19 @@ describe("account import archive", () => {
       ["spaces/s1/records.jsonl", ""],
       ["manifest.json", JSON.stringify(manifestFor([{ id: "s1", name: "Home" }]))],
     ]);
-    await expect(importBytes(bytes)).rejects.toThrow("not a readable Rakazo export");
+    await expect(importBytes(bytes)).rejects.toThrow("not a readable Shepherd export");
   });
 
   it("rejects bytes that are not a zip, and a truncated zip", async () => {
     await expect(importBytes(new TextEncoder().encode("hello"))).rejects.toThrow(
-      "not a readable Rakazo export",
+      "not a readable Shepherd export",
     );
     const name = Array.from({ length: 4000 }, (_, i) => i.toString(36)).join("");
     const bytes = buildArchive([
       ["manifest.json", JSON.stringify(manifestFor([{ id: "s1", name }]))],
     ]);
     await expect(importBytes(bytes.subarray(0, bytes.byteLength / 2))).rejects.toThrow(
-      "not a readable Rakazo export",
+      "not a readable Shepherd export",
     );
   });
 
@@ -315,7 +315,7 @@ describe("account import archive", () => {
       ]),
     );
     await expect(readArchive(chunked(bytes), limits, new RecordingSink())).rejects.toThrow(
-      "not a readable Rakazo export",
+      "not a readable Shepherd export",
     );
   });
 
@@ -338,7 +338,7 @@ describe("account import archive", () => {
         readArchive(chunked(new TextEncoder().encode("hello")), limits, new RecordingSink(), {
           spoolDir: dir,
         }),
-      ).rejects.toThrow("not a readable Rakazo export");
+      ).rejects.toThrow("not a readable Shepherd export");
       expect(await readdir(dir)).toEqual([]);
     } finally {
       await rm(dir, { recursive: true, force: true });

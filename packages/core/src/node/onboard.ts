@@ -484,7 +484,7 @@ export async function runOnboard(options: OnboardOptions): Promise<void> {
         `  models: ${found.models.length}, default ${defaultModel}`,
         `  key: ${key ? "set" : droppedKey ? "removed" : "none"}`,
         `  access: ${mode}`,
-        "Restart Rakazo to apply the change.",
+        "Restart Shepherd to apply the change.",
       ].join("\n"),
     );
     if (

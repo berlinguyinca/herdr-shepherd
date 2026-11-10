@@ -9,7 +9,7 @@ export const OPENCLAW_INSTRUCTION_FILES = [
   ["AGENTS.md", "working"],
 ] as const;
 export const OPENCLAW_MEMORY_FILES = ["MEMORY.md", "USER.md"] as const;
-/** Runtime rituals with no Rakazo equivalent. */
+/** Runtime rituals with no Shepherd equivalent. */
 export const OPENCLAW_RUNTIME_FILES = ["TOOLS.md", "HEARTBEAT.md", "BOOTSTRAP.md", "BOOT.md"];
 const DAILY_MEMORY = /^memory\/[^/]+\.md$/;
 
@@ -54,7 +54,7 @@ export function parseOpenClaw(
         path,
         reason: "runtime" as const,
       })),
-      // An avatar and an emoji have no place on a Rakazo bot; a blank template has nothing.
+      // An avatar and an emoji have no place on a Shepherd bot; a blank template has nothing.
       ...(isOpenClawDefault("IDENTITY.md", byName.get("IDENTITY.md") ?? "")
         ? [{ path: "IDENTITY.md", reason: "default" as const }]
         : []),

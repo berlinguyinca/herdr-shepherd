@@ -1,6 +1,6 @@
 # Product definition
 
-[VISION.md](VISION.md) defines Rakazo's purpose, principles, and boundaries.
+[VISION.md](VISION.md) defines Shepherd's purpose, principles, and boundaries.
 This document defines behavior by capability so feature work has one shared product reference across web, desktop, mobile, and messaging wherever applicable.
 It is a maintained definition, not an exhaustive feature inventory, roadmap, implementation plan, or release checklist.
 Update the relevant section when a product decision changes; Git history preserves replaced decisions.
@@ -40,7 +40,7 @@ PR #3101 proposes optional background execution with read-only helpers; that pro
 ## Computers
 
 A Team Computer shares files, installed tools, and a canonical browser identity among bots inside the same trust boundary.
-Rakazo gives each concurrently active Team bot a separate live desktop and browser process when the provider supports it, and unsupported providers expose the limitation instead of silently coupling control.
+Shepherd gives each concurrently active Team bot a separate live desktop and browser process when the provider supports it, and unsupported providers expose the limitation instead of silently coupling control.
 Browser sign-ins are checkpointed into the shared identity and become available to desktops opened or restarted after that checkpoint.
 Concurrent Chromium processes do not write directly to one profile directory, and generation fencing prevents older desktops from overwriting newer shared state.
 A Private Computer isolates the entire working home, including files and browser identity, when working state must not be shared with other bots.

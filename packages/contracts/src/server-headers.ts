@@ -1,7 +1,7 @@
 import type { ModelHeaderRow } from "./model-headers.js";
 import { ModelHeaderRowsSchema, ModelHeadersSchema } from "./model-headers.js";
 
-/** Rakazo names its own request headers; a configured header must not replace them. */
+/** Shepherd names its own request headers; a configured header must not replace them. */
 function allowedServerHeaderName(name: string): boolean {
   const lower = name.trim().toLowerCase();
   return (

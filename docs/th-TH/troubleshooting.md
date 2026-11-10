@@ -7,7 +7,7 @@
 คัดลอก prompt นี้ เติมช่อง แล้วให้ผู้ช่วยอ่านส่วนที่เกี่ยวกับ error ก่อนแนะนำการแก้ อย่าส่งรหัสผ่าน API key token cookie หรือทั้งไฟล์ `.env` ตรวจคำสั่งก่อนรัน
 
 ```text
-Help me troubleshoot Rakazo using this guide:
+Help me troubleshoot Shepherd using this guide:
 https://rakazo.com/docs/troubleshooting/
 
 Error code: <code from the relevant section below>
@@ -28,7 +28,7 @@ settings needed. Do not disable authentication or URL validation to bypass the e
 แอปสร้าง callback จาก URL ในเบราว์เซอร์ API ยอมรับแค่ origin ที่ตั้งใน `WEB_ORIGIN` ถ้าไม่ตรงจะ error ก่อนไปหา IdP ภายนอก
 
 1. คัดลอก origin จากแถบที่อยู่ (scheme + hostname + port ไม่มี path) เช่น `https://app.example.com` หรือ `http://127.0.0.1:5173`
-2. เปิด Rakazo ที่ origin เดียวกับ `WEB_ORIGIN` — `localhost` กับ `127.0.0.1` ถือว่าคนละค่า เช่นเดียวกับ HTTP กับ HTTPS หรือพอร์ตที่ต่างกัน
+2. เปิด Shepherd ที่ origin เดียวกับ `WEB_ORIGIN` — `localhost` กับ `127.0.0.1` ถือว่าคนละค่า เช่นเดียวกับ HTTP กับ HTTPS หรือพอร์ตที่ต่างกัน
 3. ถ้าตั้งผิด แก้ `WEB_ORIGIN` ให้ตรงกับที่คนใช้จริง production ตั้ง HTTPS แล้วให้ `BETTER_AUTH_URL` และ `API_URL` ตรงกัน
 4. **recreate** คอนเทนเนอร์ API ด้วย Compose และ env เดิม — restart อย่างเดียวไม่อัปเดต env
 5. เปิด origin ที่เลือกแล้วเชื่อม integration ใหม่

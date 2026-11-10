@@ -1,6 +1,6 @@
 import type { Hono } from "hono";
 
-/** Package of the Rakazo Android app (apps/mobile/app.json). */
+/** Package of the Shepherd Android app (apps/mobile/app.json). */
 const ANDROID_PACKAGE = "com.rakazo.app";
 
 /**

@@ -879,8 +879,8 @@ msgid "Allow once"
 msgstr "Permitir una vez"
 
 #: src/lib/dictation.ts
-msgid "Allow Rakazo to use Speech Recognition and the microphone in System Settings."
-msgstr "Permite que Rakazo use el reconocimiento de voz y el micrófono en Ajustes del Sistema."
+msgid "Allow Shepherd to use Speech Recognition and the microphone in System Settings."
+msgstr "Permite que Shepherd use el reconocimiento de voz y el micrófono en Ajustes del Sistema."
 
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 msgid "Allow writing"
@@ -1287,10 +1287,6 @@ msgstr "bot"
 #: src/pages/shell/avatar-studio-popover.tsx
 #: src/pages/shell/message-view.tsx
 #: src/pages/SpaceSearch.tsx
-msgid "Bot"
-msgstr "Bot"
-
-#. js-lingui-explicit-id
 #: src/lib/browser-notifications.ts
 msgid "Bot"
 msgstr "Bot"
@@ -1632,8 +1628,8 @@ msgstr "Elegir carpeta"
 
 #: src/components/ModelCredits.tsx
 #: src/components/SubscriptionGate.tsx
-msgid "Choose how to use Rakazo"
-msgstr "Elige cómo usar Rakazo"
+msgid "Choose how to use Shepherd"
+msgstr "Elige cómo usar Shepherd"
 
 #: src/components/vault/VaultItemEditor.tsx
 msgid "City"
@@ -1969,8 +1965,8 @@ msgstr "Conecta primero el proveedor de este modelo."
 
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
-msgid "Connect your own API key in Models or choose Rakazo credits in Billing."
-msgstr "Conecta tu propia clave de API en Modelos o elige créditos de Rakazo en Facturación."
+msgid "Connect your own API key in Models or choose Shepherd credits in Billing."
+msgstr "Conecta tu propia clave de API en Modelos o elige créditos de Shepherd en Facturación."
 
 #: src/components/bot-templates/bot-templates-dialog.tsx
 #: src/components/ComputerDeviceSettings.tsx
@@ -2790,8 +2786,8 @@ msgid "Create space"
 msgstr "Crear space"
 
 #: src/pages/Auth.tsx
-msgid "Create your Rakazo"
-msgstr "Crea tu Rakazo"
+msgid "Create your Shepherd"
+msgstr "Crea tu Shepherd"
 
 #: src/components/AskCard.tsx
 msgid "Created"
@@ -3277,8 +3273,8 @@ msgid "Ends {day}"
 msgstr "Termina el {day}"
 
 #: src/components/GitHubStarPrompt.tsx
-msgid "Enjoying Rakazo?"
-msgstr "¿Te gusta Rakazo?"
+msgid "Enjoying Shepherd?"
+msgstr "¿Te gusta Shepherd?"
 
 #: src/lib/user-error.ts
 msgid "Enter a password"
@@ -3444,10 +3440,6 @@ msgstr "Conversación externa"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 #: src/pages/onboarding/model-step.tsx
-msgid "Extra high"
-msgstr "Extra alto"
-
-#. js-lingui-explicit-id
 #: src/lib/model-catalog.ts
 msgid "Extra high"
 msgstr "Extra alto"
@@ -3754,10 +3746,6 @@ msgstr "Ocultar la transcripción"
 #: src/lib/ticket-priority.ts
 #: src/pages/model-settings/compatible-model-fields.tsx
 #: src/pages/onboarding/model-step.tsx
-msgid "High"
-msgstr "Alto"
-
-#. js-lingui-explicit-id
 #: src/lib/model-catalog.ts
 msgid "High"
 msgstr "Alto"
@@ -3804,8 +3792,8 @@ msgid "How to check"
 msgstr "Cómo comprobar"
 
 #: src/components/SignupSurvey.tsx
-msgid "How will you use Rakazo?"
-msgstr "¿Cómo usarás Rakazo?"
+msgid "How will you use Shepherd?"
+msgstr "¿Cómo usarás Shepherd?"
 
 #: src/pages/shell/computer-release-actions.tsx
 msgid "I’m done"
@@ -3825,9 +3813,6 @@ msgstr "Ignorar"
 
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
-msgid "Image input is not configured for this model."
-msgstr "La entrada de imágenes no está configurada para este modelo."
-
 #: src/lib/user-error.ts
 msgid "Image input is not configured for this model."
 msgstr "La entrada de imágenes no está configurada para este modelo."
@@ -4221,10 +4206,6 @@ msgstr "Parece contener una clave"
 #: src/lib/ticket-priority.ts
 #: src/pages/model-settings/compatible-model-fields.tsx
 #: src/pages/onboarding/model-step.tsx
-msgid "Low"
-msgstr "Bajo"
-
-#. js-lingui-explicit-id
 #: src/lib/model-catalog.ts
 msgid "Low"
 msgstr "Bajo"
@@ -4293,10 +4274,6 @@ msgstr "Marketing"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 #: src/pages/onboarding/model-step.tsx
-msgid "Max"
-msgstr "Máx."
-
-#. js-lingui-explicit-id
 #: src/lib/model-catalog.ts
 msgid "Max"
 msgstr "Máx."
@@ -4332,10 +4309,6 @@ msgstr "Servidores MCP"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 #: src/pages/onboarding/model-step.tsx
-msgid "Medium"
-msgstr "Medio"
-
-#. js-lingui-explicit-id
 #: src/lib/model-catalog.ts
 msgid "Medium"
 msgstr "Medio"
@@ -4391,10 +4364,6 @@ msgstr "Menciona: {mentions}"
 #: src/pages/shell/chat-shared.ts
 #: src/pages/shell/composer.tsx
 #: src/pages/SpaceSearch.tsx
-msgid "Message"
-msgstr "Mensaje"
-
-#. js-lingui-explicit-id
 #: src/lib/browser-notifications.ts
 msgid "Message"
 msgstr "Mensaje"
@@ -4443,10 +4412,6 @@ msgstr "Falló el micrófono"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 #: src/pages/onboarding/model-step.tsx
-msgid "Minimal"
-msgstr "Mínimo"
-
-#. js-lingui-explicit-id
 #: src/lib/model-catalog.ts
 msgid "Minimal"
 msgstr "Mínimo"
@@ -4924,8 +4889,8 @@ msgid "Not imported"
 msgstr "No importado"
 
 #: src/pages/shell/import-status.ts
-msgid "Not in Rakazo's catalog"
-msgstr "No está en el catálogo de Rakazo"
+msgid "Not in Shepherd's catalog"
+msgstr "No está en el catálogo de Shepherd"
 
 #: src/pages/plugins/plugin-browse.tsx
 msgid "Not in the plugin catalog"
@@ -4938,12 +4903,12 @@ msgstr "Ahora no"
 
 #: src/pages/shell/agent-import-plan.tsx
 #: src/pages/shell/import-status.ts
-msgid "Not supported in Rakazo"
-msgstr "No compatible con Rakazo"
+msgid "Not supported in Shepherd"
+msgstr "No compatible con Shepherd"
 
 #: src/pages/shell/agent-import-plan.tsx
-msgid "Not used by Rakazo"
-msgstr "Rakazo no lo usa"
+msgid "Not used by Shepherd"
+msgstr "Shepherd no lo usa"
 
 #: src/components/McpServerHealthLine.tsx
 #: src/pages/plugins/parts.tsx
@@ -5084,8 +5049,8 @@ msgstr "Abrir navegación"
 #: src/components/pages/PublicPageShell.tsx
 #: src/pages/Invite.tsx
 #: src/pages/SharedPage.tsx
-msgid "Open Rakazo"
-msgstr "Abrir Rakazo"
+msgid "Open Shepherd"
+msgstr "Abrir Shepherd"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Open work"
@@ -5264,7 +5229,7 @@ msgstr "Pega una clave de reemplazo"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 msgid "Paste the OpenAI-compatible address from your server. Shepherd adds /v1 if needed."
-msgstr "Pega la dirección compatible con OpenAI de tu servidor. Rakazo agrega /v1 si es necesario."
+msgstr "Pega la dirección compatible con OpenAI de tu servidor. Shepherd agrega /v1 si es necesario."
 
 #: src/pages/shell/agent-import.tsx
 msgid "Paste the reply"
@@ -5460,16 +5425,16 @@ msgstr "En cola"
 
 #: src/pages/AccountSettingsOverlay.tsx
 #: src/pages/shell/avatar-studio-popover.tsx
-msgid "Rakazo"
-msgstr "Rakazo"
+msgid "Shepherd"
+msgstr "Shepherd"
 
 #: src/pages/onboarding/use-onboarding-model.ts
-msgid "Rakazo credits"
-msgstr "Créditos de Rakazo"
+msgid "Shepherd credits"
+msgstr "Créditos de Shepherd"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
-msgid "rakazo-shared and IDs starting with bot- are reserved for Rakazo."
-msgstr "rakazo-shared y los ID que empiezan con bot- están reservados para Rakazo."
+msgid "rakazo-shared and IDs starting with bot- are reserved for Shepherd."
+msgstr "rakazo-shared y los ID que empiezan con bot- están reservados para Shepherd."
 
 #: src/pages/shell/message-hover-actions.tsx
 msgid "React"
@@ -5505,8 +5470,8 @@ msgid "Recall and write"
 msgstr "Recordar y escribir"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
-msgid "Recall from this peer; save to Rakazo’s own peers."
-msgstr "Consultar este peer; guardar en los propios peers de Rakazo."
+msgid "Recall from this peer; save to Shepherd’s own peers."
+msgstr "Consultar este peer; guardar en los propios peers de Shepherd."
 
 #: src/pages/memory-providers/SerenitySettingsForm.tsx
 msgid "Recall only"
@@ -5937,8 +5902,8 @@ msgstr "Volver a la llamada con {0}"
 
 #: src/pages/McpOAuthCallback.tsx
 #: src/pages/SlackInstallCallback.tsx
-msgid "Return to Rakazo"
-msgstr "Volver a Rakazo"
+msgid "Return to Shepherd"
+msgstr "Volver a Shepherd"
 
 #: src/lib/model-connection-preflight.ts
 msgid "Review provider settings and test again."
@@ -6440,8 +6405,8 @@ msgid "Sign in at <0>{0}</0>, then paste the code here."
 msgstr "Inicia sesión en <0>{0}</0> y pega el código aquí."
 
 #: src/pages/Auth.tsx
-msgid "Sign in to Rakazo"
-msgstr "Inicia sesión en Rakazo"
+msgid "Sign in to Shepherd"
+msgstr "Inicia sesión en Shepherd"
 
 #: src/lib/user-error.ts
 msgid "Sign in to your existing account to link SSO"
@@ -7051,9 +7016,6 @@ msgstr "esta Mac"
 
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
-msgid "This model cannot read images. Choose a model that supports images."
-msgstr "Este modelo no puede leer imágenes. Elige un modelo que admita imágenes."
-
 #: src/lib/user-error.ts
 msgid "This model cannot read images. Choose a model that supports images."
 msgstr "Este modelo no puede leer imágenes. Elige un modelo que admita imágenes."
@@ -7128,8 +7090,8 @@ msgid "This server's tool result does not fit the model. Turn off Keep tool resu
 msgstr "El resultado de la herramienta de este servidor no cabe en el modelo. Desactiva Mantener completos los resultados de herramientas para ese servidor o elige otro modelo."
 
 #: src/pages/model-settings/connection-controls.tsx
-msgid "This subscription sign-in is not available in Rakazo yet. Use a deployment credential or choose another provider."
-msgstr "Este inicio de sesión por suscripción aún no está disponible en Rakazo. Usa una credencial de despliegue o elige otro proveedor."
+msgid "This subscription sign-in is not available in Shepherd yet. Use a deployment credential or choose another provider."
+msgstr "Este inicio de sesión por suscripción aún no está disponible en Shepherd. Usa una credencial de despliegue o elige otro proveedor."
 
 #: src/components/bot-templates/bot-templates-dialog.tsx
 msgid "This template was just updated. Check it again."
@@ -7485,8 +7447,8 @@ msgid "Use Protected input for passwords."
 msgstr "Usa Entrada protegida para las contraseñas."
 
 #: src/components/ModelCredits.tsx
-msgid "Use Rakazo credits"
-msgstr "Usar créditos de Rakazo"
+msgid "Use Shepherd credits"
+msgstr "Usar créditos de Shepherd"
 
 #: src/pages/memory-providers/HonchoSettingsForm.tsx
 msgid "Use up to 512 letters, digits, _ or -."
@@ -7633,8 +7595,8 @@ msgid "Weekly"
 msgstr "Semanal"
 
 #: src/components/SignupSurvey.tsx
-msgid "Welcome to Rakazo"
-msgstr "Te damos la bienvenida a Rakazo"
+msgid "Welcome to Shepherd"
+msgstr "Te damos la bienvenida a Shepherd"
 
 #: src/pages/shell/dialogs.tsx
 msgid "What about its memories?"
@@ -7645,8 +7607,8 @@ msgid "What can this space use?"
 msgstr "¿Qué puede usar este espacio?"
 
 #: src/components/SignupSurvey.tsx
-msgid "What do you most want Rakazo to help with?"
-msgstr "¿Con qué quieres que Rakazo te ayude más?"
+msgid "What do you most want Shepherd to help with?"
+msgstr "¿Con qué quieres que Shepherd te ayude más?"
 
 #: src/pages/shell/message-cards.tsx
 msgid "What do you want me on first?"

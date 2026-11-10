@@ -1,10 +1,10 @@
 {
   "ios": {
-    "NSCameraUsageDescription": "Rakazo korzysta z aparatu, aby umożliwić dołączanie zdjęć do wiadomości do bota.",
-    "NSPhotoLibraryUsageDescription": "Rakazo korzysta z biblioteki zdjęć, aby umożliwić dołączanie obrazów do wiadomości do bota.",
-    "NSLocalNetworkUsageDescription": "Rakazo łączy się z własnym serwerem Rakazo w Twojej sieci lokalnej.",
-    "NSMicrophoneUsageDescription": "Rakazo korzysta z mikrofonu podczas rozmów głosowych z botami.",
-    "NSSpeechRecognitionUsageDescription": "Rakazo zamienia Twoją mowę na wiadomości podczas rozmów głosowych.",
-    "NSFaceIDUsageDescription": "Zezwól Rakazo na korzystanie z Face ID."
+    "NSCameraUsageDescription": "Shepherd korzysta z aparatu, aby umożliwić dołączanie zdjęć do wiadomości do bota.",
+    "NSPhotoLibraryUsageDescription": "Shepherd korzysta z biblioteki zdjęć, aby umożliwić dołączanie obrazów do wiadomości do bota.",
+    "NSLocalNetworkUsageDescription": "Shepherd łączy się z własnym serwerem Shepherd w Twojej sieci lokalnej.",
+    "NSMicrophoneUsageDescription": "Shepherd korzysta z mikrofonu podczas rozmów głosowych z botami.",
+    "NSSpeechRecognitionUsageDescription": "Shepherd zamienia Twoją mowę na wiadomości podczas rozmów głosowych.",
+    "NSFaceIDUsageDescription": "Zezwól Shepherd na korzystanie z Face ID."
   }
 }

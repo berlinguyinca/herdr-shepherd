@@ -251,7 +251,7 @@ async function simulatorUdid() {
   if (booted.length === 1 && booted[0]) return booted[0].udid;
   throw new Error(
     booted.length === 0
-      ? "Boot an iPhone simulator with the Rakazo app installed, or set SIM_UDID."
+      ? "Boot an iPhone simulator with the Shepherd app installed, or set SIM_UDID."
       : `Several simulators are booted; set SIM_UDID to one of: ${booted.map((device) => `${device.name} ${device.udid}`).join(", ")}`,
   );
 }

@@ -80,7 +80,7 @@ function providerKeyVars<T>(vars: Record<string, T>): [string, T][] {
   return Object.entries(vars).filter(([name]) => keys.includes(name) || urls.includes(name));
 }
 
-/** Provider names the source tools use for Rakazo's catalog providers. */
+/** Provider names the source tools use for Shepherd's catalog providers. */
 const PROVIDER_ALIASES: Readonly<Record<string, string>> = {
   gemini: "google",
   "google-gemini": "google",
@@ -329,7 +329,7 @@ const BARE_PROGRAM = /^[A-Za-z0-9][\w.-]*$/;
 const VARIABLE_NAME = /^[A-Za-z_][\w-]*$/;
 
 /**
- * Rakazo stores URLs and arguments in plain text, so this is deliberately conservative
+ * Shepherd stores URLs and arguments in plain text, so this is deliberately conservative
  * rather than a search for secrets: a URL without user info, query or fragment, or a bare
  * program with plain arguments. Anything else keeps only its name.
  */

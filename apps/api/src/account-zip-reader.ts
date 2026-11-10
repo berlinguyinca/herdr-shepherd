@@ -29,7 +29,7 @@ const ZIP64_EXTRA_TAG = 0x0001;
 
 /** An entry failed to parse or to verify; the caller reports it as unreadable. */
 export class ZipFormatError extends Error {
-  constructor(message = "The file is not a readable Rakazo export.") {
+  constructor(message = "The file is not a readable Shepherd export.") {
     super(message);
     this.name = "ZipFormatError";
   }

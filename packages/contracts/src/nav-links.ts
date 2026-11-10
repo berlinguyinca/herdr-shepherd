@@ -2,7 +2,7 @@ import * as z from "zod";
 
 /**
  * Operator-configured menu links (RAKAZO_NAV_LINKS) that open a same-origin page inside the app.
- * The operator's reverse proxy serves the path; Rakazo only frames it.
+ * The operator's reverse proxy serves the path; Shepherd only frames it.
  */
 
 /** App-owned paths a link must not frame. */
@@ -21,7 +21,7 @@ export const NavLinkSchema = z.object({
   id: z.string().regex(/^[a-z0-9-]{1,32}$/),
   label: z.string().trim().min(1).max(40),
   path: z.string().max(400).refine(isSameOriginPath),
-  /** Lets the page use its own origin, and so the signed-in user's access to Rakazo. */
+  /** Lets the page use its own origin, and so the signed-in user's access to Shepherd. */
   trusted: z.boolean().default(false),
 });
 export type NavLink = z.infer<typeof NavLinkSchema>;

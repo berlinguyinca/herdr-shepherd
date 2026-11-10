@@ -1073,7 +1073,6 @@ export const RU_MESSAGES: Record<string, string> = {
   Memory: "Память",
   "Privacy policies": "Политики конфиденциальности",
   Shepherd: "Shepherd",
-  Rakazo: "Rakazo",
   "Withdraw all permissions": "Отозвать все разрешения",
   "Withdraw all permissions?": "Отозвать все разрешения?",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":
