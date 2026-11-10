@@ -175,24 +175,35 @@ export function readShepherdConfigEnv(options: ReadOptions = {}): Record<string,
   const warn = options.warn ?? ((message: string) => process.stderr.write(`${message}\n`));
   const file = configPath(env, cwd);
   if (!file || !existsSync(file)) return {};
-  if (process.platform !== "win32" && statSync(file).mode & 0o077 && !warned.has(file)) {
+  const config = parseShepherdConfig(readFileSync(file, "utf8"), file);
+  if (
+    config.llm?.api_key &&
+    process.platform !== "win32" &&
+    statSync(file).mode & 0o077 &&
+    !warned.has(file)
+  ) {
     warned.add(file);
     warn(
       `${SHEPHERD_CONFIG_FILE} holds a key and is readable by other users; run chmod 600 on it.`,
     );
   }
-  return shepherdConfigEnv(parseShepherdConfig(readFileSync(file, "utf8"), file));
+  return shepherdConfigEnv(config);
 }
+
+/** Variables where a blank value in the environment is still a choice the file must not override. */
+const SECURITY_VARIABLES = new Set(["RAKAZO_ACCESS_MODE", "SIGNUPS_ENABLED", "RAKAZO_OWNER_EMAIL"]);
 
 /**
  * Fills variables the environment leaves unset (or blank) from the config file. Real environment
- * variables and `.env` always win. Returns the names it set. A missing file changes nothing.
+ * variables and `.env` always win. A blank access or owner variable counts as set, so the file
+ * cannot switch it on (a blank access mode means `accounts`). Returns the names it set. A missing
+ * file changes nothing.
  */
 export function applyShepherdConfig(options: ReadOptions = {}): string[] {
   const env = options.env ?? process.env;
   const applied: string[] = [];
   for (const [name, value] of Object.entries(readShepherdConfigEnv({ ...options, env }))) {
-    if (env[name]?.trim()) continue;
+    if (env[name]?.trim() || (SECURITY_VARIABLES.has(name) && env[name] !== undefined)) continue;
     env[name] = value;
     applied.push(name);
   }

@@ -196,6 +196,27 @@ describe("applying the config file", () => {
     expect(applied).toContain("RAKAZO_LOCAL_MODELS");
   });
 
+  it("never lets the file override a blank access, signup or owner variable", () => {
+    write(LOCAL);
+    const env: NodeJS.ProcessEnv = {
+      RAKAZO_ACCESS_MODE: "",
+      SIGNUPS_ENABLED: " ",
+      RAKAZO_OWNER_EMAIL: "",
+    };
+    const applied = applyShepherdConfig({ env, cwd: dir, warn: () => undefined });
+    expect(env.RAKAZO_ACCESS_MODE).toBe("");
+    expect(env.SIGNUPS_ENABLED).toBe(" ");
+    expect(env.RAKAZO_OWNER_EMAIL).toBe("");
+    expect(applied).not.toContain("RAKAZO_ACCESS_MODE");
+  });
+
+  it("warns about permissions only when the file holds a key", () => {
+    write("server: { api_port: 3500 }", 0o644);
+    const warnings: string[] = [];
+    applyShepherdConfig({ env: {}, cwd: dir, warn: (text) => warnings.push(text) });
+    expect(warnings).toEqual([]);
+  });
+
   it("finds the file through RAKAZO_CONFIG, relative to the working directory", () => {
     write("server: { api_port: 3300 }");
     const env: NodeJS.ProcessEnv = { RAKAZO_CONFIG: "shepherd.yaml" };
