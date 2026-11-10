@@ -54,7 +54,7 @@ function fixture({
   stalledDelivery?: boolean;
 } & Pick<
   AuthEnv,
-  "singleAccount" | "afterDeleteSession" | "afterReplaceSession" | "beforeDeleteUser"
+  "singleAccount" | "afterDeleteSession" | "afterReplaceSession" | "beforeDeleteUser" | "openOwner"
 > = {}) {
   const data: Record<string, Record<string, unknown>[]> = {
     user: [],
@@ -386,6 +386,40 @@ describe("identity trust through auth endpoints", () => {
       ),
     ).rejects.toMatchObject({
       body: { code: "EMAIL_VERIFICATION_REQUIRED", message: "Email verification required" },
+    });
+  });
+
+  describe("open-owner mode", () => {
+    const owner = { email: "owner@example.test", name: "Owner" };
+    const openFixture = () => {
+      const f = fixture({ openOwner: owner });
+      f.policy.signupsEnabled = false;
+      return f;
+    };
+
+    it("opens the owner's session although signups are closed", async () => {
+      const f = openFixture();
+      const response = await f.auth.openOwnerSession(new Headers());
+      expect(response?.status).toBe(200);
+      expect(f.data.user!.map((user) => user.email)).toEqual([owner.email]);
+    });
+
+    it("does not let signup claim the owner email", async () => {
+      const f = openFixture();
+      const response = await f.signup(owner.email);
+      expect(response.status).toBe(403);
+      expect(f.data.user).toHaveLength(0);
+    });
+
+    it("closes password and code routes once the owner exists", async () => {
+      const f = openFixture();
+      await f.auth.openOwnerSession(new Headers());
+      for (const response of [
+        await f.signin(owner.email),
+        await f.sendCode(owner.email),
+        await f.request("/request-password-reset", { email: owner.email }),
+      ])
+        expect(await response.json()).toMatchObject({ code: "PASSWORD_AUTH_DISABLED" });
     });
   });
 

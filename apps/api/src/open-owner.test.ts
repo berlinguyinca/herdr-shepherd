@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   assertOpenOwnerHost,
+  createOpenLimiter,
+  hasForwardingHeaders,
   isOwnerNetworkAddress,
   isOwnerNetworkHost,
   openOwnerOriginAllowed,
@@ -97,5 +99,28 @@ describe("request origin", () => {
     [undefined, false],
   ])("%s -> %s", (origin, expected) => {
     expect(openOwnerOriginAllowed(origin, allowed)).toBe(expected);
+  });
+});
+
+describe("forwarding headers", () => {
+  it.each(["forwarded", "x-forwarded-for", "x-forwarded-host", "x-real-ip", "cf-connecting-ip"])(
+    "%s marks a proxied request",
+    (name) => {
+      expect(hasForwardingHeaders(new Headers({ [name]: "203.0.113.9" }))).toBe(true);
+    },
+  );
+
+  it("lets a direct request through", () => {
+    expect(hasForwardingHeaders(new Headers({ origin: "http://127.0.0.1:5173" }))).toBe(false);
+  });
+});
+
+describe("open limiter", () => {
+  it("refuses past the limit and recovers after the window", () => {
+    let time = 0;
+    const allow = createOpenLimiter(2, 1000, () => time);
+    expect([allow(), allow(), allow()]).toEqual([true, true, false]);
+    time = 1001;
+    expect(allow()).toBe(true);
   });
 });

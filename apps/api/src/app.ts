@@ -156,6 +156,8 @@ import { startMessagingRuntime } from "./messaging-runtime.js";
 import { monitoringRoutes } from "./monitoring.js";
 import {
   assertOpenOwnerHost,
+  createOpenLimiter,
+  hasForwardingHeaders,
   isOwnerNetworkAddress,
   openOwnerOriginAllowed,
 } from "./open-owner.js";
@@ -941,8 +943,13 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       ownerPeerAddress ??
       ((request: Request, nodeEnv: unknown) =>
         getConnInfo({ env: nodeEnv, req: { raw: request } } as unknown as Context).remote.address);
+    const allowOpen = createOpenLimiter();
     app.post("/api/auth/open", async (c) => {
-      // The TCP peer, never a forwarded header: those are the caller's to write.
+      // The TCP peer, never a forwarded header: those are the caller's to write. A proxy or
+      // tunnel on this computer makes every caller look local, so any forwarding header refuses.
+      if (hasForwardingHeaders(c.req.raw.headers)) {
+        return c.json({ error: "Not available through a proxy" }, 403);
+      }
       if (!isOwnerNetworkAddress(peerOf(c.req.raw, c.env))) {
         return c.json({ error: "Not available from this network" }, 403);
       }
@@ -950,6 +957,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       if (!openOwnerOriginAllowed(c.req.header("origin"), originsAllowed)) {
         return c.json({ error: "Origin not allowed" }, 403);
       }
+      if (!allowOpen()) return c.json({ error: "Too many requests" }, 429);
       const response = await auth.openOwnerSession(c.req.raw.headers);
       return response ?? c.json({ error: "Not found" }, 404);
     });

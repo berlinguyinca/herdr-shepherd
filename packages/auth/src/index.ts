@@ -225,8 +225,9 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
       return true;
     });
   /** The directory provisioned this account, or it is the open-owner account: admitted whatever the signup policy. */
-  const provisioned = async (userId: string, email?: string) =>
-    (Boolean(env.openOwner) && email?.toLowerCase() === env.openOwner?.email) ||
+  const provisioned = async (userId: string, email?: string, path?: string) =>
+    // Only the server-only open endpoint admits the owner; no signup route can claim that email.
+    (Boolean(env.openOwner) && path === "/open" && email?.toLowerCase() === env.openOwner?.email) ||
     (Boolean(env.directoryProvisioning) &&
       Boolean(
         await prisma.scimUser.findFirst({ where: { userId, active: true }, select: { id: true } }),
@@ -503,8 +504,9 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
             throw new APIError("BAD_REQUEST", { message: "Email is not available" });
           }
         }
+        // Open-owner mode has one passwordless account; no credential route may add a way into it.
         if (
-          env.passwordAuth === false &&
+          (env.passwordAuth === false || env.openOwner) &&
           [...CREDENTIAL_PATHS, "/reset-password", "/change-password", "/set-password"].includes(
             ctx.path,
           )
@@ -709,7 +711,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
               if (
                 (!policy.enabled ||
                   (!bypassAllowlist && !emailAllowed(user.email, policy.allowlist))) &&
-                !(await provisioned(user.id, user.email))
+                !(await provisioned(user.id, user.email, ctx?.path))
               ) {
                 throw new APIError("FORBIDDEN", {
                   code: "REGISTRATION_CLOSED",

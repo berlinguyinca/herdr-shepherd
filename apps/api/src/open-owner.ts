@@ -29,3 +29,34 @@ export function openOwnerOriginAllowed(origin: string | undefined, allowed: stri
   if (!origin) return false;
   return origin === APP_ORIGIN || allowed.includes(origin);
 }
+
+const FORWARDING_HEADERS = [
+  "forwarded",
+  "x-forwarded-for",
+  "x-forwarded-host",
+  "x-forwarded-proto",
+  "x-real-ip",
+  "cf-connecting-ip",
+  "true-client-ip",
+  "tailscale-user-login",
+];
+
+/**
+ * A reverse proxy, tunnel or port forward on this computer reaches the API from loopback, so the
+ * TCP peer says nothing about the real caller. Any sign of one means the request is not direct.
+ */
+export function hasForwardingHeaders(headers: Headers): boolean {
+  return FORWARDING_HEADERS.some((name) => headers.has(name));
+}
+
+/** At most `limit` opens per `windowMs`, counted for the whole process. */
+export function createOpenLimiter(limit = 30, windowMs = 60_000, now: () => number = Date.now) {
+  const hits: number[] = [];
+  return () => {
+    const cutoff = now() - windowMs;
+    while (hits.length > 0 && hits[0]! <= cutoff) hits.shift();
+    if (hits.length >= limit) return false;
+    hits.push(now());
+    return true;
+  };
+}

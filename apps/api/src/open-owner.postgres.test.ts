@@ -121,6 +121,17 @@ run("a request with no known peer is refused", async () => {
   });
 });
 
+run("a request carrying a forwarding header is refused and creates nothing", async () => {
+  await withApp({}, async (handles, _open, count) => {
+    const response = await handles.app.request("/api/auth/open", {
+      method: "POST",
+      headers: { origin: webOrigin, "x-forwarded-for": "203.0.113.9" },
+    });
+    expect(response.status).toBe(403);
+    expect(await count()).toBe(0);
+  });
+});
+
 run("a Tailscale peer is served", async () => {
   await withApp({ peer: "100.101.102.103" }, async (_handles, open) => {
     expect((await open(webOrigin)).status).toBe(200);
