@@ -98,7 +98,7 @@ describe("desktop language", () => {
     expect(desktopMessages()).toBe(PL_MESSAGES);
     expect(t("Check for Updates…")).toBe("Sprawdź aktualizacje…");
     expect(t("Shepherd {version} is ready to install.", { version: "1.2.0" })).toBe(
-      "Shepherd 1.2.0 jest gotowe do zainstalowania.",
+      "Shepherd 1.2.0 jest gotowy do zainstalowania.",
     );
   });
 
