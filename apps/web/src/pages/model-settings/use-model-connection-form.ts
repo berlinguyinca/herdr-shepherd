@@ -165,8 +165,10 @@ export function useModelConnectionForm({
     );
   }
 
-  async function probeServerModels() {
-    if (!baseUrl.trim()) return;
+  /** Resolves true when the server answered with its models for the typed key. */
+  async function probeServerModels(): Promise<boolean> {
+    if (!baseUrl.trim()) return false;
+    let answered = false;
     const revision = preflightRevisionRef.current;
     const stillCurrent = () => revision === preflightRevisionRef.current;
     setError(null);
@@ -186,6 +188,7 @@ export function useModelConnectionForm({
         }),
       onSuccess: (models) => {
         if (!stillCurrent()) return;
+        answered = true;
         const current = modelIdRef.current;
         const next = current.trim() || models[0] || "";
         if (next !== current) stageCompatibleModelId(next);
@@ -207,6 +210,7 @@ export function useModelConnectionForm({
         setNotice(null);
       },
     });
+    return answered;
   }
 
   /** Shows `test`'s result unless the form changed while it ran; `test` may stop early the same way. */
@@ -229,8 +233,10 @@ export function useModelConnectionForm({
     else setPreflightFailure(outcome.failure);
   }
 
-  async function testApiKeyConnection() {
-    if (!selected?.catalogProbe) return;
+  /** Resolves true when the provider accepted the typed key. */
+  async function testApiKeyConnection(): Promise<boolean> {
+    if (!selected?.catalogProbe) return false;
+    let accepted = false;
     await runPreflight("api-key", async () => {
       const result = await runModelConnectionPreflight({
         authKind: "api-key",
@@ -240,11 +246,38 @@ export function useModelConnectionForm({
         catalogProbe: true,
         probeCatalog: rpc.models.probeCatalog,
       });
+      accepted = result.ok;
       return result.ok
         ? { success: modelPreflightSuccessMessage(result.discoveredModels.length) }
         : { failure: result.failure };
     });
+    return accepted;
   }
+
+  /**
+   * The real-request model test. A custom server may rely on the saved key; a catalog provider is
+   * tested with the key typed here, since only the typed key is known to this form.
+   */
+  const completionTestReady = isOpenAiCompatible
+    ? Boolean(baseUrl.trim() && modelId.trim())
+    : Boolean(selected?.catalogProbe && apiKey.trim().length >= 8);
+  const completionTest = {
+    ready: completionTestReady,
+    resetKey: JSON.stringify([provider, baseUrl, modelId, apiProtocol, apiKey, headerRows]),
+    run: () =>
+      rpc.models.testCompletion(
+        isOpenAiCompatible
+          ? {
+              baseUrl: baseUrl.trim(),
+              modelId: modelId.trim(),
+              apiKey: apiKey.trim() || undefined,
+              apiProtocol,
+              headers: modelHeadersInput(headerRows),
+              credentialId: credential?.id,
+            }
+          : { provider, modelId: selected?.id ?? modelId, apiKey: apiKey.trim() },
+      ),
+  };
 
   return {
     accountId,
@@ -252,6 +285,7 @@ export function useModelConnectionForm({
     apiProtocol,
     applyFields,
     baseUrl,
+    completionTest,
     routingReady,
     contextWindow,
     enabledModelIds,

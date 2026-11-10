@@ -563,6 +563,21 @@ export const appContract = {
         }),
       )
       .output(z.object({ models: z.array(z.string()) })),
+    /** Sends one tiny completion to the chosen model; failures come back as the error message. */
+    testCompletion: oc
+      .input(
+        z.object({
+          /** A catalog provider with a pinned endpoint; omitted for an OpenAI-compatible server. */
+          provider: z.string().trim().min(1).optional(),
+          baseUrl: z.string().optional(),
+          modelId: z.string().trim().min(1).max(512),
+          credentialId: z.string().optional(),
+          headers: ModelHeadersSchema.optional(),
+          apiKey: z.string().optional(),
+          apiProtocol: ModelApiProtocolSchema.optional(),
+        }),
+      )
+      .output(z.object({ reply: z.string(), latencyMs: z.number().int().min(0) })),
     beginOAuth: oc
       .input(
         z.object({

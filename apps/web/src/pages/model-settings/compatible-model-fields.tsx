@@ -12,6 +12,7 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@rakazo/ui-web";
+import { ModelCompletionTest } from "../../components/ModelCompletionTest";
 import { ModelPreflightFeedback } from "../../components/ModelConnectionPreflightNotice";
 import { ModelHeadersEditor } from "../../components/ModelHeadersEditor";
 import { useListSearch } from "../../lib/use-list-search";
@@ -29,6 +30,7 @@ export function CompatibleModelFields({
   busy,
   cancelOAuthAttempt,
   compatibleRows,
+  completionTest,
   contextWindow,
   defaultModelOptions,
   effectiveBaseUrl,
@@ -71,6 +73,7 @@ export function CompatibleModelFields({
   | "busy"
   | "cancelOAuthAttempt"
   | "compatibleRows"
+  | "completionTest"
   | "contextWindow"
   | "defaultModelOptions"
   | "effectiveBaseUrl"
@@ -286,6 +289,12 @@ export function CompatibleModelFields({
           </Button>
         ) : null}
       </div>
+      <ModelCompletionTest
+        className="mt-3"
+        run={completionTest.run}
+        disabled={busy || !completionTest.ready}
+        resetKey={completionTest.resetKey}
+      />
       <ModelThinkingOptions
         reasoning={reasoning}
         onReasoningChange={(value) => {

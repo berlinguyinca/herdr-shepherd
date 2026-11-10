@@ -32,6 +32,8 @@ import {
 } from "../../lib/model-connection-preflight";
 import { useSpaceQueries } from "../../lib/query";
 import { useSpaceRpc } from "../../lib/space-rpc";
+import type { KeyAutosaveOutcome } from "../../lib/use-key-autosave";
+import { MIN_AUTOSAVE_KEY_LENGTH, useKeyAutosave } from "../../lib/use-key-autosave";
 import { useModelOAuthSignIn } from "../../lib/use-model-oauth-signin";
 import { errorText } from "../../lib/user-error";
 import { useModelConnectionForm } from "./use-model-connection-form";
@@ -108,6 +110,7 @@ export function useModelSettings(onClose: () => void, scope: SettingsScope) {
     provider,
     reasoning,
     resetOpenAiCompatibleProbe,
+    routingReady,
     runPreflight,
     selected,
     setApiKey,
@@ -322,6 +325,7 @@ export function useModelSettings(onClose: () => void, scope: SettingsScope) {
     targetCredentialId: string | null = null,
   ) {
     cancelOAuthAttempt();
+    keyAutosave.cancel();
     formRevisionRef.current += 1;
     selectionRevisionRef.current += 1;
     const nextCredential = targetCredentialId
@@ -370,8 +374,16 @@ export function useModelSettings(onClose: () => void, scope: SettingsScope) {
 
   // settingsOnly saves a connected catalog provider's limits and gateway ids
   // without touching the key field; key replacement stays on its own button.
-  async function connectKey({ settingsOnly = false }: { settingsOnly?: boolean } = {}) {
-    if (!selected) return;
+  // autosave keeps the typed key in the field and the form as it is, so the model list can
+  // be refreshed with it and nothing the person is editing is reset.
+  async function connectKey({
+    settingsOnly = false,
+    autosave = false,
+  }: {
+    settingsOnly?: boolean;
+    autosave?: boolean;
+  } = {}): Promise<KeyAutosaveOutcome> {
+    if (!selected) return "skipped";
     // Closing the dialog mid-save must not drop the slot this connection is for.
     const intent = intentRef.current;
     const request = modelConnectRequest({
@@ -397,7 +409,7 @@ export function useModelSettings(onClose: () => void, scope: SettingsScope) {
       settingsOnly,
       ...(intent ? { makeDefault: { makeDefault: intent.makeDefault, scope } } : {}),
     });
-    if (request.status === "incomplete") return;
+    if (request.status === "incomplete") return "skipped";
     if (request.status === "invalid") {
       setError(
         request.field === "maxTokens"
@@ -406,7 +418,7 @@ export function useModelSettings(onClose: () => void, scope: SettingsScope) {
             ? t`Enter a whole number from 1 to 1000 for the image limit.`
             : t`Enter a whole number from 1 to ${MAX_MODEL_CONTEXT_WINDOW} for the context limit.`,
       );
-      return;
+      return "failed";
     }
     const { input, savingLimitOnly, activeModelId } = request;
     setError(null);
@@ -420,13 +432,17 @@ export function useModelSettings(onClose: () => void, scope: SettingsScope) {
       const saved = await rpc.models.connect(input);
       if (!stillSelected()) {
         await refresh({ keepForm: true });
-        return;
+        return "saved";
       }
       // Saving again edits the connection just made instead of adding another.
       if (saved?.id) setCredentialId(saved.id);
+      if (autosave) {
+        await refresh({ keepForm: true });
+        return "saved";
+      }
       if (!settingsOnly) setApiKey("");
       await refresh();
-      if (!stillSelected()) return;
+      if (!stillSelected()) return "saved";
       if (!settingsOnly)
         await intent?.onConnected?.({
           provider: selected.provider,
@@ -435,16 +451,38 @@ export function useModelSettings(onClose: () => void, scope: SettingsScope) {
         });
       // A fresh connection speaks for itself through the Active model row.
       if (isOpenAiCompatible || savingLimitOnly) setNotice(t`Saved.`);
+      return "saved";
     } catch (err) {
       if (stillSelected()) setError(errorText(err, t`Could not connect this provider`));
+      return "failed";
     } finally {
       setPending(null);
     }
   }
 
+  /** Saves the connection once a usable key is typed; an incomplete form keeps its draft. */
+  async function autosaveKey(): Promise<KeyAutosaveOutcome> {
+    if (busy) return "skipped";
+    const ready = isOpenAiCompatible
+      ? openAiCompatibleReady
+      : acceptsKey && routingReady && apiKey.trim().length >= MIN_AUTOSAVE_KEY_LENGTH;
+    return ready ? connectKey({ autosave: true }) : "skipped";
+  }
+
+  /** Refreshes what the key unlocks: a custom server's model list, or a catalog provider's check. */
+  async function refreshAfterKey(): Promise<boolean> {
+    if (isOpenAiCompatible) return form.probeServerModels();
+    if (selected?.catalogProbe && apiKey.trim().length >= MIN_AUTOSAVE_KEY_LENGTH)
+      return form.testApiKeyConnection();
+    return false;
+  }
+
+  const keyAutosave = useKeyAutosave({ save: autosaveKey, findModels: refreshAfterKey });
+
   async function disconnectCredential() {
     if (!selected || !credential) return;
     cancelOAuthAttempt();
+    keyAutosave.cancel();
     setError(null);
     setNotice(null);
     setPending("disconnect");
@@ -491,6 +529,11 @@ export function useModelSettings(onClose: () => void, scope: SettingsScope) {
   return {
     ...form,
     intentRef,
+    keyAutosave,
+    updateApiKey: (value: string, options?: { immediate?: boolean }) => {
+      form.updateApiKey(value);
+      keyAutosave.onKeyChange(value, options);
+    },
     refresh,
     savedHeaderEndpointMatches,
     acceptsKey,

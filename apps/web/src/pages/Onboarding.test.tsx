@@ -36,6 +36,7 @@ vi.mock("../lib/rpc", () => ({
           ],
         },
       ]),
+      connect: vi.fn(async () => ({ id: "cred-9" })),
       probeOpenAiCompatible: vi.fn(async () => ({
         models: Array.from({ length: 11 }, (_, index) => `found-${index}`),
       })),
@@ -179,4 +180,49 @@ it("preselects the featured hosted preset and lists the custom server in the mai
   expect(labels.filter((label) => label === "Hosted Featured")).toHaveLength(1);
   expect(labels).toContain("Hosted Keyed");
   act(() => root.unmount());
+});
+
+it("autosaves a typed key after a good probe, into one new connection that later saves reuse", async () => {
+  vi.mocked(rpc.models.connect).mockClear();
+  vi.mocked(rpc.models.probeOpenAiCompatible).mockClear();
+  const root = createRoot(document.body.appendChild(document.createElement("div")));
+  await act(async () =>
+    root.render(
+      <MemoryRouter initialEntries={["/onboarding"]}>
+        <Routes>
+          <Route path="/onboarding/:step?" element={<OnboardingPage />} />
+        </Routes>
+      </MemoryRouter>,
+    ),
+  );
+  await act(async () =>
+    account.load({ needsModel: true, needsSignupSurvey: false, billingEnabled: false }),
+  );
+  const typeKey = async (value: string) => {
+    const input = document.querySelector<HTMLInputElement>('input[aria-label="API key"]')!;
+    await act(async () => {
+      Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, value);
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    // Outside act, so React renders between the probe and the save the way it does in a browser.
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", false);
+    await new Promise((resolve) => setTimeout(resolve, 1300));
+    vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+    await act(async () => {});
+  };
+  await typeKey("sk-first-key");
+  expect(rpc.models.probeOpenAiCompatible).toHaveBeenCalledTimes(1);
+  expect(rpc.models.connect).toHaveBeenCalledTimes(1);
+  expect(vi.mocked(rpc.models.connect).mock.calls[0]?.[0]).toMatchObject({ credentialId: null });
+  await typeKey("sk-second-key");
+  expect(rpc.models.connect).toHaveBeenCalledTimes(2);
+  expect(vi.mocked(rpc.models.connect).mock.calls[1]?.[0]).toMatchObject({
+    credentialId: "cred-9",
+    apiKey: "sk-second-key",
+  });
+  // A typed key the server rejects is never saved.
+  vi.mocked(rpc.models.probeOpenAiCompatible).mockRejectedValueOnce(new Error("401"));
+  await typeKey("sk-partial");
+  expect(rpc.models.connect).toHaveBeenCalledTimes(2);
+  await act(async () => root.unmount());
 });

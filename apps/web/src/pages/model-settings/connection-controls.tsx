@@ -3,10 +3,13 @@ import { compatibleEndpointKeyRequired } from "@rakazo/contracts";
 import { Button, Disclosure, Input } from "@rakazo/ui-web";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
+import { KeyAutosaveStatus } from "../../components/KeyAutosaveStatus";
+import { ModelCompletionTest } from "../../components/ModelCompletionTest";
 import {
   ModelPreflightFeedback,
   modelPreflightTestingLabel,
 } from "../../components/ModelConnectionPreflightNotice";
+import { isPasteChange } from "../../lib/use-key-autosave";
 import { CompatibleKeyField } from "./compatible-key-field";
 
 import type { ModelSettingsState } from "./use-model-settings";
@@ -20,10 +23,12 @@ export function ConnectionControls({
   cancelOAuthAttempt,
   routingReady,
   codeCopied,
+  completionTest,
   connectKey,
   copyOAuthCode,
   credential,
   gatewayId,
+  keyAutosave,
   needsRouting,
   needsGateway,
   isOpenAiCompatible,
@@ -55,10 +60,12 @@ export function ConnectionControls({
   | "cancelOAuthAttempt"
   | "routingReady"
   | "codeCopied"
+  | "completionTest"
   | "connectKey"
   | "copyOAuthCode"
   | "credential"
   | "gatewayId"
+  | "keyAutosave"
   | "needsRouting"
   | "needsGateway"
   | "isOpenAiCompatible"
@@ -304,7 +311,10 @@ export function ConnectionControls({
               <Input
                 id="model-api-key"
                 value={apiKey}
-                onChange={(event) => updateApiKey(event.target.value)}
+                onChange={(event) =>
+                  updateApiKey(event.target.value, { immediate: isPasteChange(event) })
+                }
+                onBlur={keyAutosave.onKeyBlur}
                 placeholder={credential?.hasKey ? t`Paste a replacement key` : "sk-…"}
                 type="password"
                 autoComplete="new-password"
@@ -312,7 +322,8 @@ export function ConnectionControls({
               />
             </label>
           ) : null}
-          <div className="mt-3 flex flex-wrap items-center gap-2">
+          <KeyAutosaveStatus status={keyAutosave.status} />
+          <div className="mt-2 flex flex-wrap items-center gap-2">
             {acceptsKey && selected?.catalogProbe ? (
               <Button
                 type="button"
@@ -346,6 +357,14 @@ export function ConnectionControls({
           {preflightTarget === "api-key" ? (
             <ModelPreflightFeedback success={preflightSuccess} failure={preflightFailure} />
           ) : null}
+          {acceptsKey && selected?.catalogProbe ? (
+            <ModelCompletionTest
+              className="mt-3"
+              run={completionTest.run}
+              disabled={busy || !completionTest.ready}
+              resetKey={completionTest.resetKey}
+            />
+          ) : null}
         </div>
       ) : null}
 
@@ -368,6 +387,7 @@ export function CompatibleKeyControls({
   credential,
   endpointPreset,
   isOpenAiCompatible,
+  keyAutosave,
   openAiCompatibleReady,
   pending,
   updateApiKey,
@@ -379,6 +399,7 @@ export function CompatibleKeyControls({
   | "credential"
   | "endpointPreset"
   | "isOpenAiCompatible"
+  | "keyAutosave"
   | "openAiCompatibleReady"
   | "pending"
   | "updateApiKey"
@@ -393,7 +414,10 @@ export function CompatibleKeyControls({
         <Input
           aria-label={t`API key`}
           value={apiKey}
-          onChange={(event) => updateApiKey(event.target.value)}
+          onChange={(event) =>
+            updateApiKey(event.target.value, { immediate: isPasteChange(event) })
+          }
+          onBlur={keyAutosave.onKeyBlur}
           required={compatibleEndpointKeyRequired(endpointPreset)}
           placeholder={
             credential?.hasKey
@@ -407,6 +431,7 @@ export function CompatibleKeyControls({
           className="mt-2 h-10 text-foreground"
         />
       </CompatibleKeyField>
+      <KeyAutosaveStatus status={keyAutosave.status} />
       <Button
         type="button"
         variant="secondary"

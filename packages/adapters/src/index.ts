@@ -132,6 +132,7 @@ export * from "./messaging-delivery.js";
 export * from "./messaging-installations.js";
 export * from "./messaging-platforms.js";
 export * from "./messaging-team-chat-emulator.js";
+export * from "./model-completion-test.js";
 export * from "./model-connect.js";
 export * from "./model-connect-check.js";
 export * from "./model-credential-refresh.js";
