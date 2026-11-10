@@ -125,7 +125,7 @@ describe("classifyUpdaterFailure", () => {
       ),
     ).toEqual({ kind: "read-only", message: "Move Shepherd to Applications to install updates." });
     for (const message of [
-      "ditto: /private/update/Rakazo.app/x.js.map: No space left on device\nditto: Couldn't read pkzip signature.",
+      "ditto: /private/update/Shepherd.app/x.js.map: No space left on device\nditto: Couldn't read pkzip signature.",
       "未能完成该操作。设备上无剩余空间: 设备上无剩余空间",
     ]) {
       expect(classifyUpdaterFailure(new Error(message)), message).toEqual({
@@ -618,7 +618,7 @@ describe("DesktopUpdateController", () => {
   });
 
   describe("with a download verifier", () => {
-    const downloaded = { version: "0.2.0", downloadedFile: "/cache/Rakazo-0.2.0.AppImage" };
+    const downloaded = { version: "0.2.0", downloadedFile: "/cache/Shepherd-0.2.0.AppImage" };
 
     function verifiedUpdater() {
       let fake: ReturnType<typeof fakeUpdater>;

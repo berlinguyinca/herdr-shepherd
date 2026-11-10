@@ -112,6 +112,9 @@ const updaterEnvironment = {
 let requestingComputerAccess = false;
 let hostScreen: HostScreen | undefined;
 markOnce("rk:main:module-evaluated");
+// The product name is "Shepherd", but Electron derives the default userData directory from it.
+// Pin the directory used before the rename so existing setup, device pairing and stack data are kept.
+app.setPath("userData", path.join(app.getPath("appData"), "Rakazo"));
 if (PERFORMANCE_USER_DATA) {
   app.setPath("userData", PERFORMANCE_USER_DATA);
   app.setPath("sessionData", path.join(PERFORMANCE_USER_DATA, "session"));

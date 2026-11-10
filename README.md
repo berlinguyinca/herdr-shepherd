@@ -11,6 +11,8 @@
 
 Shepherd is an open source, self-hosted alternative to Grok Bot.
 
+Shepherd is a fork of Rakazo (https://github.com/elie222/rakazo).
+
 Persistent AI teammates with their own memory, routines, apps, and computer. Run it on your own
 machine, with your own model.
 
@@ -278,8 +280,8 @@ that only include FUSE 3, such as Fedora Silverblue or Ubuntu 24.04, show
 FUSE:
 
 ```bash
-chmod +x Rakazo-*.AppImage
-./Rakazo-*.AppImage --appimage-extract-and-run
+chmod +x Shepherd-*.AppImage
+./Shepherd-*.AppImage --appimage-extract-and-run
 ```
 
 **This computer** looks for the `docker` CLI and does not detect Podman. To try another

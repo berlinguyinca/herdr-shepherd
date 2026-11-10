@@ -253,8 +253,8 @@ pnpm --filter @rakazo/desktop dev
 `dlopen(): error loading libfuse.so.2`。请安装 FUSE 2 库（Fedora 上为 `fuse-libs`，Ubuntu 24.04 上为 `libfuse2t64`，较早的 Ubuntu 和 Debian 上为 `libfuse2`），或者不借助 FUSE 运行 AppImage：
 
 ```bash
-chmod +x Rakazo-*.AppImage
-./Rakazo-*.AppImage --appimage-extract-and-run
+chmod +x Shepherd-*.AppImage
+./Shepherd-*.AppImage --appimage-extract-and-run
 ```
 
 使用应用菜单中的 **Change Shepherd Server…**（更换 Shepherd 服务器）重新选择服务器。
