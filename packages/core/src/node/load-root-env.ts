@@ -1,6 +1,7 @@
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { config } from "dotenv";
+import { applyEnvAliases } from "./env-aliases.js";
 import { applyShepherdConfig } from "./shepherd-config.js";
 
 export function loadRootEnv(options: { allowInTests?: boolean } = {}) {
@@ -8,6 +9,8 @@ export function loadRootEnv(options: { allowInTests?: boolean } = {}) {
   // Loading a developer's credentials here also changes otherwise offline tests.
   if (process.env.NODE_ENV === "test" && !options.allowInTests) return;
   loadDotenv();
+  // After `.env`, so a `SHEPHERD_` setting there counts, and before the settings file reads its path.
+  applyEnvAliases();
   // After `.env`, so the settings file only fills what neither the environment nor `.env` set.
   applyShepherdConfig();
 }
