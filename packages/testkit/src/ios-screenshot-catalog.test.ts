@@ -12,6 +12,8 @@ const catalogDir = path.join(mobileDir, "e2e", "ios-screenshots");
 
 /** Screens the catalog cannot reach yet, and why. Capture one and remove it here. */
 const UNCOVERED: Record<string, string> = {
+  agent: "needs a live agent session; the screenshot fixtures have no agent to open",
+  agents: "lists agents on the paired host; the screenshot fixtures have none",
   "integration-setup": "redirects to Integrations",
   share: "Android only: iOS has no share extension yet",
 };
