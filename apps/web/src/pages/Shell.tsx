@@ -74,6 +74,7 @@ import { ChatFindBar } from "./shell/chat-find-bar";
 import { ChatHeader } from "./shell/chat-header";
 import { FALLBACK_BOT_COLOR } from "./shell/chat-shared";
 import { Composer } from "./shell/composer";
+import { ComposerModelChip } from "./shell/composer-model-chip";
 import { ComputerOverlay } from "./shell/computer-overlay";
 import { ComputerPanel } from "./shell/computer-panel";
 import type { CreateBotDialogInput } from "./shell/create-bot-dialog";
@@ -198,6 +199,8 @@ function SpaceShell() {
   const enterToSend = composerEnterToSendPreference.use();
   const rightPanel = useRightPanel({ searchParams, setSearchParams });
   const { panel, setPanel, modelFocusRequest, setModelFocusRequest } = rightPanel;
+  // Bumped by `/model` to open the composer's model chip.
+  const [modelChipRequest, setModelChipRequest] = useState(0);
   const lastBotTab = useRef<Panel>("routines");
   if (panel === "routines" || panel === "computer" || panel === "pages" || panel === "settings")
     lastBotTab.current = panel;
@@ -1188,7 +1191,27 @@ function SpaceShell() {
               mentionTargets={composerMentionTargets}
               agentSkills={agentSkills}
               onSlashOpen={refreshAgentSkills}
+              // One bot only: a group has several, and the chip would have to guess which.
+              modelChip={
+                active && !inGroup ? (
+                  <ComposerModelChip
+                    bot={active}
+                    rpc={rpc}
+                    openRequest={modelChipRequest}
+                    onBotUpdated={(updated) =>
+                      setBots((current) =>
+                        current.map((bot) => (bot.id === updated.id ? updated : bot)),
+                      )
+                    }
+                    onOpenModels={() => openSettings("models")}
+                  />
+                ) : null
+              }
               onSlashAction={(action) => {
+                if (action === "model") {
+                  setModelChipRequest((request) => request + 1);
+                  return;
+                }
                 if (action === "chat-settings") {
                   setPanel(inGroup ? "group-settings" : "settings");
                   return;

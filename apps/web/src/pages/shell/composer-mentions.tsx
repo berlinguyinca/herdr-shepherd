@@ -1,13 +1,14 @@
 import { t } from "@lingui/core/macro";
-import type { ComposerMention, ComposerMentionBinding, SlashActionId } from "@rakazo/core";
+import type { ComposerMention, ComposerMentionBinding } from "@rakazo/core";
 import { composerMentionSegments, mentionChipKey } from "@rakazo/core";
 import { BotAvatar, resolvePersonaColorDef } from "@rakazo/ui-web";
 import { Clock, Puzzle, X } from "lucide-react";
 import type { ComponentProps, ReactNode, Ref } from "react";
 import { Fragment } from "react";
 import { FALLBACK_BOT_COLOR } from "./chat-shared";
+import type { ComposerSlashActionId } from "./composer-slash-actions";
 
-export function slashActionLabel(id: SlashActionId) {
+export function slashActionLabel(id: ComposerSlashActionId) {
   switch (id) {
     case "chat-settings":
       return t`Chat Settings`;
@@ -15,6 +16,8 @@ export function slashActionLabel(id: SlashActionId) {
       return t`Settings: General`;
     case "settings-usage":
       return t`Settings: Usage`;
+    case "model":
+      return t`Model`;
   }
 }
 

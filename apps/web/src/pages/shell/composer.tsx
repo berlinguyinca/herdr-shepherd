@@ -1,6 +1,6 @@
 import { useLingui } from "@lingui/react/macro";
 import type { AgentSkillCatalogEntry, ThreadMessage } from "@rakazo/contracts";
-import type { ComposerMention, ComposerMentionRange, SlashActionId } from "@rakazo/core";
+import type { ComposerMention, ComposerMentionRange } from "@rakazo/core";
 import {
   composerMentionQuery,
   composerMentionsForPrompt,
@@ -15,7 +15,7 @@ import {
 } from "@rakazo/core";
 import { Button } from "@rakazo/ui-web";
 import { Box, Plus } from "lucide-react";
-import type { ClipboardEvent, ComponentProps, RefObject } from "react";
+import type { ClipboardEvent, ComponentProps, ReactNode, RefObject } from "react";
 import {
   memo,
   useEffect,
@@ -60,6 +60,7 @@ import {
   PendingAttachmentChips,
   SlashPicker,
 } from "./composer-parts";
+import type { ComposerSlashActionId } from "./composer-slash-actions";
 import { isApplePlatform, isEditableTarget, primaryModifier } from "./shell-shortcuts";
 import { useComposerFileDrop } from "./use-composer-file-drop";
 import { useComposerLayout } from "./use-composer-layout";
@@ -100,6 +101,7 @@ const ComposerBody = memo(function Composer({
   agentSkills,
   onSlashOpen,
   onSlashAction,
+  modelChip,
   draftKey,
   enterToSend,
   sendColors,
@@ -142,7 +144,9 @@ const ComposerBody = memo(function Composer({
   mentionTargets?: ComposerMention[];
   agentSkills?: AgentSkillCatalogEntry[];
   onSlashOpen?: () => void;
-  onSlashAction?: (action: SlashActionId) => void;
+  onSlashAction?: (action: ComposerSlashActionId) => void;
+  /** The model chip, shown above the bar; `/model` is offered only with it. */
+  modelChip?: ReactNode;
   draftKey: string;
   enterToSend: boolean;
   /** The bot's color, as your messages to it wear it; the send button matches them. */
@@ -222,6 +226,7 @@ const ComposerBody = memo(function Composer({
     commitComposition,
     onSlashOpen,
     onSlashAction,
+    modelSlash: Boolean(modelChip),
   });
   const onCall = useCallSession() !== null;
   const talk = useHoldToTalk({
@@ -659,6 +664,7 @@ const ComposerBody = memo(function Composer({
           onAction={runSlashAction}
         />
       ) : null}
+      {modelChip ? <div className="mb-1.5 flex min-w-0 px-3">{modelChip}</div> : null}
       <div
         ref={composerBarRef}
         data-testid="composer-bar"

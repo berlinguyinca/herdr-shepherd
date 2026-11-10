@@ -1,19 +1,15 @@
 import type { AgentSkillCatalogEntry } from "@rakazo/contracts";
-import type {
-  ComposerMention,
-  ComposerMentionBinding,
-  ComposerMentionRange,
-  SlashActionId,
-} from "@rakazo/core";
+import type { ComposerMention, ComposerMentionBinding, ComposerMentionRange } from "@rakazo/core";
 import {
   bindComposerMention,
   clampMentionHighlightIndex,
   composerMentionQuery,
   mentionChipKey,
-  SLASH_ACTIONS,
 } from "@rakazo/core";
 import type { RefObject } from "react";
 import { useEffect, useId, useMemo, useState } from "react";
+import type { ComposerSlashActionId } from "./composer-slash-actions";
+import { COMPOSER_SLASH_ACTIONS } from "./composer-slash-actions";
 
 type Composition = { text: string; bindings: ComposerMentionBinding[] };
 
@@ -33,6 +29,7 @@ export function useComposerTriggers({
   commitComposition,
   onSlashOpen,
   onSlashAction,
+  modelSlash = false,
 }: {
   draft: string;
   mentionBindings: ComposerMentionBinding[];
@@ -45,7 +42,9 @@ export function useComposerTriggers({
   markEdited: () => void;
   commitComposition: (next: Composition) => void;
   onSlashOpen?: () => void;
-  onSlashAction?: (action: SlashActionId) => void;
+  onSlashAction?: (action: ComposerSlashActionId) => void;
+  /** Offer `/model`; off where the composer shows no model chip. */
+  modelSlash?: boolean;
 }) {
   const [mentionQuery, setMentionQuery] = useState<string | null>(
     () =>
@@ -105,7 +104,7 @@ export function useComposerTriggers({
     setSlashQuery(null);
   }
 
-  function runSlashAction(action: SlashActionId) {
+  function runSlashAction(action: ComposerSlashActionId) {
     markEdited();
     commitComposition({ text: "", bindings: [] });
     setSlashQuery(null);
@@ -156,8 +155,12 @@ export function useComposerTriggers({
   const slashActionOptions = useMemo(() => {
     if (slashQuery === null) return [];
     const query = slashQuery.trim().toLowerCase();
-    return SLASH_ACTIONS.filter((action) => !query || action.label.toLowerCase().includes(query));
-  }, [slashQuery]);
+    return COMPOSER_SLASH_ACTIONS.filter(
+      (action) =>
+        (modelSlash || action.id !== "model") &&
+        (!query || action.label.toLowerCase().includes(query)),
+    );
+  }, [slashQuery, modelSlash]);
 
   const showSlashPicker =
     slashQuery !== null &&
