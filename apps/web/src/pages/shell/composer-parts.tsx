@@ -1,6 +1,6 @@
 import { useLingui } from "@lingui/react/macro";
 import type { AgentSkillCatalogEntry } from "@rakazo/contracts";
-import type { ComposerMention, SLASH_ACTIONS, SlashActionId } from "@rakazo/core";
+import type { ComposerMention } from "@rakazo/core";
 import { mentionChipKey, truncateSlashDescription } from "@rakazo/core";
 import { Button } from "@rakazo/ui-web";
 import { ArrowUp, Box, Paperclip, Settings, Square, X } from "lucide-react";
@@ -9,6 +9,7 @@ import type { useHoldToTalk } from "../../components/composer/HoldToTalk";
 import { HoldToTalkControls } from "../../components/composer/HoldToTalk";
 import type { PendingAttachment } from "./chat-shared";
 import { MentionOptionIcon, slashActionLabel } from "./composer-mentions";
+import type { COMPOSER_SLASH_ACTIONS, ComposerSlashActionId } from "./composer-slash-actions";
 
 /** The files waiting to go with the next message, each with its remove button. */
 export function PendingAttachmentChips({
@@ -121,9 +122,9 @@ export function SlashPicker({
   onAction,
 }: {
   skills: AgentSkillCatalogEntry[];
-  actions: ReadonlyArray<(typeof SLASH_ACTIONS)[number]>;
+  actions: ReadonlyArray<(typeof COMPOSER_SLASH_ACTIONS)[number]>;
   onSkill: (skill: AgentSkillCatalogEntry) => void;
-  onAction: (action: SlashActionId) => void;
+  onAction: (action: ComposerSlashActionId) => void;
 }) {
   const { t } = useLingui();
   return (

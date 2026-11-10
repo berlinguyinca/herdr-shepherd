@@ -2451,3 +2451,32 @@ it.each([
     expect(onSend.mock.calls[0]?.[0]).toBe("please book the flight and a hotel");
   },
 );
+
+describe("the /model slash action", () => {
+  const modelRow = () =>
+    container?.querySelector<HTMLButtonElement>(
+      '[data-testid="slash-picker"] button[aria-label="Model"]',
+    );
+
+  it("is offered with a model chip, shown above the bar, and reports the pick", () => {
+    const onSlashAction = vi.fn();
+    const textarea = renderComposer(async () => true, {
+      modelChip: <span data-testid="chip">Sonnet</span>,
+      onSlashAction,
+    });
+    expect(container?.querySelector('[data-testid="chip"]')).not.toBeNull();
+    type(textarea, "/mod");
+    act(() => modelRow()?.click());
+    expect(onSlashAction).toHaveBeenCalledWith("model");
+    expect(textarea.value).toBe("");
+  });
+
+  it("is not offered without a model chip, and Chat Settings stays", () => {
+    const textarea = renderComposer(async () => true);
+    type(textarea, "/");
+    expect(modelRow()).toBeNull();
+    expect(
+      container?.querySelector('[data-testid="slash-picker"] button[aria-label="Chat Settings"]'),
+    ).not.toBeNull();
+  });
+});
