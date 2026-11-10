@@ -1502,13 +1502,16 @@ export const PL_MESSAGES: Record<string, string> = {
   "{name} options": "Opcje modelu {name}",
   "Agent view": "Widok",
   "Back to agents": "Wróć do agentów",
-  "Connect your own API key in Models or choose Shepherd credits in Billing.": "Połącz własny klucz API w Modelach lub wybierz środki Shepherd w Rozliczeniach.",
+  "Connect your own API key in Models or choose Shepherd credits in Billing.":
+    "Połącz własny klucz API w Modelach lub wybierz środki Shepherd w Rozliczeniach.",
   "Connection lost. Retrying…": "Utracono połączenie. Ponawiam próbę…",
   "Could not load agents": "Nie udało się wczytać agentów",
   "Could not load this conversation": "Nie udało się wczytać tej rozmowy",
   "Could not open the terminal": "Nie udało się otworzyć terminala",
-  "Couldn't load the full output. Tap to retry.": "Nie udało się wczytać pełnego wyniku. Dotknij, aby spróbować ponownie.",
-  "Couldn't load the full text. Tap to retry.": "Nie udało się wczytać pełnego tekstu. Dotknij, aby spróbować ponownie.",
+  "Couldn't load the full output. Tap to retry.":
+    "Nie udało się wczytać pełnego wyniku. Dotknij, aby spróbować ponownie.",
+  "Couldn't load the full text. Tap to retry.":
+    "Nie udało się wczytać pełnego tekstu. Dotknij, aby spróbować ponownie.",
   "Empty message": "Pusta wiadomość",
   "How will you use Shepherd?": "Jak będziesz korzystać z Shepherd?",
   "No agents yet": "Brak agentów",
@@ -1517,7 +1520,8 @@ export const PL_MESSAGES: Record<string, string> = {
   "Nothing to show yet.": "Nie ma jeszcze nic do pokazania.",
   "Opened elsewhere": "Otwarto gdzie indziej",
   "Pane size": "Rozmiar panelu",
-  "Paste the OpenAI-compatible address from your server. Shepherd adds /v1 if needed.": "Wklej ze swojego serwera adres zgodny z OpenAI. Shepherd doda /v1, jeśli będzie potrzebne.",
+  "Paste the OpenAI-compatible address from your server. Shepherd adds /v1 if needed.":
+    "Wklej ze swojego serwera adres zgodny z OpenAI. Shepherd doda /v1, jeśli będzie potrzebne.",
   "Reasoning requires a higher role": "Rozumowanie wymaga wyższej roli",
   "Select an agent": "Wybierz agenta",
   "Sensitive output requires a higher role": "Wrażliwy wynik wymaga wyższej roli",
@@ -1532,10 +1536,12 @@ export const PL_MESSAGES: Record<string, string> = {
   "Show older": "Pokaż starsze",
   "Sign in to Shepherd": "Zaloguj się do Shepherd",
   "Sign up for Shepherd": "Zarejestruj się w Shepherd",
-  "Sign-up is only available on your personal dashboard server": "Rejestracja jest dostępna tylko na serwerze Twojego osobistego panelu",
+  "Sign-up is only available on your personal dashboard server":
+    "Rejestracja jest dostępna tylko na serwerze Twojego osobistego panelu",
   "Start using Shepherd": "Zacznij korzystać z Shepherd",
   "Terminal keys": "Klawisze terminala",
-  "Terminal unavailable: this agent has no live session": "Terminal niedostępny: ten agent nie ma aktywnej sesji",
+  "Terminal unavailable: this agent has no live session":
+    "Terminal niedostępny: ten agent nie ma aktywnej sesji",
   "That URL did not look like a Shepherd server": "Ten adres nie wskazuje na serwer Shepherd",
   "That pane cannot be opened here": "Tego panelu nie można tu otworzyć",
   "The host went offline": "Host przeszedł w tryb offline",
@@ -1543,13 +1549,17 @@ export const PL_MESSAGES: Record<string, string> = {
   "The pane was closed": "Panel został zamknięty",
   "The terminal was reset, reopen it": "Terminal został zresetowany, otwórz go ponownie",
   "This agent is no longer available": "Ten agent nie jest już dostępny",
-  "This app only connects to your personal dashboard server": "Ta aplikacja łączy się tylko z serwerem Twojego osobistego panelu",
+  "This app only connects to your personal dashboard server":
+    "Ta aplikacja łączy się tylko z serwerem Twojego osobistego panelu",
   "This server does not offer the Agents view yet": "Ten serwer nie oferuje jeszcze widoku agentów",
-  "This subscription sign-in is not available in Shepherd yet. Use a deployment credential or choose another provider.": "To logowanie przez subskrypcję nie jest jeszcze dostępne w Shepherd. Użyj danych uwierzytelniających wdrożenia lub wybierz innego dostawcę.",
-  "This terminal was closed or opened elsewhere": "Ten terminal został zamknięty lub otwarty gdzie indziej",
+  "This subscription sign-in is not available in Shepherd yet. Use a deployment credential or choose another provider.":
+    "To logowanie przez subskrypcję nie jest jeszcze dostępne w Shepherd. Użyj danych uwierzytelniających wdrożenia lub wybierz innego dostawcę.",
+  "This terminal was closed or opened elsewhere":
+    "Ten terminal został zamknięty lub otwarty gdzie indziej",
   "Too large to copy or paste": "Zbyt duże, aby skopiować lub wkleić",
   "Too many open terminals": "Zbyt wiele otwartych terminali",
-  "Too many open terminals, close one to continue": "Zbyt wiele otwartych terminali, zamknij jeden, aby kontynuować",
+  "Too many open terminals, close one to continue":
+    "Zbyt wiele otwartych terminali, zamknij jeden, aby kontynuować",
   "Use Shepherd credits": "Użyj środków Shepherd",
   "Welcome to Shepherd": "Witaj w Shepherd",
   "What do you most want Shepherd to help with?": "W czym Shepherd ma Ci najbardziej pomóc?",
