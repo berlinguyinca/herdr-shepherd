@@ -127,14 +127,40 @@ run("a request with no known peer is refused", async () => {
   });
 });
 
-run("a request carrying a forwarding header is refused and creates nothing", async () => {
+run.each([
+  ["a bare remote x-forwarded-for", { "x-forwarded-for": "203.0.113.9" }],
+  ["a malformed x-forwarded-for hop", { "x-forwarded-for": "127.0.0.1, garbage" }],
+  ["a zone-id x-forwarded-for hop", { "x-forwarded-for": "fe80::1%en0" }],
+  ["an x-client-ip header", { "x-client-ip": "127.0.0.1" }],
+  ["an x-forwarded-host header", { "x-forwarded-host": "box.example.test" }],
+  ["a via header", { via: "1.1 proxy" }],
+])("a request carrying %s is refused and creates nothing", async (_name, extra) => {
   await withApp({}, async (handles, _open, count) => {
     const response = await handles.app.request("/api/auth/open", {
       method: "POST",
-      headers: { origin: webOrigin, "x-forwarded-for": "203.0.113.9" },
+      headers: { origin: webOrigin, ...extra },
     });
     expect(response.status).toBe(403);
     expect(await count()).toBe(0);
+  });
+});
+
+run("a plain direct loopback request is served", async () => {
+  await withApp({}, async (_handles, open) => {
+    expect((await open(webOrigin)).status).toBe(200);
+  });
+});
+
+run("capabilities turn off every credential sign-in in open-owner mode", async () => {
+  await withApp({}, async (handles) => {
+    const response = await handles.app.request("/api/auth/capabilities");
+    expect(await response.json()).toMatchObject({
+      openOwner: true,
+      passwordAuth: false,
+      passwordReset: false,
+      resetUrl: null,
+      emailCode: false,
+    });
   });
 });
 

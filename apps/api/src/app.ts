@@ -840,7 +840,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       passwordAuth,
       passwordReset: passwordAuth && Boolean(email),
       resetUrl: passwordAuth && email ? new URL("/reset-password", env.webOrigin).href : null,
-      emailCode: auth.emailCodeSignIn,
+      emailCode: auth.emailCodeSignIn && !openOwnerMode,
       billing: Boolean(billing),
       passkeyRpId: auth.passkeyRpId,
       nativePasskeys: nativePasskeys(env, auth.passkeyRpId),
