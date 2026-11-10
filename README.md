@@ -228,6 +228,8 @@ For deployment, provider selection, backups, and upgrades, see the
 [backup and restore](./docs/self-host-backups.md), and [upgrading](./docs/self-host-upgrading.md).
 Settings can also live in `shepherd.yaml` ([example](./shepherd.example.yaml)); `pnpm onboard` sets up your model server and writes it.
 
+Every `RAKAZO_*` environment variable also works as `SHEPHERD_*` (for example `SHEPHERD_CONFIG`) in `.env` or the shell, for the API, worker and CLIs. If both are set, `SHEPHERD_*` wins. Docker Compose still passes the `RAKAZO_*` names through, and the desktop app reads only `RAKAZO_*`.
+
 To use CreateOS, set `SANDBOX_PROVIDER=createos` and `CREATEOS_SANDBOX_API_KEY`.
 Optional `CREATEOS_SANDBOX_BASE_URL`, `CREATEOS_SANDBOX_SHAPE`, and
 `CREATEOS_SANDBOX_ROOTFS` default to `https://api.sb.createos.sh`, `s-2vcpu-2gb`,

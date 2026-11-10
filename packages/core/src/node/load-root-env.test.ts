@@ -34,6 +34,14 @@ describe("root environment loading", () => {
     expect(process.env.DATA_DIR).toBe(path.join(root, "data"));
   });
 
+  it("lets a SHEPHERD_ setting in .env stand in for its RAKAZO_ name", () => {
+    writeFileSync(path.join(root, ".env"), "SHEPHERD_TEST_ENV_SENTINEL=aliased\n");
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("SHEPHERD_TEST_ENV_SENTINEL", undefined);
+    loadRootEnv();
+    expect(process.env.RAKAZO_TEST_ENV_SENTINEL).toBe("aliased");
+  });
+
   it("preserves configuration supplied by the caller", () => {
     vi.stubEnv("NODE_ENV", "development");
     vi.stubEnv("RAKAZO_TEST_ENV_SENTINEL", "caller");
