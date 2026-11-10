@@ -92,10 +92,11 @@ describe("shepherd config mapping", () => {
   });
 
   it("maps openrouter and deepseek keys", () => {
-    for (const [provider, name] of [
+    const cases: Array<[string, string]> = [
       ["openrouter", "OPENROUTER_API_KEY"],
       ["deepseek", "DEEPSEEK_API_KEY"],
-    ]) {
+    ];
+    for (const [provider, name] of cases) {
       const env = shepherdConfigEnv(
         parseShepherdConfig(`llm: { provider: ${provider}, api_key: k }`, "shepherd.yaml"),
       );
