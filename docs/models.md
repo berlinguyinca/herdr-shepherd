@@ -14,6 +14,7 @@ Open **Settings → Models**. Under **Add provider**, pick a provider and connec
   its context limit, whether it supports images, and its reasoning effort.
 
 Connected providers are listed under **Providers** and are available in every [space](./spaces.md).
+Model pickers list only the models of connected providers; to use a new provider, connect it here first, then pick its model.
 
 > [!NOTE]
 > On rakazo.com you can skip this and choose **Use Shepherd credits**, which includes monthly model
