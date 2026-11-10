@@ -97,7 +97,9 @@ win over the file, which only fills what is unset. The file may hold an API key,
 advertises, lets you pick the default, and writes `llm:` (and `access.mode`) in `shepherd.yaml`,
 keeping the rest of the file. Restart afterwards. For scripts, pass `--url`, `--model`,
 `--access open-owner|accounts` and `--yes`, with the key in `SHEPHERD_LLM_KEY` (or the variable
-named by `--key-env`).
+named by `--key-env`). Without `--access`, `--yes` chooses `accounts`. Onboarding asks before it
+replaces a hosted provider (and its key), and refuses to when there is no terminal. A stored key
+that belonged to another server is removed, and the summary says so.
 
 A model in `RAKAZO_LOCAL_REASONING_MODELS` offers thinking levels and sends the chosen level as
 `reasoning_effort` (`medium` by default, `none` when thinking is off). Other local models never

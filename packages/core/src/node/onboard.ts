@@ -261,6 +261,8 @@ function updateDocument(
     defaultModel: string;
     key: string | undefined;
     access: AccessMode | undefined;
+    /** The file already named this server, so its per-server numbers still apply. */
+    sameServer: boolean;
   },
 ) {
   const section = (name: string) => {
@@ -273,6 +275,20 @@ function updateDocument(
   else document.deleteIn(["llm", "api_key"]);
   setSeq(document, ["llm", "models"], values.models);
   document.setIn(["llm", "default_model"], values.defaultModel);
+  // Per-model lists and per-server limits describe the old server's models; keep only what holds.
+  for (const name of ["vision_models", "reasoning_models"]) {
+    const kept = (
+      document.getIn(["llm", name]) as { toJSON?: () => unknown } | undefined
+    )?.toJSON?.();
+    if (!Array.isArray(kept)) continue;
+    const still = kept.filter((id): id is string => values.models.includes(String(id)));
+    if (still.length === 0) document.deleteIn(["llm", name]);
+    else if (still.length !== kept.length) setSeq(document, ["llm", name], still);
+  }
+  if (!values.sameServer) {
+    document.deleteIn(["llm", "context_window"]);
+    document.deleteIn(["llm", "max_tokens"]);
+  }
   if (values.access) {
     section("access");
     document.setIn(["access", "mode"], values.access);
@@ -340,6 +356,8 @@ export async function runOnboard(options: OnboardOptions): Promise<void> {
     : readFileSync(file, "utf8");
   const current: ShepherdConfig = isNew ? {} : parseShepherdConfig(text, file);
   const currentLlm = current.llm?.provider === "local" ? current.llm : undefined;
+  const hostedProvider =
+    current.llm?.provider && current.llm.provider !== "local" ? current.llm.provider : undefined;
 
   const keyEnvName = flags["key-env"];
   const suppliedKey = keyEnvName ? env[keyEnvName]?.trim() : env.SHEPHERD_LLM_KEY?.trim();
@@ -349,10 +367,26 @@ export async function runOnboard(options: OnboardOptions): Promise<void> {
 
   const prompter = createPrompter(options.input, options.output, prompting && isTty(options.input));
   try {
+    if (hostedProvider) {
+      // Replacing a hosted setup also drops its key, so that needs a person's yes.
+      const replace =
+        prompting &&
+        (await askYesNo(
+          prompter,
+          `${SHEPHERD_CONFIG_FILE} uses ${hostedProvider}. Replace it, and its key, with a local server?`,
+          false,
+        ));
+      if (!replace) {
+        throw new OnboardError(
+          `${SHEPHERD_CONFIG_FILE} uses ${hostedProvider}; left unchanged. Run pnpm onboard in a terminal to replace it.`,
+        );
+      }
+    }
     let urlFlag = flags.url;
     let keyPrefilled = suppliedKey !== undefined;
     let found: { baseUrl: string; models: string[] };
     let key: string | undefined;
+    let base = "";
     for (;;) {
       let rawUrl = urlFlag;
       if (rawUrl === undefined) {
@@ -365,7 +399,7 @@ export async function runOnboard(options: OnboardOptions): Promise<void> {
           : (currentLlm?.base_url ?? DEFAULT_URL);
       }
       try {
-        const base = normalizeBaseUrl(rawUrl);
+        base = normalizeBaseUrl(rawUrl);
         // A stored key goes only to the server it was stored for.
         const stored =
           currentLlm?.api_key &&
@@ -421,7 +455,7 @@ export async function runOnboard(options: OnboardOptions): Promise<void> {
           fallback,
         );
         access = open ? "open-owner" : "accounts";
-      } else if (yes) access = fallback ? "open-owner" : "accounts";
+      } else if (yes) access = "accounts";
       else if (!current.access?.mode) throw missing("--access");
     }
 
@@ -432,6 +466,9 @@ export async function runOnboard(options: OnboardOptions): Promise<void> {
       defaultModel,
       key,
       access,
+      sameServer: [base, found.baseUrl].includes(
+        currentLlm?.base_url ? normalizeBaseUrl(currentLlm.base_url) : "",
+      ),
     });
     const next = document.toString({ flowCollectionPadding: false });
     // Validates the whole document before anything touches the disk.
@@ -439,12 +476,13 @@ export async function runOnboard(options: OnboardOptions): Promise<void> {
     writeAtomic(file, next);
 
     const mode = final.access?.mode ?? "accounts";
+    const droppedKey = !key && Boolean(current.llm?.api_key);
     prompter.say(
       [
         `Wrote ${file}`,
         `  server: ${found.baseUrl}`,
         `  models: ${found.models.length}, default ${defaultModel}`,
-        `  key: ${key ? "set" : "none"}`,
+        `  key: ${key ? "set" : droppedKey ? "removed" : "none"}`,
         `  access: ${mode}`,
         "Restart Rakazo to apply the change.",
       ].join("\n"),

@@ -213,14 +213,12 @@ describe("runOnboard non-interactive", () => {
     ).toContain("--access");
   });
 
-  it("with --yes defaults open-owner on loopback and accounts on a public API host", async () => {
+  it("with --yes picks accounts unless --access says open-owner", async () => {
     await run(["--url", origin, "--model", "alpha-3b", "--yes"]);
-    expect(readFileSync(file, "utf8")).toContain("mode: open-owner");
-    rmSync(file);
-    await run(["--url", origin, "--model", "alpha-3b", "--yes"], undefined, {
-      API_HOST: "0.0.0.0",
-    });
     expect(readFileSync(file, "utf8")).toContain("mode: accounts");
+    rmSync(file);
+    await run(["--url", origin, "--model", "alpha-3b", "--yes", "--access", "open-owner"]);
+    expect(readFileSync(file, "utf8")).toContain("mode: open-owner");
   });
 
   it("keeps the old file intact when the final document is invalid", async () => {
@@ -293,6 +291,64 @@ llm:
     writeFileSync(file, EXISTING.replace("BASE", `${await closedUrl()}/v1`), { mode: 0o600 });
     const { out } = await run([], [`${origin}/v1`, "", "1", "y"]);
     expect(out).toContain("rejected the key");
+  });
+});
+
+describe("runOnboard keeps what it does not replace", () => {
+  const HOSTED = `llm:
+  provider: anthropic
+  api_key: ${KEY}
+  default_model: some-hosted-model
+`;
+  const flags = () => ["--url", origin, "--model", "alpha-3b", "--access", "accounts"];
+
+  it("refuses to replace a hosted provider and its key without a terminal", async () => {
+    writeFileSync(file, HOSTED, { mode: 0o600 });
+    const { error } = await run([...flags(), "--yes"]);
+    expect((error as Error).message).toContain("anthropic");
+    expect(readFileSync(file, "utf8")).toBe(HOSTED);
+  });
+
+  it("asks before replacing a hosted provider; no leaves the file alone, yes replaces it", async () => {
+    writeFileSync(file, HOSTED, { mode: 0o600 });
+    expect((await run([], ["n"])).error).toBeInstanceOf(OnboardError);
+    expect(readFileSync(file, "utf8")).toBe(HOSTED);
+    const { error, out } = await run([], ["y", origin, "", "1", "n"]);
+    expect(error).toBeUndefined();
+    expect(readFileSync(file, "utf8")).toContain("provider: local");
+    expect(out).toContain("key: removed");
+  });
+
+  it("says so when a stored key is dropped for a different server", async () => {
+    writeFileSync(
+      file,
+      `llm:\n  provider: local\n  base_url: ${await closedUrl()}/v1\n  api_key: ${KEY}\n`,
+      { mode: 0o600 },
+    );
+    const { out } = await run(flags());
+    expect(out).toContain("key: removed");
+    expect(readFileSync(file, "utf8")).not.toContain(KEY);
+  });
+
+  it("drops per-model and per-server settings that no longer apply", async () => {
+    writeFileSync(
+      file,
+      `llm:
+  provider: local
+  base_url: ${await closedUrl()}/v1
+  models: [old]
+  default_model: old
+  context_window: 8192
+  vision_models: [old, qwen3-vl]
+  reasoning_models: [old]
+`,
+      { mode: 0o600 },
+    );
+    await run(flags());
+    const text = readFileSync(file, "utf8");
+    expect(text).not.toContain("context_window");
+    expect(text).not.toContain("reasoning_models");
+    expect(text).toMatch(/vision_models: \[qwen3-vl\]/);
   });
 });
 
