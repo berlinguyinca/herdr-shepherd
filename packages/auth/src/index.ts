@@ -46,6 +46,8 @@ import { emailLocale, passwordResetEmail, signInCodeEmail, verificationEmail } f
 import { hasRecentIdentityConfirmation, identityConfirmation } from "./identity-confirmation.js";
 import type { OidcConfig } from "./oidc.js";
 import { isCurrentOidcAccount, oidcDiscovery } from "./oidc.js";
+import type { OpenOwner } from "./open-owner.js";
+import { openOwner } from "./open-owner.js";
 import { passkeyRelyingParty } from "./passkey.js";
 import type { TokenKey } from "./token-storage.js";
 import { encryptStoredOAuthTokens, openIdToken, sealIdToken } from "./token-storage.js";
@@ -99,7 +101,16 @@ export interface AuthEnv {
   afterSignIn?: (userId: string, headers?: Headers) => Promise<void>;
   /** The operator provisions accounts from a directory over SCIM (see `createDirectory`). */
   directoryProvisioning?: boolean;
+  /**
+   * The deployment serves one person, whose account `openOwnerSession` opens with no credentials.
+   * Whoever calls that must already have proved the caller is on the owner's private network.
+   */
+  openOwner?: OpenOwner;
 }
+
+type OpenOwnerApi = {
+  openOwner(input: { headers: Headers; asResponse: true }): Promise<Response>;
+};
 
 type AuthSession = { id: string; userId: string };
 
@@ -213,12 +224,14 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
       await bootstrapUserSpace(prisma, { id: userId }, env);
       return true;
     });
-  /** The directory provisioned this account, so it is admitted whatever the signup policy. */
-  const provisioned = async (userId: string) =>
-    Boolean(env.directoryProvisioning) &&
-    Boolean(
-      await prisma.scimUser.findFirst({ where: { userId, active: true }, select: { id: true } }),
-    );
+  /** The directory provisioned this account, or it is the open-owner account: admitted whatever the signup policy. */
+  const provisioned = async (userId: string, email?: string, path?: string) =>
+    // Only the server-only open endpoint admits the owner; no signup route can claim that email.
+    (Boolean(env.openOwner) && path === "/open" && email?.toLowerCase() === env.openOwner?.email) ||
+    (Boolean(env.directoryProvisioning) &&
+      Boolean(
+        await prisma.scimUser.findFirst({ where: { userId, active: true }, select: { id: true } }),
+      ));
   /**
    * The directory created this account and nobody has signed in to it yet. Every first
    * sign-in, by any method, gives the account its workspace, so one without a workspace has
@@ -415,6 +428,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
         env.passwordAuth !== false,
       ),
       identityConfirmation(env.email, emailLocaleOf),
+      ...(env.openOwner ? [openOwner(env.openOwner)] : []),
       ...(discovery ? [discovery.plugin] : []),
       ...(emailCodeSignIn
         ? [
@@ -490,8 +504,9 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
             throw new APIError("BAD_REQUEST", { message: "Email is not available" });
           }
         }
+        // Open-owner mode has one passwordless account; no credential route may add a way into it.
         if (
-          env.passwordAuth === false &&
+          (env.passwordAuth === false || env.openOwner) &&
           [...CREDENTIAL_PATHS, "/reset-password", "/change-password", "/set-password"].includes(
             ctx.path,
           )
@@ -696,7 +711,7 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
               if (
                 (!policy.enabled ||
                   (!bypassAllowlist && !emailAllowed(user.email, policy.allowlist))) &&
-                !(await provisioned(user.id))
+                !(await provisioned(user.id, user.email, ctx?.path))
               ) {
                 throw new APIError("FORBIDDEN", {
                   code: "REGISTRATION_CLOSED",
@@ -814,6 +829,11 @@ export function createAuth(prisma: PrismaClient, env: AuthEnv) {
     /** Encrypts OAuth tokens stored before encryption was enabled. Safe to rerun. */
     encryptStoredOAuthTokens: async () => encryptStoredOAuthTokens(prisma, await tokenKey()),
     ssoAvailability: () => discovery?.availability(),
+    /** A session response (with cookie) for the open-owner account; null when the mode is off. */
+    openOwnerSession: (headers: Headers) =>
+      env.openOwner
+        ? (auth.api as unknown as OpenOwnerApi).openOwner({ headers, asResponse: true })
+        : null,
     passkeyRpId: relyingParty?.rpID ?? null,
     hasRecentIdentityConfirmation: async (session: { sessionId: string; userId: string }) =>
       hasRecentIdentityConfirmation((await auth.$context).internalAdapter, session),

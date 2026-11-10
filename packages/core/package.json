@@ -29,6 +29,11 @@
       "development": "./src/node/load-root-env.ts",
       "default": "./src/node/load-root-env.ts"
     },
+    "./node/owner-network": {
+      "types": "./src/node/owner-network.ts",
+      "development": "./src/node/owner-network.ts",
+      "default": "./src/node/owner-network.ts"
+    },
     "./node/shutdown-signals": {
       "types": "./src/node/shutdown-signals.ts",
       "development": "./src/node/shutdown-signals.ts",
@@ -95,7 +100,8 @@
     "remark-parse": "11.0.0",
     "tldts": "7.4.19",
     "unified": "11.0.5",
-    "yaml": "2.9.1"
+    "yaml": "2.9.1",
+    "zod": "4.6.7"
   },
   "devDependencies": {
     "@types/d3-dsv": "3.0.7",

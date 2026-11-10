@@ -19,11 +19,13 @@ import { MarkdownLinkPrompt } from "./components/markdown-link-prompt";
 import { PageLoading } from "./components/PageLoading";
 import { SubscriptionGate } from "./components/SubscriptionGate";
 import { authClient } from "./lib/auth";
+import { fetchAuthCapabilities } from "./lib/auth-capabilities";
 import { getTicketBoardEnabled, subscribeTicketBoardEnabled } from "./lib/bootstrap";
 import { syncCallIdentity } from "./lib/call-session";
 import { desktopBridge } from "./lib/desktop";
 import { syncWebLogoAvatarIdentity } from "./lib/logo-avatar-activity";
 import { identifyMonitoringUser } from "./lib/monitoring";
+import { requestOwnerSession } from "./lib/open-owner";
 import { markAfterPaint, markOnce } from "./lib/performance";
 import { lazyComponent } from "./lib/preload-recovery";
 import { QueryUserProvider, setQueryUser } from "./lib/query";
@@ -152,6 +154,16 @@ function SessionApp() {
   useEffect(() => {
     if (gate === "authenticated" || gate === "anonymous") setQueryUser(analyticsUserId ?? null);
   }, [gate, analyticsUserId]);
+  // A one-person server signs the owner in with no form.
+  const openOwnerTried = useRef(false);
+  useEffect(() => {
+    if (gate !== "anonymous" || openOwnerTried.current) return;
+    openOwnerTried.current = true;
+    void fetchAuthCapabilities()
+      .then((capabilities) => capabilities.openOwner && requestOwnerSession())
+      .then((opened) => (opened ? session.refetch() : undefined))
+      .catch(() => undefined);
+  }, [gate, session.refetch]);
   const [holdingUnreachable, setHoldingUnreachable] = useState(false);
   const nextHolding = holdUnreachableGate(gate, holdingUnreachable);
   if (nextHolding !== holdingUnreachable) setHoldingUnreachable(nextHolding);

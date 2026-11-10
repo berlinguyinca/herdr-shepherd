@@ -27,6 +27,33 @@ months, or both. Whoever owns an organization with that verified email receives 
 open the app, whether they signed up before or after the grant. A grant can be revoked until it is
 received.
 
+## Open owner (no login)
+
+`access.mode: open-owner` in `shepherd.yaml` (or `RAKAZO_ACCESS_MODE=open-owner`) serves one person
+with no sign-in: the web app and mobile app call `POST /api/auth/open` and receive a normal session
+for the account at `owner.email`, created on first use. Signups are closed in this mode whatever
+`SIGNUPS_ENABLED` says. It is off unless set to exactly that value.
+
+Threat model: anyone who can reach the API as the owner's network is the owner. Use it only on a
+private network, such as this computer or your own Tailscale network, and never expose it publicly.
+Tailscale Funnel, a public reverse proxy or a port forward would hand your account to the internet.
+The API enforces what it can:
+
+- It refuses to start unless `API_HOST` is a loopback or Tailscale address, so `0.0.0.0` fails.
+- It serves only requests whose TCP peer is loopback or Tailscale (`100.64.0.0/10`,
+  `fd7a:115c:a1e0::/48`). Forwarded headers are never trusted, and a request that carries one
+  (`Forwarded`, `X-Forwarded-*`, `X-Real-IP` and similar) is refused, so a local proxy or tunnel
+  cannot pass as the owner.
+- It allows a bounded number of opens per minute.
+- It turns off password and emailed-code sign-in, and only its own endpoint can create the owner
+  account, so no other route can claim it.
+- It requires an `Origin` header equal to `WEB_ORIGIN` (or an entry of `RAKAZO_EXTRA_AUTH_ORIGINS`),
+  which stops other sites and DNS rebinding from opening a session in your browser.
+- A proxy that strips those headers still makes every request look loopback, so any proxy on this
+  computer must not be reachable from other networks.
+
+Startup logs one line saying the mode is on. Nothing secret is logged.
+
 ## Email verification and sign-in codes
 
 With a nonempty signup allowlist and SMTP configured, users—including existing accounts—must

@@ -224,6 +224,7 @@ your first bot.
 For deployment, provider selection, backups, and upgrades, see the
 [self-hosting guide](./docs/self-host.md), [production deployment](./docs/self-host-production.md),
 [backup and restore](./docs/self-host-backups.md), and [upgrading](./docs/self-host-upgrading.md).
+Settings can also live in `shepherd.yaml` ([example](./shepherd.example.yaml)); `pnpm onboard` sets up your model server and writes it.
 
 To use CreateOS, set `SANDBOX_PROVIDER=createos` and `CREATEOS_SANDBOX_API_KEY`.
 Optional `CREATEOS_SANDBOX_BASE_URL`, `CREATEOS_SANDBOX_SHAPE`, and

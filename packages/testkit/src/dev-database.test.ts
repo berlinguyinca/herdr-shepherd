@@ -28,6 +28,8 @@ async function fixture() {
     path.join(dir, "packages/db/node_modules"),
     "dir",
   );
+  // dev.mjs loads shepherd.yaml through the core package, so the checkout needs it too.
+  await symlink(path.join(root, "packages/core"), path.join(dir, "packages/core"), "dir");
   const marker = path.join(dir, "docker-called");
   await writeFile(path.join(dir, "bin/docker"), `#!/bin/sh\ntouch "$DOCKER_MARKER"\nexit 1\n`, {
     mode: 0o755,

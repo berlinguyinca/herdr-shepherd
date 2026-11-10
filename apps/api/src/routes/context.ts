@@ -76,7 +76,9 @@ export async function asTenant<T extends { output: unknown }>(
 }
 
 export function createRouterContext(deps: RouterDeps) {
-  const os = implement(appContract).$context<{
+  // The Shepherd bridge serves agents and terminal; this server answers 404 for them.
+  const { agents: _agents, terminal: _terminal, ...served } = appContract;
+  const os = implement(served).$context<{
     actor: Actor | null;
     /** The signed-in session, so a push token ends with the session that registered it. */
     sessionId?: string;

@@ -1,4 +1,5 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { getConnInfo } from "@hono/node-server/conninfo";
 import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import type {
@@ -119,6 +120,7 @@ import {
 } from "@rakazo/logging";
 import { requestLogging } from "@rakazo/logging/hono";
 import { MarkdownMemoryStore } from "@rakazo/memory";
+import type { Context } from "hono";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { deleteAccountContent, finishStalledOrganizationDeletions } from "./account-deletion.js";
@@ -152,6 +154,13 @@ import { marketingEmailRoutes, sendWelcomeEmail } from "./marketing-email.js";
 import { moveMcpArgsIntoSecrets } from "./mcp-args-migration.js";
 import { startMessagingRuntime } from "./messaging-runtime.js";
 import { monitoringRoutes } from "./monitoring.js";
+import {
+  assertOpenOwnerHost,
+  createOpenLimiter,
+  hasForwardingHeaders,
+  isOwnerNetworkAddress,
+  openOwnerOriginAllowed,
+} from "./open-owner.js";
 import { pluginSubmissionRoutes } from "./plugin-submissions.js";
 import { sendReferralEmails } from "./referral-email.js";
 import { mountApiRequestBodyLimits, rpcBodyLimit } from "./request-body-limit.js";
@@ -233,6 +242,8 @@ type CreateAppOverrides = Partial<AppEnv> & {
   userDevices?: UserDeviceGateway;
   /** Test-only present moment the agent is told. */
   now?: () => Date;
+  /** Test-only: the TCP peer of a request; the default reads the real socket. */
+  ownerPeerAddress?: (request: Request, env: unknown) => string | undefined;
 };
 
 async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
@@ -256,12 +267,21 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     contextStrategy,
     userDevices: userDevicesOverride,
     now,
+    ownerPeerAddress,
     ...envOverrides
   } = overrides;
   const env = { ...loadEnv(process.env), ...envOverrides };
+  const openOwnerMode = env.accessMode === "open-owner";
+  // Refuse before anything starts: a public listener must never serve the open owner.
+  if (openOwnerMode) assertOpenOwnerHost(env.apiHost);
   const runtimeEnv: RunRuntimeEnv = { ...env, inboundEmailDomain: env.inboundEmail?.domain };
   const logger = loggerOverride ?? createServiceLogger({ service: SERVICE_NAMES.api });
   installLogger(logger);
+  if (openOwnerMode) {
+    // Signups stay closed; the one account is the owner's.
+    env.signupsEnabled = "false";
+    logger.info("open-owner access is ON: no login for peers on loopback or Tailscale");
+  }
   const poolMax = parsePositiveInteger(process.env.DB_POOL_MAX, 4);
   configureProviderTransactionPool(poolMax);
   const created = prismaOverride
@@ -510,6 +530,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     signupsEnabled: env.signupsEnabled,
     signupAllowlist: env.signupAllowlist,
     singleAccount: Boolean(env.desktopStackToken),
+    openOwner: openOwnerMode ? { email: env.ownerEmail, name: env.ownerName } : undefined,
     email,
     logger: authLibraryLogger("auth.request.failed"),
     onEmailError,
@@ -823,6 +844,7 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       passkeyRpId: auth.passkeyRpId,
       nativePasskeys: nativePasskeys(env, auth.passkeyRpId),
       crispWebsiteId: billing ? (env.crispWebsiteId ?? null) : null,
+      ...(openOwnerMode ? { openOwner: true } : {}),
     } satisfies AuthCapabilities);
   });
   mountAppAssociation(app, env);
@@ -913,6 +935,31 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
         );
       }
       return response;
+    });
+  }
+  if (openOwnerMode) {
+    const originsAllowed = [env.webOrigin, ...env.extraAuthOrigins];
+    const peerOf =
+      ownerPeerAddress ??
+      ((request: Request, nodeEnv: unknown) =>
+        getConnInfo({ env: nodeEnv, req: { raw: request } } as unknown as Context).remote.address);
+    const allowOpen = createOpenLimiter();
+    app.post("/api/auth/open", async (c) => {
+      // The TCP peer, never a forwarded header: those are the caller's to write. A proxy or
+      // tunnel on this computer makes every caller look local, so any forwarding header refuses.
+      if (hasForwardingHeaders(c.req.raw.headers)) {
+        return c.json({ error: "Not available through a proxy" }, 403);
+      }
+      if (!isOwnerNetworkAddress(peerOf(c.req.raw, c.env))) {
+        return c.json({ error: "Not available from this network" }, 403);
+      }
+      // Browsers always send Origin on a POST; this stops cross-site and DNS-rebound pages.
+      if (!openOwnerOriginAllowed(c.req.header("origin"), originsAllowed)) {
+        return c.json({ error: "Origin not allowed" }, 403);
+      }
+      if (!allowOpen()) return c.json({ error: "Too many requests" }, 429);
+      const response = await auth.openOwnerSession(c.req.raw.headers);
+      return response ?? c.json({ error: "Not found" }, 404);
     });
   }
   app.on(["GET", "POST"], "/api/auth/*", async (c) => {
