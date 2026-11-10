@@ -10,7 +10,7 @@ import { afterEach, beforeEach, expect, it, vi } from "vitest";
 
 type UiWebModule = typeof UiWeb;
 
-/** Provider rows end with their "Connect" action; models show their name alone. */
+/** Provider rows end with their "Connect" action (Add provider list); models show their name alone. */
 const optionName = (entry: Element) => entry.textContent?.replace(/Connect$/, "");
 const models = vi.hoisted(() => ({
   list: vi.fn(),
@@ -283,10 +283,12 @@ async function choose(option: string) {
   );
 }
 
-/** Picks a model or a not-connected provider from one of the list's pickers. */
-async function pick(label: string, option: string, role: "main" | "computer" = "main") {
-  await openPicker(label, role);
-  await choose(option);
+/** Starts connecting a provider from the Providers section's Add provider list. */
+async function addProvider(name: string) {
+  const section = document.querySelector('[data-testid="model-providers"]');
+  if (!section) throw new Error("Missing Providers section");
+  await click(buttons(section as HTMLElement, "Add provider")[0]);
+  await choose(name);
 }
 
 /** Opens the connection dialog for the main model's first row through its options menu. */
@@ -463,7 +465,7 @@ it("shows a stored BYOK key when provider settings reopen", async () => {
     });
     expect(view.container.querySelector("#model-api-key")).toBeNull();
 
-    await pick("Change Main model", "DeepSeek");
+    await addProvider("DeepSeek");
     expect(titles(view.container)).toEqual(["Connect DeepSeek"]);
     expect(keyField(view.container).value).toBe("");
     expect(keyField(view.container).placeholder).toBe("sk-…");
@@ -538,7 +540,7 @@ it("renaming a connection keeps unsaved form fields", async () => {
 it("leaves the key field empty until a key is saved", async () => {
   const view = await renderSettings();
   try {
-    await pick("Change Main model", "DeepSeek");
+    await addProvider("DeepSeek");
     const input = keyField(view.container);
     expect(input.value).toBe("");
     expect(input.placeholder).toBe("sk-…");
@@ -662,14 +664,16 @@ it("shows the computer-use model when the main model cannot read images", async 
   }
 });
 
-it("connects a provider from Add fallback without replacing the main model, then picks its model", async () => {
+it("connects a provider from the Providers list without replacing the main model, then picks its model", async () => {
   models.list.mockResolvedValue([deepseekEntry, openrouterEntry]);
   models.credentials.mockResolvedValue([deepseekCredential]);
   const view = await renderSettings();
   try {
     await openPicker("Add fallback");
-    expect(pickerOptions()).toContain("OpenRouter");
-    await choose("OpenRouter");
+    // Only connected providers' models are listed; OpenRouter is not connected yet.
+    expect(pickerOptions()).toEqual(["DeepSeek Chat"]);
+    await click(document.body);
+    await addProvider("OpenRouter");
     expect(titles(view.container)).toEqual(["Connect OpenRouter"]);
     await typeInto(keyField(view.container), "sk-fixture-router");
     models.credentials.mockResolvedValue([
@@ -692,10 +696,11 @@ it("connects a provider from Add fallback without replacing the main model, then
         makeDefault: false,
       }),
     );
-    // The key belongs to the provider; its models are then chosen in the reopened picker.
+    // The key belongs to the provider; its models are then chosen from the role's picker.
     expect(titles(view.container)).toEqual([]);
     expect(models.setRole).not.toHaveBeenCalled();
-    expect(pickerOptions()).toEqual([openrouterEntry.label]);
+    await openPicker("Add fallback");
+    expect(pickerOptions()).toEqual(["DeepSeek Chat", openrouterEntry.label]);
     await choose(openrouterEntry.label);
     expect(models.setRole).toHaveBeenCalledTimes(1);
     // The unchanged main model is left out, so the save cannot rewrite it.
@@ -712,36 +717,34 @@ it("connects a provider from Add fallback without replacing the main model, then
   }
 });
 
-it("connects the main model from the empty default row as the space default", async () => {
+it("connects a provider from the Providers list without choosing a model", async () => {
   vi.mocked(rpc.me).mockResolvedValue({
     ...account("deepseek", "deepseek-chat"),
     needsModel: true,
   });
   const view = await renderSettings();
   try {
-    await pick("Change Main model", "DeepSeek");
+    await addProvider("DeepSeek");
     expect(titles(view.container)).toEqual(["Connect DeepSeek"]);
     await typeInto(keyField(view.container), "sk-fixture-deepseek");
-    const loads = models.role.mock.calls.length;
     await click(buttons(view.container, "Connect API key")[0]);
     expect(models.connect).toHaveBeenCalledWith(
       expect.objectContaining({
         provider: "deepseek",
         apiKey: "sk-fixture-deepseek",
-        makeDefault: true,
+        makeDefault: false,
         scope: "account",
       }),
     );
-    // The connection already made it the main model, so the list reloads instead of writing.
+    // Connecting only makes models available to pick; nothing is written to the role lists.
     expect(models.setRole).not.toHaveBeenCalled();
-    expect(models.role.mock.calls.length).toBeGreaterThan(loads);
     expect(titles(view.container)).toEqual([]);
   } finally {
     await view.unmount();
   }
 });
 
-it("shows a Space only its own role lists and makes a new connection its main model there", async () => {
+it("shows a Space only its own role lists, with no connect rows in its pickers", async () => {
   vi.mocked(rpc.me).mockResolvedValue({
     ...account("deepseek", "deepseek-chat"),
     needsModel: true,
@@ -755,12 +758,9 @@ it("shows a Space only its own role lists and makes a new connection its main mo
       expect.objectContaining({ role: "main", scope: "space" }),
       expect.anything(),
     );
-    await pick("Change Main model", "DeepSeek");
-    await typeInto(keyField(view.container), "sk-fixture-deepseek");
-    await click(buttons(view.container, "Connect API key")[0]);
-    expect(models.connect).toHaveBeenCalledWith(
-      expect.objectContaining({ provider: "deepseek", makeDefault: true, scope: "space" }),
-    );
+    await openPicker("Change Main model");
+    expect(pickerOptions()).toEqual([]);
+    expect(document.querySelectorAll("[cmdk-group-heading]")).toHaveLength(0);
   } finally {
     await view.unmount();
   }
@@ -783,7 +783,7 @@ it("shows Cloudflare account and gateway fields for a new and a saved connection
 
   const fresh = await renderSettings();
   try {
-    await pick("Change Main model", "Cloudflare AI Gateway");
+    await addProvider("Cloudflare AI Gateway");
     const accountId = fresh.container.querySelector("#model-account-id");
     const gatewayId = fresh.container.querySelector("#model-gateway-id");
     expect(accountId).toBeInstanceOf(HTMLInputElement);
@@ -1050,11 +1050,16 @@ it("names each model checkbox by its id alone", async () => {
   }
 });
 
-it("lists not-connected providers by name alone", async () => {
+it("lists no not-connected providers in a model picker, only in Add provider", async () => {
   models.list.mockResolvedValue([deepseekEntry, compatibleEntry]);
+  models.credentials.mockResolvedValue([]);
   const view = await renderSettings();
   try {
     await openPicker("Change Main model");
+    expect(pickerOptions()).toEqual([]);
+    expect(document.body.textContent).not.toContain("Connect DeepSeek");
+    await click(document.body);
+    await click(buttons(providersSection(), "Add provider")[0]);
     expect(pickerOptions()).toEqual(["DeepSeek", "Ollama Cloud", "OpenAI-compatible"]);
     expect(document.querySelectorAll("[cmdk-group-heading]")).toHaveLength(0);
   } finally {
@@ -1326,7 +1331,7 @@ it("opens the Ollama preset with a required key and saves a compatible connectio
   models.probeOpenAiCompatible.mockResolvedValue({ models: ["fixture-model"] });
   const view = await renderSettings(false);
   try {
-    await pick("Change Main model", "Ollama Cloud");
+    await addProvider("Ollama Cloud");
     expect(titles(view.container)).toContain("Connect Ollama Cloud");
     expect(baseUrlField(view.container).value).toBe("https://ollama.com/v1");
     expect(
@@ -1351,7 +1356,7 @@ it("opens the Ollama preset with a required key and saves a compatible connectio
         baseUrl: "https://ollama.com/v1",
         apiKey: "fake-fixture-key",
         modelId: "fixture-model",
-        makeDefault: true,
+        makeDefault: false,
       }),
     );
   } finally {
@@ -1396,7 +1401,10 @@ it("keeps the Ollama preset to connect beside a saved local connection", async (
   const view = await renderSettings(false);
   try {
     await openPicker("Add fallback");
-    expect(pickerOptions()).toEqual(["fixture-model", "Ollama Cloud"]);
+    expect(pickerOptions()).toEqual(["fixture-model"]);
+    await click(document.body);
+    await click(buttons(providersSection(), "Add provider")[0]);
+    expect(pickerOptions()).toContain("Ollama Cloud");
     await choose("Ollama Cloud");
     expect(baseUrlField(view.container).value).toBe("https://ollama.com/v1");
   } finally {
@@ -1423,7 +1431,7 @@ it("leads the add list with a featured preset whose key is optional", async () =
   models.credentials.mockResolvedValue([]);
   const view = await renderSettings(false);
   try {
-    await openPicker("Change Main model");
+    await click(buttons(providersSection(), "Add provider")[0]);
     expect(pickerOptions()).toEqual(["Hosted Featured", "Ollama Cloud", "OpenAI-compatible"]);
     await choose("Hosted Featured");
     expect(baseUrlField(view.container).value).toBe("https://featured.example.test/v1");
@@ -1439,7 +1447,7 @@ it("keeps setup help and API key collapsible for generic compatible servers", as
   models.credentials.mockResolvedValue([]);
   const view = await renderSettings(false);
   try {
-    await pick("Change Main model", "OpenAI-compatible");
+    await addProvider("OpenAI-compatible");
     for (const name of ["Setup help", "API key"]) {
       const row = buttons(view.container, name)[0]!;
       expect(row.getAttribute("aria-expanded")).toBe("false");
@@ -1515,7 +1523,7 @@ it.each([undefined, "api_key", "oauth"])(
     const view = await renderSettings();
     try {
       if (authKind) await manage();
-      else await pick("Change Main model", "ChatGPT");
+      else await addProvider("ChatGPT");
       expect(buttons(view.container, "Test connection")[0]?.disabled).toBe(authKind !== "oauth");
       expect(view.container.textContent).not.toContain("Test sign-in");
     } finally {
@@ -1696,8 +1704,7 @@ it("keeps another connection's form when an earlier save finishes", async () => 
   );
   const view = await renderSettings();
   try {
-    await openPicker("Add fallback");
-    await choose("OpenRouter");
+    await addProvider("OpenRouter");
     await typeInto(keyField(view.container), "sk-fixture-router");
     await click(buttons(view.container, "Connect API key")[0]);
     // Fields wait for the save, so it cannot overwrite edits made meanwhile.

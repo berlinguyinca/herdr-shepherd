@@ -24,7 +24,6 @@ import { useEffect, useRef, useState } from "react";
 import { ConfirmDialog } from "../components/ConfirmDialog";
 import type { ModelCredential } from "../lib/model-auth";
 import { useSpaceQueries } from "../lib/query";
-import type { ModelRoleConnectIntent } from "./ModelRoleSettings";
 import { ModelRoleSettings, useModelRole } from "./ModelRoleSettings";
 import { CompatibleModelFields } from "./model-settings/compatible-model-fields";
 import { CompatibleKeyControls, ConnectionControls } from "./model-settings/connection-controls";
@@ -112,14 +111,6 @@ export function ModelSettingsOverlay({
     ...sortedProviders.filter((entry) => entry.featured),
     ...sortedProviders.filter((entry) => !entry.featured),
   ];
-  const providers = allProviders.filter((entry) =>
-    entry.baseUrl
-      ? !savedCompatibleEndpointMatches(
-          credentialByProvider.get(OPENAI_COMPATIBLE_PROVIDER_ID)?.baseUrl ?? "",
-          entry.baseUrl,
-        )
-      : !credentialByProvider.has(entry.id),
-  );
   const connectionName = (entry: ModelCredential) => {
     const group = groups.find((item) => item.id === entry.provider);
     return connectionDisplayName(
@@ -158,19 +149,13 @@ export function ModelSettingsOverlay({
   );
 
   /** Opens a connection by id, or connects a new one for the provider. */
-  function openConnection(
-    next: ConnectableProvider,
-    intent: ModelRoleConnectIntent | null,
-    credentialId: string | null,
-    at: string,
-  ) {
+  function openConnection(next: ConnectableProvider, credentialId: string | null, at: string) {
     model.chooseProvider(next.id, next.baseUrl, credentialId);
     intentRef.current = {
-      makeDefault: intent?.makeDefault ?? false,
-      onConnected: async (choice) => {
+      makeDefault: false,
+      onConnected: async () => {
         setConnectionAt(null);
         intentRef.current = null;
-        await intent?.onConnected(choice);
       },
     };
     setConnectionAt(at);
@@ -317,12 +302,8 @@ export function ModelSettingsOverlay({
             credentials={credentials}
             title={t`Main model`}
             defaultLabel={t`Choose a model`}
-            providers={providers}
             providerLabel={providerLabel}
-            onConnect={(next, intent) => openConnection(next, intent, null, "main")}
-            onManage={(id, credentialId) =>
-              openConnection({ id, name: id }, null, credentialId, "main")
-            }
+            onManage={(id, credentialId) => openConnection({ id, name: id }, credentialId, "main")}
             panel={connectionAt === "main" ? panelFor(true) : null}
             thinking
             onChanged={() => void refresh()}
@@ -355,11 +336,9 @@ export function ModelSettingsOverlay({
               modelRole="approval"
               title={t`Approval model`}
               defaultLabel={t`Choose a model`}
-              providers={providers}
               providerLabel={providerLabel}
-              onConnect={(next, intent) => openConnection(next, intent, null, "approval")}
               onManage={(id, credentialId) =>
-                openConnection({ id, name: id }, null, credentialId, "approval")
+                openConnection({ id, name: id }, credentialId, "approval")
               }
               panel={connectionAt === "approval" ? panelFor(true) : null}
             />
@@ -375,11 +354,9 @@ export function ModelSettingsOverlay({
               defaultLabel={
                 mainSeesImages ? t`Same as main model` : t`Choose a model that can see the screen`
               }
-              providers={providers}
               providerLabel={providerLabel}
-              onConnect={(next, intent) => openConnection(next, intent, null, "computer")}
               onManage={(id, credentialId) =>
-                openConnection({ id, name: id }, null, credentialId, "computer")
+                openConnection({ id, name: id }, credentialId, "computer")
               }
               panel={connectionAt === "computer" ? panelFor(true) : null}
             />
@@ -390,13 +367,12 @@ export function ModelSettingsOverlay({
               providers={allProviders}
               name={connectionName}
               disabled={busy}
-              onAdd={(next) => openConnection(next, null, null, "providers:add")}
+              onAdd={(next) => openConnection(next, null, "providers:add")}
               onOpen={(entry) =>
                 connectionAt === `providers:${entry.id}`
                   ? closeConnection()
                   : openConnection(
                       { id: entry.provider, name: entry.provider },
-                      null,
                       entry.id,
                       `providers:${entry.id}`,
                     )

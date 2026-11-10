@@ -6,7 +6,6 @@ import {
   CommandGroup,
   CommandItem,
   CommandList,
-  CommandSeparator,
   CommandShortcut,
   ListSearchInput,
   Popover,
@@ -18,7 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ModelCatalogEntry } from "../../lib/model-auth";
 import { useListSearch } from "../../lib/use-list-search";
 
-/** `baseUrl` presets an OpenAI-compatible server, such as a hosted preset. */
+/** A provider that can be added; it is offered by the connect flow, never by a model list. */
 export type ConnectableProvider = {
   id: string;
   name: string;
@@ -34,64 +33,43 @@ const optionValue = (option: RoleModelOption) =>
   `${option.provider}:${option.id}:${option.credentialId ?? ""}`;
 
 /**
- * One picker for every model a role can use: connected models pick directly, and
- * providers that still need a connection hand off to the connect dialog.
+ * One picker for the models a role can use. It lists only models of connected providers;
+ * adding a provider is a separate flow.
  */
 export function RoleModelPicker({
   trigger,
   label,
   options,
-  providers,
   defaultOption,
   disabled,
   onPick,
-  onConnect,
-  reopen,
-  onReopened,
 }: {
   trigger: ReactElement;
   label: string;
   options: RoleModelOption[];
-  providers: ConnectableProvider[];
   /** The deployment's model, offered to clear the slot back to it. */
   defaultOption?: string;
   disabled?: boolean;
   onPick: (option: RoleModelOption | null) => void;
-  onConnect: (provider: ConnectableProvider) => void;
-  /** Opens the picker searching for `query`, e.g. a provider that just connected. */
-  reopen?: { query: string; key: number };
-  /**
-   * Called when a picker opened by `reopen` closes. Until then the request stands, so a row
-   * that is replaced while its picker is open (a reload settling) reopens in its new row.
-   */
-  onReopened?: () => void;
 }) {
   const { t } = useLingui();
   const searchRef = useRef<HTMLInputElement>(null);
   const [open, setOpen] = useState(false);
-  const rows = [
-    ...options.map((option) => ({ option, provider: undefined })),
-    ...providers.map((provider) => ({ option: undefined, provider })),
-  ];
-  const { query, setQuery, showSearch, visible } = useListSearch(rows, {
-    text: (row) => (row.option ? modelCatalogSearchText(row.option) : row.provider!.name),
+  const { query, setQuery, showSearch, visible } = useListSearch(options, {
+    text: modelCatalogSearchText,
   });
   const groups = useMemo(() => {
     const grouped = new Map<string, RoleModelOption[]>();
-    for (const row of visible) {
-      if (!row.option) continue;
-      const option = row.option;
+    for (const option of visible) {
       const name = option.providerName ?? option.provider;
       grouped.set(name, [...(grouped.get(name) ?? []), option]);
     }
     return [...grouped];
   }, [visible]);
   const needle = query.trim();
-  const matchingProviders = visible.flatMap((row) => (row.provider ? [row.provider] : []));
   const values = [
     ...(defaultOption && !needle ? ["default"] : []),
     ...groups.flatMap(([, entries]) => entries.map(optionValue)),
-    ...matchingProviders.map((provider) => `connect:${provider.id}:${provider.baseUrl ?? ""}`),
   ];
   // The first row is active whenever the list changes, so Enter always picks something.
   const [activeValue, setActiveValue] = useState("");
@@ -99,25 +77,7 @@ export function RoleModelPicker({
   useEffect(() => {
     setActiveValue(firstValue);
   }, [firstValue]);
-  const fromReopen = useRef(false);
-  const close = () => {
-    setOpen(false);
-    if (!fromReopen.current) return;
-    fromReopen.current = false;
-    reopened.current?.();
-  };
-  // Keyed on the request, so later renders of the same request do not reopen it.
-  const reopenKey = reopen?.key;
-  const reopenQuery = useRef(reopen?.query);
-  reopenQuery.current = reopen?.query;
-  const reopened = useRef(onReopened);
-  reopened.current = onReopened;
-  useEffect(() => {
-    if (reopenKey === undefined) return;
-    setQuery(reopenQuery.current ?? "");
-    setOpen(true);
-    fromReopen.current = true;
-  }, [reopenKey]);
+  const close = () => setOpen(false);
   return (
     <Popover
       open={open}
@@ -198,26 +158,6 @@ export function RoleModelPicker({
                 ))}
               </CommandGroup>
             ))}
-            {matchingProviders.length && groups.length ? <CommandSeparator /> : null}
-            {matchingProviders.length ? (
-              <CommandGroup>
-                {matchingProviders.map((provider) => (
-                  <CommandItem
-                    key={`${provider.id}:${provider.baseUrl ?? ""}`}
-                    value={`connect:${provider.id}:${provider.baseUrl ?? ""}`}
-                    onSelect={() => {
-                      close();
-                      onConnect(provider);
-                    }}
-                  >
-                    <span className="min-w-0 truncate">{provider.name}</span>
-                    <CommandShortcut className="text-body-sm tracking-normal">
-                      <Trans>Connect</Trans>
-                    </CommandShortcut>
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            ) : null}
           </CommandList>
         </Command>
       </PopoverContent>
