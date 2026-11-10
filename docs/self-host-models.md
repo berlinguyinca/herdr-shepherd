@@ -86,6 +86,11 @@ keys, it stays on the API and worker and is redacted from run output. Use HTTPS 
 is trusted. To make a local model the deployment model, set `PI_DEFAULT_PROVIDER=local`,
 `PI_DEFAULT_MODEL` to one of `RAKAZO_LOCAL_MODELS` and `PI_DEFAULT_CREDENTIALS=host`.
 
+Instead of these variables, put the same settings under `llm:` in `shepherd.yaml` (copy
+`shepherd.example.yaml`; `RAKAZO_CONFIG` names another path). Real environment variables and `.env`
+win over the file, which only fills what is unset. The file may hold an API key, so keep it mode
+`600`; it is gitignored.
+
 A model in `RAKAZO_LOCAL_REASONING_MODELS` offers thinking levels and sends the chosen level as
 `reasoning_effort` (`medium` by default, `none` when thinking is off). Other local models never
 receive the field.
