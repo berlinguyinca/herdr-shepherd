@@ -246,12 +246,38 @@ export function useModelConnectionForm({
     });
   }
 
+  /**
+   * The real-request model test. A custom server may rely on the saved key; a catalog provider is
+   * tested with the key typed here, since only the typed key is known to this form.
+   */
+  const completionTestReady = isOpenAiCompatible
+    ? Boolean(baseUrl.trim() && modelId.trim())
+    : Boolean(selected?.catalogProbe && apiKey.trim().length >= 8);
+  const completionTest = {
+    ready: completionTestReady,
+    resetKey: JSON.stringify([provider, baseUrl, modelId, apiProtocol, apiKey, headerRows]),
+    run: () =>
+      rpc.models.testCompletion(
+        isOpenAiCompatible
+          ? {
+              baseUrl: baseUrl.trim(),
+              modelId: modelId.trim(),
+              apiKey: apiKey.trim() || undefined,
+              apiProtocol,
+              headers: modelHeadersInput(headerRows),
+              credentialId: credential?.id,
+            }
+          : { provider, modelId: selected?.id ?? modelId, apiKey: apiKey.trim() },
+      ),
+  };
+
   return {
     accountId,
     apiKey,
     apiProtocol,
     applyFields,
     baseUrl,
+    completionTest,
     routingReady,
     contextWindow,
     enabledModelIds,

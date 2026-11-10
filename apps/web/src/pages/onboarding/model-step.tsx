@@ -15,11 +15,14 @@ import {
 } from "@rakazo/ui-web";
 import { Check, Copy } from "lucide-react";
 import { FoundModelPicker } from "../../components/FoundModelPicker";
+import { KeyAutosaveStatus } from "../../components/KeyAutosaveStatus";
+import { ModelCompletionTest } from "../../components/ModelCompletionTest";
 import {
   ModelPreflightFeedback,
   modelPreflightTestingLabel,
 } from "../../components/ModelConnectionPreflightNotice";
 import { ModelHeadersEditor } from "../../components/ModelHeadersEditor";
+import { isPasteChange } from "../../lib/use-key-autosave";
 import { CompatibleKeyField } from "../model-settings/compatible-key-field";
 import type { OnboardingModel } from "./use-onboarding-model";
 
@@ -34,6 +37,7 @@ export function ModelStep({ model, fieldId }: { model: OnboardingModel; fieldId:
     cancelOAuthAttempt,
     canSaveModel,
     chooseProvider,
+    completionTest,
     credits,
     endpointPreset,
     error,
@@ -41,6 +45,7 @@ export function ModelStep({ model, fieldId }: { model: OnboardingModel; fieldId:
     gatewayId,
     invalidatePreflight,
     isOpenAiCompatible,
+    keyAutosave,
     modelId,
     modelItems,
     modelsForProvider,
@@ -154,7 +159,8 @@ export function ModelStep({ model, fieldId }: { model: OnboardingModel; fieldId:
                 <Input
                   aria-label={t`API key`}
                   value={apiKey}
-                  onChange={(e) => updateApiKey(e.target.value)}
+                  onChange={(e) => updateApiKey(e.target.value, { immediate: isPasteChange(e) })}
+                  onBlur={keyAutosave.onKeyBlur}
                   required={compatibleEndpointKeyRequired(endpointPreset)}
                   placeholder={
                     compatibleEndpointKeyRequired(endpointPreset) ? undefined : t`Optional`
@@ -173,7 +179,8 @@ export function ModelStep({ model, fieldId }: { model: OnboardingModel; fieldId:
                 <Input
                   id={`${fieldId}-api-key`}
                   value={apiKey}
-                  onChange={(e) => updateApiKey(e.target.value)}
+                  onChange={(e) => updateApiKey(e.target.value, { immediate: isPasteChange(e) })}
+                  onBlur={keyAutosave.onKeyBlur}
                   placeholder="sk-…"
                   type="password"
                   autoComplete="new-password"
@@ -182,6 +189,7 @@ export function ModelStep({ model, fieldId }: { model: OnboardingModel; fieldId:
               </label>
             )
           ) : null}
+          {acceptsKey ? <KeyAutosaveStatus status={keyAutosave.status} /> : null}
           {acceptsKey && !isOpenAiCompatible && selected?.catalogProbe ? (
             <>
               <Button
@@ -232,6 +240,12 @@ export function ModelStep({ model, fieldId }: { model: OnboardingModel; fieldId:
                   </SelectGroup>
                 </SelectContent>
               </Select>
+              <ModelCompletionTest
+                className="mt-3"
+                run={completionTest.run}
+                disabled={!completionTest.ready}
+                resetKey={completionTest.resetKey}
+              />
             </div>
           ) : null}
         </>
@@ -258,6 +272,7 @@ function CompatibleServerFields({ model, fieldId }: { model: OnboardingModel; fi
   const { t } = useLingui();
   const {
     baseUrl,
+    completionTest,
     contextWindow,
     headerRows,
     invalidatePreflight,
@@ -355,6 +370,12 @@ function CompatibleServerFields({ model, fieldId }: { model: OnboardingModel; fi
           </Button>
         ) : null}
       </div>
+      <ModelCompletionTest
+        className="mt-3"
+        run={completionTest.run}
+        disabled={!completionTest.ready}
+        resetKey={completionTest.resetKey}
+      />
       <ModelThinkingOptions
         reasoning={reasoning}
         onReasoningChange={(value) => {

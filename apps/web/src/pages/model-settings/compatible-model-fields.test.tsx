@@ -60,6 +60,11 @@ function props(compatibleRows: string[], enabledModelIds: string[], modelId = ""
     probeModels: [],
     probeServerModels: () => Promise.resolve(),
     probing: false,
+    completionTest: {
+      ready: false,
+      resetKey: "",
+      run: () => Promise.reject(new Error("not used")),
+    },
     reasoning: false,
     selectionRevisionRef: { current: 0 },
     setContextWindow: () => {},
