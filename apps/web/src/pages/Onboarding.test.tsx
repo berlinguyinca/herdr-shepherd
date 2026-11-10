@@ -25,6 +25,15 @@ vi.mock("../lib/rpc", () => ({
           id: "",
           label: "Custom",
           billing: "API key",
+          endpointPresets: [
+            {
+              name: "Hosted Featured",
+              baseUrl: "https://featured.example.test/v1",
+              keyRequired: false,
+              featured: true,
+            },
+            { name: "Hosted Keyed", baseUrl: "https://keyed.example.test/v1" },
+          ],
         },
       ]),
       probeOpenAiCompatible: vi.fn(async () => ({
@@ -104,7 +113,7 @@ it("finds and searches a long custom endpoint list during onboarding", async () 
   await act(async () => document.querySelector<HTMLElement>('[aria-label="Provider"]')!.click());
   await act(async () =>
     [...document.querySelectorAll<HTMLElement>('[role="option"]')]
-      .find((option) => option.textContent === "OpenAI-compatible")!
+      .find((option) => option.textContent === "Custom OpenAI-compatible server")!
       .click(),
   );
   const change = async (label: string, value: string) => {
@@ -138,4 +147,36 @@ it("finds and searches a long custom endpoint list during onboarding", async () 
   await act(async () => document.querySelector<HTMLElement>("[cmdk-item]")!.click());
   expect(document.querySelector('[aria-label="Models from server"]')?.textContent).toBe("found-10");
   await act(async () => root.unmount());
+});
+
+it("preselects the featured hosted preset and lists the custom server in the main group", async () => {
+  const root = createRoot(document.body.appendChild(document.createElement("div")));
+  await act(async () =>
+    root.render(
+      <MemoryRouter initialEntries={["/onboarding"]}>
+        <Routes>
+          <Route path="/onboarding/:step?" element={<OnboardingPage />} />
+        </Routes>
+      </MemoryRouter>,
+    ),
+  );
+  await act(async () =>
+    account.load({ needsModel: true, needsSignupSurvey: false, billingEnabled: false }),
+  );
+  const trigger = document.querySelector<HTMLElement>('[aria-label="Provider"]')!;
+  expect(trigger.textContent).toContain("Hosted Featured");
+  expect(
+    document.querySelector<HTMLInputElement>('input[aria-label="OpenAI-compatible server URL"]')
+      ?.value,
+  ).toBe("https://featured.example.test/v1");
+  // The featured preset needs no key.
+  expect(document.querySelector<HTMLInputElement>('input[aria-label="API key"]')?.required).toBe(
+    false,
+  );
+  await act(async () => trigger.click());
+  const labels = [...document.querySelectorAll('[role="option"]')].map((o) => o.textContent);
+  expect(labels.slice(0, 2)).toEqual(["Hosted Featured", "Custom OpenAI-compatible server"]);
+  expect(labels.filter((label) => label === "Hosted Featured")).toHaveLength(1);
+  expect(labels).toContain("Hosted Keyed");
+  act(() => root.unmount());
 });

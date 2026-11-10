@@ -15,13 +15,34 @@ export { normalizeOpenAiCompatibleBaseUrl, OPENAI_COMPATIBLE_PROVIDER_ID };
 
 const BUILT_IN_PUBLIC_MODEL_HOSTS = new Set(["ollama.com"]);
 
-/** Hosted compatible services the catalog offers by name. Each one needs a key. */
-export const COMPATIBLE_ENDPOINT_PRESETS: CompatibleEndpointPreset[] = [
-  { name: "Ollama Cloud", baseUrl: "https://ollama.com/v1" },
-];
+export const INFERWEAVE_DEFAULT_BASE_URL = "https://llm.metabolomics.us/v1";
+
+/** The InferWeave server: `RAKAZO_INFERWEAVE_BASE_URL` when it is a valid URL, else the default. */
+export function inferWeaveBaseUrl(): string {
+  const configured = process.env.RAKAZO_INFERWEAVE_BASE_URL?.trim();
+  if (configured) {
+    try {
+      return normalizeOpenAiCompatibleBaseUrl(configured);
+    } catch {
+      // An unusable value falls back to the default rather than hiding the provider.
+    }
+  }
+  return INFERWEAVE_DEFAULT_BASE_URL;
+}
+
+/**
+ * Hosted compatible services the catalog offers by name. They need a key unless the preset
+ * says otherwise. Read per call so an operator's environment is honored.
+ */
+export function compatibleEndpointPresetList(): CompatibleEndpointPreset[] {
+  return [
+    { name: "InferWeave", baseUrl: inferWeaveBaseUrl(), keyRequired: false, featured: true },
+    { name: "Ollama Cloud", baseUrl: "https://ollama.com/v1" },
+  ];
+}
 
 export function compatibleEndpointPreset(baseUrl: string | undefined) {
-  return matchCompatibleEndpointPreset(COMPATIBLE_ENDPOINT_PRESETS, baseUrl);
+  return matchCompatibleEndpointPreset(compatibleEndpointPresetList(), baseUrl);
 }
 
 export function openAiCompatAllowPublicHosts(): boolean {

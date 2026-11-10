@@ -11,6 +11,13 @@ export function compatibleEndpointPresets(
   );
 }
 
+/** A hosted preset needs a key unless it says otherwise; a custom server never does. */
+export function compatibleEndpointKeyRequired(
+  preset: Pick<CompatibleEndpointPreset, "keyRequired"> | undefined,
+): boolean {
+  return preset !== undefined && preset.keyRequired !== false;
+}
+
 /** The offered hosted service at this address, if any. */
 export function matchCompatibleEndpointPreset(
   presets: readonly CompatibleEndpointPreset[],

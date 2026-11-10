@@ -1,6 +1,7 @@
 import { useLingui } from "@lingui/react/macro";
 import type { Me, SettingsScope, ThinkingLevel } from "@rakazo/contracts";
 import {
+  compatibleEndpointKeyRequired,
   compatibleEndpointPresets,
   connectionDisplayName,
   MAX_MODEL_CONTEXT_WINDOW,
@@ -297,7 +298,7 @@ export function useModelSettings(onClose: () => void, scope: SettingsScope) {
     modelId,
     headerRows,
     credential,
-    keyRequired: Boolean(endpointPreset),
+    keyRequired: compatibleEndpointKeyRequired(endpointPreset),
   });
   const compatibleRows = compatibleModelRows(
     savedCompatibleModelIds(credential, baseUrl),

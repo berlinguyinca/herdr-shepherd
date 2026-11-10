@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  compatibleEndpointKeyRequired,
   compatibleEndpointPresets,
   matchCompatibleEndpointPreset,
   normalizeOpenAiCompatibleBaseUrl,
@@ -113,4 +114,11 @@ it.each(["", "https://", "https://other.test", "https://hosted.example.test/v2"]
 );
 it("does not match a missing saved endpoint", () => {
   expect(savedCompatibleEndpointMatches(PRESET_BASE_URL, undefined)).toBe(false);
+});
+
+it("needs a key for a hosted preset unless it opts out, and never for a custom server", () => {
+  expect(compatibleEndpointKeyRequired(undefined)).toBe(false);
+  expect(compatibleEndpointKeyRequired({})).toBe(true);
+  expect(compatibleEndpointKeyRequired({ keyRequired: true })).toBe(true);
+  expect(compatibleEndpointKeyRequired({ keyRequired: false })).toBe(false);
 });

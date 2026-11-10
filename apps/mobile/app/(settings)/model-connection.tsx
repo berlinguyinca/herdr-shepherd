@@ -1,5 +1,6 @@
 import type { ModelApiProtocol, ModelHeaderRow, ThinkingLevel } from "@rakazo/contracts";
 import {
+  compatibleEndpointKeyRequired,
   compatibleEndpointPresets,
   connectionDisplayName,
   DEFAULT_MODEL_CONTEXT_WINDOW,
@@ -270,7 +271,7 @@ export default function ModelConnection() {
     modelId,
     headerRows,
     credential,
-    keyRequired: Boolean(endpointPreset),
+    keyRequired: compatibleEndpointKeyRequired(endpointPreset),
   });
   const limitsDirty = maxTokens !== connectionMaxTokensField(provider, credential?.maxTokens);
   const gatewayDirty =
@@ -564,7 +565,7 @@ export default function ModelConnection() {
             placeholder={
               credential?.hasKey
                 ? t("Paste a replacement key")
-                : endpointPreset
+                : compatibleEndpointKeyRequired(endpointPreset)
                   ? undefined
                   : t("Optional")
             }

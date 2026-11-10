@@ -11,7 +11,7 @@ import {
   storedOpenAiCompatibleProbeKey,
 } from "./model-connect.js";
 import { parseModelSecret, serializeModelSecret } from "./model-secret.js";
-import { COMPATIBLE_ENDPOINT_PRESETS } from "./openai-compatible-url.js";
+import { compatibleEndpointPresetList } from "./openai-compatible-url.js";
 
 /** Fixtures connect as the deployment owner, who may use local model servers. */
 const connectAsOwner = (
@@ -214,9 +214,8 @@ describe("built-in provider output limits", () => {
         { id: "cred-compat", provider: "openai-compatible", label: "Compatible" },
         serializeModelSecret({ kind: "openai_compatible", baseUrl }),
       );
-    expect(dto(COMPATIBLE_ENDPOINT_PRESETS[0]!.baseUrl).endpointName).toBe(
-      COMPATIBLE_ENDPOINT_PRESETS[0]!.name,
-    );
+    for (const preset of compatibleEndpointPresetList())
+      expect(dto(preset.baseUrl).endpointName).toBe(preset.name);
     expect(dto("http://127.0.0.1:8000/v1").endpointName).toBeUndefined();
   });
 

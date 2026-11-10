@@ -13,7 +13,7 @@ import {
   MODEL_KEY_REJECTED_ERROR,
 } from "@rakazo/contracts";
 import { cloudflareRoutingFields } from "./cloudflare-ai-gateway.js";
-import { COMPATIBLE_ENDPOINT_PRESETS } from "./openai-compatible-url.js";
+import { compatibleEndpointPresetList } from "./openai-compatible-url.js";
 import { LOCAL_PROVIDER_ID, registerLocalProvider } from "./pi-local-provider.js";
 import { applyPiModelCompatibility } from "./pi-model-compat.js";
 import { loadProviderOAuth, SUBSCRIPTION_SIGN_IN_PROVIDERS } from "./pi-oauth.js";
@@ -328,7 +328,7 @@ function buildPiCatalog(): PiCatalogEntry[] {
         // endpoint. Keep each custom connection scoped to its entered model ID.
         // Its image support is the connection's own setting, not the catalog's.
         ...(provider.id === OPENAI_COMPATIBLE_PROVIDER_ID
-          ? { placeholder: true, endpointPresets: COMPATIBLE_ENDPOINT_PRESETS }
+          ? { placeholder: true, endpointPresets: compatibleEndpointPresetList() }
           : { images: model.input.includes("image") }),
         ...(probeBaseUrl ? { catalogProbe: true } : {}),
         ...(routingFields ? { routingFields } : {}),
