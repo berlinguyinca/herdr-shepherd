@@ -92,7 +92,7 @@ run("open-owner mode signs the owner in once and reuses the account", async () =
 });
 
 run("open-owner mode closes signups whatever the environment says", async () => {
-  await withApp({}, async (handles) => {
+  await withApp({}, async (handles, _open, count) => {
     const response = await handles.app.request("/api/auth/sign-up/email", {
       method: "POST",
       headers: { "content-type": "application/json", origin: webOrigin },
@@ -102,8 +102,10 @@ run("open-owner mode closes signups whatever the environment says", async () => 
         name: "Stranger",
       }),
     });
-    expect(response.status).toBe(400);
-    expect(await response.json()).toMatchObject({ code: "REGISTRATION_CLOSED" });
+    // Credential routes answer like a server with password sign-in turned off.
+    expect(response.status).toBe(403);
+    expect(await response.json()).toMatchObject({ code: "PASSWORD_AUTH_DISABLED" });
+    expect(await count()).toBe(0);
   });
 });
 
