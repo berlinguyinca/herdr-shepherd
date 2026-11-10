@@ -32,7 +32,6 @@ export function openOwnerOriginAllowed(origin: string | undefined, allowed: stri
 
 const FORWARDING_HEADERS = [
   "forwarded",
-  "x-forwarded-for",
   "x-forwarded-host",
   "x-forwarded-proto",
   "x-real-ip",
@@ -41,12 +40,29 @@ const FORWARDING_HEADERS = [
   "tailscale-user-login",
 ];
 
+/** One X-Forwarded-For entry as an address: brackets and an IPv4 or bracketed port are dropped. */
+function forwardedAddress(entry: string): string {
+  const bracketed = /^\[([^\]]*)\](?::\d+)?$/.exec(entry);
+  if (bracketed) return bracketed[1]!;
+  return entry.replace(/^(\d+\.\d+\.\d+\.\d+):\d+$/, "$1");
+}
+
+/** Every hop of an X-Forwarded-For chain is on this computer or the owner's network. */
+function forwardedChainIsOwner(value: string): boolean {
+  return value.split(",").every((entry) => isOwnerNetworkAddress(forwardedAddress(entry.trim())));
+}
+
 /**
  * A reverse proxy, tunnel or port forward on this computer reaches the API from loopback, so the
- * TCP peer says nothing about the real caller. Any sign of one means the request is not direct.
+ * TCP peer says nothing about the real caller. The web server appends the peer it saw to
+ * X-Forwarded-For, so a same-machine browser yields only owner-network hops, while a remote
+ * caller (or a forged leading entry) always leaves its real address in the chain. Any other
+ * forwarding header, or a chain with an outside or unparsable hop, means the request is not direct.
  */
-export function hasForwardingHeaders(headers: Headers): boolean {
-  return FORWARDING_HEADERS.some((name) => headers.has(name));
+export function isProxiedBeyondOwner(headers: Headers): boolean {
+  if (FORWARDING_HEADERS.some((name) => headers.has(name))) return true;
+  const chain = headers.get("x-forwarded-for");
+  return chain !== null && !forwardedChainIsOwner(chain);
 }
 
 /** At most `limit` opens per `windowMs`, counted for the whole process. */

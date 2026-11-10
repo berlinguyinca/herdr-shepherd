@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   assertOpenOwnerHost,
   createOpenLimiter,
-  hasForwardingHeaders,
   isOwnerNetworkAddress,
   isOwnerNetworkHost,
+  isProxiedBeyondOwner,
   openOwnerOriginAllowed,
   resolveAccessMode,
 } from "./open-owner.js";
@@ -103,15 +103,56 @@ describe("request origin", () => {
 });
 
 describe("forwarding headers", () => {
-  it.each(["forwarded", "x-forwarded-for", "x-forwarded-host", "x-real-ip", "cf-connecting-ip"])(
-    "%s marks a proxied request",
-    (name) => {
-      expect(hasForwardingHeaders(new Headers({ [name]: "203.0.113.9" }))).toBe(true);
-    },
-  );
+  it.each([
+    "forwarded",
+    "x-forwarded-host",
+    "x-forwarded-proto",
+    "x-real-ip",
+    "cf-connecting-ip",
+    "true-client-ip",
+    "tailscale-user-login",
+  ])("%s marks a proxied request", (name) => {
+    expect(isProxiedBeyondOwner(new Headers({ [name]: "127.0.0.1" }))).toBe(true);
+  });
 
   it("lets a direct request through", () => {
-    expect(hasForwardingHeaders(new Headers({ origin: "http://127.0.0.1:5173" }))).toBe(false);
+    expect(isProxiedBeyondOwner(new Headers({ origin: "http://127.0.0.1:5173" }))).toBe(false);
+  });
+
+  it.each([
+    ["127.0.0.1", false],
+    ["100.101.102.103", false],
+    ["::1", false],
+    ["[::1]:5173", false],
+    ["127.0.0.1:5173", false],
+    ["::ffff:127.0.0.1", false],
+    ["127.0.0.1, 100.101.102.103", false],
+    ["203.0.113.9", true],
+    ["127.0.0.1, 203.0.113.9", true],
+    ["203.0.113.9, 127.0.0.1", true],
+    ["127.0.0.1, garbage", true],
+    ["127.0.0.1,,127.0.0.1", true],
+    ["", true],
+    ["unknown", true],
+  ])("x-forwarded-for %j is proxied beyond the owner: %s", (chain, expected) => {
+    expect(isProxiedBeyondOwner(new Headers({ "x-forwarded-for": chain }))).toBe(expected);
+  });
+
+  it("accepts the headers the web server sends for a same-machine browser", () => {
+    const headers = new Headers({
+      host: "127.0.0.1:3100",
+      origin: "http://127.0.0.1:5173",
+      "x-forwarded-for": "127.0.0.1",
+    });
+    expect(isProxiedBeyondOwner(headers)).toBe(false);
+  });
+
+  it("refuses a chain that carries another forwarding header", () => {
+    const headers = new Headers({
+      "x-forwarded-for": "127.0.0.1",
+      "cf-connecting-ip": "127.0.0.1",
+    });
+    expect(isProxiedBeyondOwner(headers)).toBe(true);
   });
 });
 

@@ -41,16 +41,22 @@ The API enforces what it can:
 
 - It refuses to start unless `API_HOST` is a loopback or Tailscale address, so `0.0.0.0` fails.
 - It serves only requests whose TCP peer is loopback or Tailscale (`100.64.0.0/10`,
-  `fd7a:115c:a1e0::/48`). Forwarded headers are never trusted, and a request that carries one
-  (`Forwarded`, `X-Forwarded-*`, `X-Real-IP` and similar) is refused, so a local proxy or tunnel
-  cannot pass as the owner.
+  `fd7a:115c:a1e0::/48`). The web server's own proxy appends the address it saw to
+  `X-Forwarded-For`, so a request is accepted only when every address in that chain is also
+  loopback or Tailscale. A browser on this computer or your tailnet passes; a remote caller always
+  leaves its real address in the chain (a forged leading entry does not help) and is refused, as is
+  an unparsable entry. `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Proto`, `X-Real-IP`,
+  `CF-Connecting-IP`, `True-Client-IP` and `Tailscale-User-Login` are refused outright.
 - It allows a bounded number of opens per minute.
 - It turns off password and emailed-code sign-in, and only its own endpoint can create the owner
   account, so no other route can claim it.
 - It requires an `Origin` header equal to `WEB_ORIGIN` (or an entry of `RAKAZO_EXTRA_AUTH_ORIGINS`),
   which stops other sites and DNS rebinding from opening a session in your browser.
-- A proxy that strips those headers still makes every request look loopback, so any proxy on this
-  computer must not be reachable from other networks.
+- Residual risk: a TLS front, tunnel or Funnel that forwards to this computer without sending any
+  forwarding header cannot be detected, and every request through it looks like a local one. Do
+  not expose the web server (or the API) through such a front, and keep any proxy on this computer
+  unreachable from other networks.
+- It reports password sign-in as off in its capabilities, so clients show no password form.
 
 Startup logs one line saying the mode is on. Nothing secret is logged.
 

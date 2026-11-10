@@ -119,6 +119,21 @@ describe("apiProxy", () => {
     expect(await response.json()).toMatchObject({ "x-forwarded-for": "203.0.113.9, 127.0.0.1" });
   });
 
+  it("sends the API only the forwarding header the API's open-owner check accepts", async () => {
+    const { target } = await startApi();
+    const port = await startPreview(target);
+
+    const response = await fetch(`http://127.0.0.1:${port}/api/auth/open`, {
+      method: "POST",
+      headers: { origin: "http://127.0.0.1:5173" },
+    });
+    const received = (await response.json()) as Record<string, string>;
+    expect(received["x-forwarded-for"]).toBe("127.0.0.1");
+    for (const name of ["forwarded", "x-forwarded-host", "x-forwarded-proto", "x-real-ip"]) {
+      expect(received).not.toHaveProperty(name);
+    }
+  });
+
   it.each([
     "/api/threads",
     "/rpc",

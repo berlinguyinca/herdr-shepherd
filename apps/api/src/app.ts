@@ -157,8 +157,8 @@ import { monitoringRoutes } from "./monitoring.js";
 import {
   assertOpenOwnerHost,
   createOpenLimiter,
-  hasForwardingHeaders,
   isOwnerNetworkAddress,
+  isProxiedBeyondOwner,
   openOwnerOriginAllowed,
 } from "./open-owner.js";
 import { pluginSubmissionRoutes } from "./plugin-submissions.js";
@@ -830,15 +830,16 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
       c.header("cache-control", "no-store");
     });
   }
+  // Open-owner mode turns credential routes off, so clients must not offer a password form.
+  const passwordAuth = env.passwordAuth !== false && !openOwnerMode;
   app.get("/api/auth/capabilities", (c) => {
     return c.json({
       sso: env.oidc
         ? { name: env.oidc.name, availability: auth.ssoAvailability() ?? "checking" }
         : null,
-      passwordAuth: env.passwordAuth !== false,
-      passwordReset: env.passwordAuth !== false && Boolean(email),
-      resetUrl:
-        env.passwordAuth !== false && email ? new URL("/reset-password", env.webOrigin).href : null,
+      passwordAuth,
+      passwordReset: passwordAuth && Boolean(email),
+      resetUrl: passwordAuth && email ? new URL("/reset-password", env.webOrigin).href : null,
       emailCode: auth.emailCodeSignIn,
       billing: Boolean(billing),
       passkeyRpId: auth.passkeyRpId,
@@ -946,8 +947,9 @@ async function buildApp(overrides: CreateAppOverrides): Promise<AppHandles> {
     const allowOpen = createOpenLimiter();
     app.post("/api/auth/open", async (c) => {
       // The TCP peer, never a forwarded header: those are the caller's to write. A proxy or
-      // tunnel on this computer makes every caller look local, so any forwarding header refuses.
-      if (hasForwardingHeaders(c.req.raw.headers)) {
+      // tunnel on this computer makes every caller look local, so a forwarding header refuses unless
+      // the X-Forwarded-For chain is only owner-network hops (the web server's own).
+      if (isProxiedBeyondOwner(c.req.raw.headers)) {
         return c.json({ error: "Not available through a proxy" }, 403);
       }
       if (!isOwnerNetworkAddress(peerOf(c.req.raw, c.env))) {

@@ -87,7 +87,11 @@ run("open-owner mode signs the owner in once and reuses the account", async () =
     expect(await count()).toBe(1);
 
     const capabilities = await handles.app.request("/api/auth/capabilities");
-    expect(await capabilities.json()).toMatchObject({ openOwner: true });
+    expect(await capabilities.json()).toMatchObject({
+      openOwner: true,
+      passwordAuth: false,
+      passwordReset: false,
+    });
   });
 });
 
@@ -128,6 +132,27 @@ run("a request carrying a forwarding header is refused and creates nothing", asy
     const response = await handles.app.request("/api/auth/open", {
       method: "POST",
       headers: { origin: webOrigin, "x-forwarded-for": "203.0.113.9" },
+    });
+    expect(response.status).toBe(403);
+    expect(await count()).toBe(0);
+  });
+});
+
+run("a request through the web proxy from this computer is served", async () => {
+  await withApp({}, async (handles) => {
+    const response = await handles.app.request("/api/auth/open", {
+      method: "POST",
+      headers: { origin: webOrigin, "x-forwarded-for": "127.0.0.1" },
+    });
+    expect(response.status).toBe(200);
+  });
+});
+
+run("a remote caller behind a forged local forwarding entry is refused", async () => {
+  await withApp({}, async (handles, _open, count) => {
+    const response = await handles.app.request("/api/auth/open", {
+      method: "POST",
+      headers: { origin: webOrigin, "x-forwarded-for": "127.0.0.1, 203.0.113.9" },
     });
     expect(response.status).toBe(403);
     expect(await count()).toBe(0);
