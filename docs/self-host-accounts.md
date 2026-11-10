@@ -34,23 +34,35 @@ with no sign-in: the web app and mobile app call `POST /api/auth/open` and recei
 for the account at `owner.email`, created on first use. Signups are closed in this mode whatever
 `SIGNUPS_ENABLED` says. It is off unless set to exactly that value.
 
-Threat model: anyone who can reach the API as the owner's network is the owner. Use it only on a
-private network, such as this computer or your own Tailscale network, and never expose it publicly.
-Tailscale Funnel, a public reverse proxy or a port forward would hand your account to the internet.
+Threat model: open-owner mode trusts every process on this computer and every device on your
+tailnet; each of them is the owner. The checks below are defence in depth, not authentication. Use
+it only on a private network and never expose it publicly. Tailscale Funnel, a public reverse
+proxy or a port forward would hand your account to the internet.
+
+A local tunnel, reverse proxy, or Tailscale Serve or Funnel that adds no forwarding header is
+indistinguishable from a direct local connection, so none of them may ever front the web or API
+ports.
+
 The API enforces what it can:
 
 - It refuses to start unless `API_HOST` is a loopback or Tailscale address, so `0.0.0.0` fails.
 - It serves only requests whose TCP peer is loopback or Tailscale (`100.64.0.0/10`,
-  `fd7a:115c:a1e0::/48`). Forwarded headers are never trusted, and a request that carries one
-  (`Forwarded`, `X-Forwarded-*`, `X-Real-IP` and similar) is refused, so a local proxy or tunnel
-  cannot pass as the owner.
+  `fd7a:115c:a1e0::/48`). The web server's own proxy appends the address it saw to
+  `X-Forwarded-For`, so a request is accepted only when every address in that chain is also
+  loopback or Tailscale. A remote caller always leaves its real address in the chain (a forged
+  leading entry does not help) and is refused. Each entry must be a plain IPv4 or IPv6 address,
+  optionally with a port; names, zone IDs, zero-padded IPv4, IPv4-compatible IPv6 (`::127.0.0.1`),
+  anything oversized and chains over eight hops are refused.
+- It refuses any request carrying another proxy or client-address header: `Forwarded`,
+  `X-Forwarded-*` other than `-For`, `X-Real-IP`, `X-Client-IP`, `Via`, `CF-*`, `True-Client-IP`,
+  `Fastly-Client-IP`, `X-Azure-*`, `X-Envoy-*`, `Tailscale-*` and similar.
 - It allows a bounded number of opens per minute.
 - It turns off password and emailed-code sign-in, and only its own endpoint can create the owner
   account, so no other route can claim it.
 - It requires an `Origin` header equal to `WEB_ORIGIN` (or an entry of `RAKAZO_EXTRA_AUTH_ORIGINS`),
   which stops other sites and DNS rebinding from opening a session in your browser.
-- A proxy that strips those headers still makes every request look loopback, so any proxy on this
-  computer must not be reachable from other networks.
+- It reports password, password reset and emailed-code sign-in as off in its capabilities, so
+  clients show no such form.
 
 Startup logs one line saying the mode is on. Nothing secret is logged.
 
