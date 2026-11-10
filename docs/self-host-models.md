@@ -91,6 +91,14 @@ Instead of these variables, put the same settings under `llm:` in `shepherd.yaml
 win over the file, which only fills what is unset. The file may hold an API key, so keep it mode
 `600`; it is gitignored.
 
+### Guided setup: pnpm onboard
+
+`pnpm onboard` asks for the server URL and an optional key, lists the models the server
+advertises, lets you pick the default, and writes `llm:` (and `access.mode`) in `shepherd.yaml`,
+keeping the rest of the file. Restart afterwards. For scripts, pass `--url`, `--model`,
+`--access open-owner|accounts` and `--yes`, with the key in `SHEPHERD_LLM_KEY` (or the variable
+named by `--key-env`).
+
 A model in `RAKAZO_LOCAL_REASONING_MODELS` offers thinking levels and sends the chosen level as
 `reasoning_effort` (`medium` by default, `none` when thinking is off). Other local models never
 receive the field.
