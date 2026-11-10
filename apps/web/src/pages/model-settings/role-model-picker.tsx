@@ -19,7 +19,13 @@ import type { ModelCatalogEntry } from "../../lib/model-auth";
 import { useListSearch } from "../../lib/use-list-search";
 
 /** `baseUrl` presets an OpenAI-compatible server, such as a hosted preset. */
-export type ConnectableProvider = { id: string; name: string; baseUrl?: string };
+export type ConnectableProvider = {
+  id: string;
+  name: string;
+  baseUrl?: string;
+  /** Leads the list of providers to add. */
+  featured?: boolean;
+};
 
 /** A model on one connection; `providerName` is that connection's name. */
 export type RoleModelOption = ModelCatalogEntry & { credentialId?: string };

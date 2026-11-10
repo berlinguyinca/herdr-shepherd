@@ -92,7 +92,7 @@ export function ModelSettingsOverlay({
   }, [connectionAt]);
 
   // Adding another account is open to every provider, connected or not.
-  const allProviders = popularModelProvidersFirst<ConnectableProvider>(
+  const sortedProviders = popularModelProvidersFirst<ConnectableProvider>(
     [
       ...groups.map((group) => ({ id: group.id, name: group.name })),
       ...(groups.some((group) => group.id === OPENAI_COMPATIBLE_PROVIDER_ID)
@@ -100,12 +100,18 @@ export function ModelSettingsOverlay({
             id: OPENAI_COMPATIBLE_PROVIDER_ID,
             name: preset.name,
             baseUrl: preset.baseUrl,
+            featured: preset.featured,
           }))
         : []),
     ],
     (entry) => entry.id,
     (entry) => entry.name,
   );
+  // A featured hosted preset leads the list, ahead of the popular providers.
+  const allProviders = [
+    ...sortedProviders.filter((entry) => entry.featured),
+    ...sortedProviders.filter((entry) => !entry.featured),
+  ];
   const providers = allProviders.filter((entry) =>
     entry.baseUrl
       ? !savedCompatibleEndpointMatches(

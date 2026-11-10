@@ -1,5 +1,6 @@
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
 import type { ThinkingLevel } from "@rakazo/contracts";
+import { compatibleEndpointKeyRequired } from "@rakazo/contracts";
 import {
   Button,
   Input,
@@ -148,14 +149,16 @@ export function ModelStep({ model, fieldId }: { model: OnboardingModel; fieldId:
             isOpenAiCompatible ? (
               <CompatibleKeyField
                 className="mt-4 block text-body text-muted-foreground"
-                keyRequired={Boolean(endpointPreset)}
+                keyRequired={compatibleEndpointKeyRequired(endpointPreset)}
               >
                 <Input
                   aria-label={t`API key`}
                   value={apiKey}
                   onChange={(e) => updateApiKey(e.target.value)}
-                  required={Boolean(endpointPreset)}
-                  placeholder={endpointPreset ? undefined : t`Optional`}
+                  required={compatibleEndpointKeyRequired(endpointPreset)}
+                  placeholder={
+                    compatibleEndpointKeyRequired(endpointPreset) ? undefined : t`Optional`
+                  }
                   type="password"
                   autoComplete="new-password"
                   className="mt-2"

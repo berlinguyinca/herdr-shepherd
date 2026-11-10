@@ -1,4 +1,5 @@
 import { Plural, Trans, useLingui } from "@lingui/react/macro";
+import { compatibleEndpointKeyRequired } from "@rakazo/contracts";
 import { Button, Disclosure, Input } from "@rakazo/ui-web";
 import { Check, Copy } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -386,18 +387,18 @@ export function CompatibleKeyControls({
   return isOpenAiCompatible ? (
     <div className="mt-5">
       <CompatibleKeyField
-        keyRequired={Boolean(endpointPreset)}
+        keyRequired={compatibleEndpointKeyRequired(endpointPreset)}
         className="block text-body text-muted-foreground"
       >
         <Input
           aria-label={t`API key`}
           value={apiKey}
           onChange={(event) => updateApiKey(event.target.value)}
-          required={Boolean(endpointPreset)}
+          required={compatibleEndpointKeyRequired(endpointPreset)}
           placeholder={
             credential?.hasKey
               ? t`Paste a replacement key`
-              : endpointPreset
+              : compatibleEndpointKeyRequired(endpointPreset)
                 ? undefined
                 : t`Optional`
           }

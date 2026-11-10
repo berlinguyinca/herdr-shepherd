@@ -1,6 +1,7 @@
 import { useLingui } from "@lingui/react/macro";
 import type { ThinkingLevel } from "@rakazo/contracts";
 import {
+  compatibleEndpointKeyRequired,
   compatibleEndpointPresets,
   MAX_MODEL_CONTEXT_WINDOW,
   MAX_MODEL_MAX_TOKENS,
@@ -20,7 +21,7 @@ import {
   pickCatalogModelId,
   popularModelProvidersFirst,
 } from "@rakazo/core";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useCopyText } from "../../lib/copy-text";
 import { providerDisplayName } from "../../lib/localized-provider-hint";
 import type { ModelCatalogEntry } from "../../lib/model-auth";
@@ -132,12 +133,16 @@ export function useOnboardingModel({
   const endpointPreset = isOpenAiCompatible
     ? matchCompatibleEndpointPreset(endpointPresets, baseUrl)
     : undefined;
+  const featuredPresets = useMemo(
+    () => endpointPresets.filter((preset) => preset.featured),
+    [endpointPresets],
+  );
   const openAiCompatibleReady = openAiCompatibleConnectReady({
     apiKey,
     baseUrl,
     modelId:
       headerRows !== null && !ModelHeaderRowsSchema.safeParse(headerRows).success ? "" : modelId,
-    keyRequired: Boolean(endpointPreset),
+    keyRequired: compatibleEndpointKeyRequired(endpointPreset),
   });
   const canSaveModel = Boolean(
     selected &&
@@ -155,7 +160,16 @@ export function useOnboardingModel({
       if (id === "openai") return t`OpenAI API`;
       return providerDisplayName(id, byId.get(id)?.providerName ?? id, auth);
     };
+    const featured = featuredPresets.map((preset) => ({
+      value: `${ENDPOINT_PRESET_OPTION}${preset.baseUrl}`,
+      label: preset.name,
+    }));
+    const custom = byId.has(OPENAI_COMPATIBLE_PROVIDER_ID)
+      ? [{ value: OPENAI_COMPATIBLE_PROVIDER_ID, label: t`Custom OpenAI-compatible server` }]
+      : [];
     const main = [
+      ...featured,
+      ...custom,
       ...(billingEnabled ? [{ value: CREDITS_OPTION, label: t`Shepherd credits` }] : []),
       ...MAIN_PROVIDER_OPTIONS.filter((option) => byId.has(option.provider)).map((option) => ({
         value: providerOptionValue(option.provider, option.auth),
@@ -168,20 +182,23 @@ export function useOnboardingModel({
           (entry) => !MAIN_PROVIDER_OPTIONS.some((option) => option.provider === entry.provider),
         )
         .flatMap((entry) => {
+          // The custom server and featured presets already lead the main group.
           const item = { value: entry.provider, label: entry.providerName ?? entry.provider };
           return [
-            item,
-            ...(entry.endpointPresets ?? []).map((preset) => ({
-              value: `${ENDPOINT_PRESET_OPTION}${preset.baseUrl}`,
-              label: preset.name,
-            })),
+            ...(entry.provider === OPENAI_COMPATIBLE_PROVIDER_ID ? [] : [item]),
+            ...(entry.endpointPresets ?? [])
+              .filter((preset) => !preset.featured)
+              .map((preset) => ({
+                value: `${ENDPOINT_PRESET_OPTION}${preset.baseUrl}`,
+                label: preset.name,
+              })),
           ];
         }),
       (option) => option.value,
       (option) => option.label,
     );
     return { main, rest };
-  }, [billingEnabled, providers, t]);
+  }, [billingEnabled, featuredPresets, providers, t]);
   // Base UI Select.Value only resolves labels when Root gets `items`.
   const providerItems = useMemo(
     () => [...providerOptions.main, ...providerOptions.rest],
@@ -237,6 +254,13 @@ export function useOnboardingModel({
       }),
     );
   }
+
+  // With nothing chosen yet, start on the featured preset.
+  const defaultPreset = featuredPresets[0];
+  useEffect(() => {
+    if (!defaultPreset || provider || credits) return;
+    selectProvider(OPENAI_COMPATIBLE_PROVIDER_ID, defaultPreset.baseUrl);
+  }, [defaultPreset?.baseUrl, provider, credits]);
 
   function stagedThinkingLevel(): ThinkingLevel | null {
     return clampCatalogThinkingLevel(

@@ -1404,6 +1404,36 @@ it("keeps the Ollama preset to connect beside a saved local connection", async (
   }
 });
 
+it("leads the add list with a featured preset whose key is optional", async () => {
+  HTMLElement.prototype.scrollTo = vi.fn();
+  models.list.mockResolvedValue([
+    {
+      ...compatibleEntry,
+      endpointPresets: [
+        { name: "Ollama Cloud", baseUrl: "https://ollama.com/v1" },
+        {
+          name: "Hosted Featured",
+          baseUrl: "https://featured.example.test/v1",
+          keyRequired: false,
+          featured: true,
+        },
+      ],
+    },
+  ]);
+  models.credentials.mockResolvedValue([]);
+  const view = await renderSettings(false);
+  try {
+    await openPicker("Change Main model");
+    expect(pickerOptions()).toEqual(["Hosted Featured", "Ollama Cloud", "OpenAI-compatible"]);
+    await choose("Hosted Featured");
+    expect(baseUrlField(view.container).value).toBe("https://featured.example.test/v1");
+    const key = view.container.querySelector('input[aria-label="API key"]') as HTMLInputElement;
+    expect(key.required).toBe(false);
+  } finally {
+    await view.unmount();
+  }
+});
+
 it("keeps setup help and API key collapsible for generic compatible servers", async () => {
   models.list.mockResolvedValue([compatibleEntry]);
   models.credentials.mockResolvedValue([]);

@@ -3,6 +3,9 @@ import {
   assertAllowedOpenAiCompatibleRequestUrl,
   assertAllowedOpenAiCompatibleUrl,
   assertHttpsForKeyedOpenAiCompatibleUrl,
+  compatibleEndpointPreset,
+  compatibleEndpointPresetList,
+  INFERWEAVE_DEFAULT_BASE_URL,
   normalizeOpenAiCompatibleBaseUrl,
   openAiCompatAllowPublicHosts,
   PRIVATE_MODEL_ENDPOINT_MESSAGE,
@@ -13,7 +16,11 @@ const OWNER = { allowPrivate: true };
 const savedAllowPublic = process.env.RAKAZO_OPENAI_COMPAT_ALLOW_PUBLIC;
 const savedPrivateHosts = process.env.RAKAZO_OPENAI_COMPAT_PRIVATE_HOSTS;
 
+const savedInferWeave = process.env.RAKAZO_INFERWEAVE_BASE_URL;
+
 afterEach(() => {
+  if (savedInferWeave === undefined) delete process.env.RAKAZO_INFERWEAVE_BASE_URL;
+  else process.env.RAKAZO_INFERWEAVE_BASE_URL = savedInferWeave;
   if (savedAllowPublic === undefined) delete process.env.RAKAZO_OPENAI_COMPAT_ALLOW_PUBLIC;
   else process.env.RAKAZO_OPENAI_COMPAT_ALLOW_PUBLIC = savedAllowPublic;
   if (savedPrivateHosts === undefined) delete process.env.RAKAZO_OPENAI_COMPAT_PRIVATE_HOSTS;
@@ -219,4 +226,30 @@ it("keeps API-key-only HTTPS copy separate from header-aware copy", () => {
   expect(() => assertHttpsForKeyedOpenAiCompatibleUrl(url, undefined, true)).toThrow(
     "OpenAI-compatible endpoints that send an API key or custom headers must use HTTPS.",
   );
+});
+
+describe("compatible endpoint presets", () => {
+  it("leads with a featured, keyless InferWeave preset and keeps Ollama Cloud keyed", () => {
+    delete process.env.RAKAZO_INFERWEAVE_BASE_URL;
+    const [first, second] = compatibleEndpointPresetList();
+    expect(first).toEqual({
+      name: "InferWeave",
+      baseUrl: "https://llm.metabolomics.us/v1",
+      keyRequired: false,
+      featured: true,
+    });
+    expect(first?.baseUrl).toBe(INFERWEAVE_DEFAULT_BASE_URL);
+    expect(second).toEqual({ name: "Ollama Cloud", baseUrl: "https://ollama.com/v1" });
+  });
+
+  it("takes the InferWeave address from RAKAZO_INFERWEAVE_BASE_URL", () => {
+    process.env.RAKAZO_INFERWEAVE_BASE_URL = "https://weave.example.test/v1/";
+    expect(compatibleEndpointPresetList()[0]?.baseUrl).toBe("https://weave.example.test/v1");
+    expect(compatibleEndpointPreset("https://weave.example.test/v1")?.name).toBe("InferWeave");
+  });
+
+  it("falls back to the default address when the variable is not a URL", () => {
+    process.env.RAKAZO_INFERWEAVE_BASE_URL = "not a url";
+    expect(compatibleEndpointPresetList()[0]?.baseUrl).toBe(INFERWEAVE_DEFAULT_BASE_URL);
+  });
 });
