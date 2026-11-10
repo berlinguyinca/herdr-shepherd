@@ -439,8 +439,18 @@ if (!setting("WEB_PORT") && !setting("API_PORT")) {
   ports = await choosePorts();
   Object.assign(env, portEnv(ports));
 } else if (yamlEnv.API_PORT && !setting("API_PROXY_TARGET")) {
-  // The web server proxies to the API port the file names.
-  env.API_PROXY_TARGET = `http://127.0.0.1:${yamlEnv.API_PORT}`;
+  // The web server proxies to the API address the file names; a wildcard bind is reached on loopback.
+  const bound = (setting("API_HOST") ?? "127.0.0.1").trim().replace(/^\[(.*)\]$/, "$1");
+  const host = ["", "0.0.0.0", "::"].includes(bound) ? "127.0.0.1" : bound;
+  env.API_PROXY_TARGET = `http://${host.includes(":") ? `[${host}]` : host}:${yamlEnv.API_PORT}`;
+}
+// A port the file names is kept, so a second checkout running at once must pick its own.
+if (!ports && yamlEnv.API_PORT && !process.env.API_PORT && !fileEnv.API_PORT) {
+  const named = Number(yamlEnv.API_PORT);
+  if (!(await portFree(named)))
+    throw new Error(
+      `API port ${named} from shepherd.yaml is already in use (another checkout?). Set API_PORT in .env or stop the other stack.`,
+    );
 }
 // Every service runs from its own folder, so a relative path must not change meaning there.
 if (setting("RAKAZO_CONFIG")) env.RAKAZO_CONFIG = path.resolve(root, setting("RAKAZO_CONFIG"));
