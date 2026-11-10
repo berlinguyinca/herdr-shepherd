@@ -1,0 +1,22 @@
+# Copy to shepherd.yaml (git-ignored) and edit; chmod 600 it, since it can hold a key.
+# Real environment variables and .env win over this file. Unknown keys are an error.
+access:
+  mode: accounts # or open-owner: no sign-in; private network only (docs/self-host-accounts.md)
+  signups: true
+owner: # open-owner mode only
+  email: owner@localhost.invalid
+  name: Owner
+server:
+  api_host: 127.0.0.1
+  api_port: 3100
+  web_origin: http://127.0.0.1:5173
+llm:
+  provider: local # local, openrouter, anthropic or deepseek
+  base_url: http://127.0.0.1:11434/v1 # local only
+  api_key: replace-with-your-key # optional for local
+  models: [example-model] # local only
+  default_model: example-model
+  context_window: 32768 # local only
+  max_tokens: 4096 # local only
+  # vision_models: [example-model] # local only: models that accept images
+  # reasoning_models: [example-model] # local only: models that accept reasoning effort

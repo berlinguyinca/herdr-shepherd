@@ -41,6 +41,22 @@ describe("root environment loading", () => {
     expect(process.env.RAKAZO_TEST_ENV_SENTINEL).toBe("caller");
   });
 
+  it("fills what the environment and .env leave unset from shepherd.yaml", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    vi.stubEnv("API_PORT", undefined);
+    vi.stubEnv("WEB_ORIGIN", undefined);
+    vi.stubEnv("RAKAZO_CONFIG", undefined);
+    writeFileSync(path.join(root, ".env"), "API_PORT=4100\n");
+    writeFileSync(
+      path.join(root, "shepherd.yaml"),
+      "server: { api_port: 4200, web_origin: 'http://127.0.0.1:5300' }\n",
+      { mode: 0o600 },
+    );
+    loadRootEnv();
+    expect(process.env.API_PORT).toBe("4100");
+    expect(process.env.WEB_ORIGIN).toBe("http://127.0.0.1:5300");
+  });
+
   it("loads configuration when a live verification explicitly opts in", () => {
     vi.stubEnv("NODE_ENV", "test");
     loadRootEnv({ allowInTests: true });

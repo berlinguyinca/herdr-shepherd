@@ -56,7 +56,11 @@ const SERVICES = ["@rakazo/api", "@rakazo/worker", "@rakazo/web", "@rakazo/sandb
 const fileEnv = existsSync(path.join(root, ".env"))
   ? dotenv.parse(readFileSync(path.join(root, ".env")))
   : {};
-const setting = (name) => process.env[name] ?? fileEnv[name];
+// Settings from `shepherd.yaml` fill what neither the shell nor `.env` sets. The services read the
+// same file themselves; this copy only lets the launcher see the ports it names.
+const { readShepherdConfigEnv } = await import("../packages/core/src/node/shepherd-config.ts");
+const yamlEnv = readShepherdConfigEnv({ env: { ...fileEnv, ...process.env }, cwd: root });
+const setting = (name) => process.env[name] ?? fileEnv[name] ?? yamlEnv[name];
 const log = (message) => process.stdout.write(`[dev] ${message}\n`);
 
 // A command that runs another with secrets added to its environment, such as a secrets manager's
@@ -434,7 +438,12 @@ let ports = null;
 if (!setting("WEB_PORT") && !setting("API_PORT")) {
   ports = await choosePorts();
   Object.assign(env, portEnv(ports));
+} else if (yamlEnv.API_PORT && !setting("API_PROXY_TARGET")) {
+  // The web server proxies to the API port the file names.
+  env.API_PROXY_TARGET = `http://127.0.0.1:${yamlEnv.API_PORT}`;
 }
+// Every service runs from its own folder, so a relative path must not change meaning there.
+if (setting("RAKAZO_CONFIG")) env.RAKAZO_CONFIG = path.resolve(root, setting("RAKAZO_CONFIG"));
 
 // Checkouts that share a database also share its job queue, so any checkout's worker may write a
 // file another checkout's API reads. A relative DATA_DIR resolves in the main checkout for all.
