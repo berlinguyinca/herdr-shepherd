@@ -49,10 +49,10 @@ export const TR_MESSAGES: Record<string, string> = {
   "No desktop releases are published for this build yet.":
     "Bu derleme için henüz yayımlanmış masaüstü sürümü yok.",
   "Move Shepherd to Applications to install updates.":
-    "Güncellemeleri yüklemek için Shepherd’yu Uygulamalar klasörüne taşıyın.",
+    "Güncellemeleri yüklemek için Shepherd’ı Uygulamalar klasörüne taşıyın.",
   "Free up disk space to install updates.": "Güncellemeleri yüklemek için diskte yer açın.",
   "This update could not be verified. Reinstall Shepherd from a trusted download.":
-    "Bu güncelleme doğrulanamadı. Shepherd’yu güvenilir bir indirmeden yeniden yükleyin.",
+    "Bu güncelleme doğrulanamadı. Shepherd’ı güvenilir bir indirmeden yeniden yükleyin.",
   "The update could not be completed. Try again later.":
     "Güncelleme tamamlanamadı. Daha sonra yeniden deneyin.",
   "Could not reach the update server.": "Güncelleme sunucusuna ulaşılamadı.",
@@ -72,12 +72,11 @@ export const TR_MESSAGES: Record<string, string> = {
   "Could not open browser sign-in. Close other sign-in attempts and retry.":
     "Tarayıcıda oturum açma başlatılamadı. Diğer oturum açma denemelerini kapatıp yeniden deneyin.",
   "Sign-in callback rejected. Return to Shepherd to retry.":
-    "Oturum açma yanıtı reddedildi. Yeniden denemek için Shepherd’ya dönün.",
-  "You can close this tab and return to Shepherd.":
-    "Bu sekmeyi kapatıp Shepherd’ya dönebilirsiniz.",
-  "Set up Shepherd": "Shepherd’yu Kur",
+    "Oturum açma yanıtı reddedildi. Yeniden denemek için Shepherd’a dönün.",
+  "You can close this tab and return to Shepherd.": "Bu sekmeyi kapatıp Shepherd’a dönebilirsiniz.",
+  "Set up Shepherd": "Shepherd’ı Kur",
   "Quit Shepherd": "Shepherd’dan Çık",
-  "Welcome to Shepherd": "Shepherd’ya hoş geldiniz",
+  "Welcome to Shepherd": "Shepherd’a hoş geldiniz",
   "Choose which server this app should use.": "Bu uygulamanın hangi sunucuyu kullanacağını seçin.",
   Instance: "Örnek",
   "This computer": "Bu bilgisayar",

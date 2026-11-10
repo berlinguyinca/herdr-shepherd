@@ -1966,7 +1966,7 @@ msgstr "Conecte primeiro o provedor deste modelo."
 #. js-lingui-explicit-id
 #: src/lib/run-error.ts
 msgid "Connect your own API key in Models or choose Shepherd credits in Billing."
-msgstr "Conecte sua própria chave de API em Modelos ou escolha créditos Shepherd em Faturamento."
+msgstr "Conecte sua própria chave de API em Modelos ou escolha créditos do Shepherd em Faturamento."
 
 #: src/components/bot-templates/bot-templates-dialog.tsx
 #: src/components/ComputerDeviceSettings.tsx
@@ -5229,7 +5229,7 @@ msgstr "Cole uma chave de substituição"
 
 #: src/pages/model-settings/compatible-model-fields.tsx
 msgid "Paste the OpenAI-compatible address from your server. Shepherd adds /v1 if needed."
-msgstr "Cole o endereço compatível com OpenAI do seu servidor. Shepherd adiciona /v1 se necessário."
+msgstr "Cole o endereço compatível com OpenAI do seu servidor. O Shepherd adiciona /v1 se necessário."
 
 #: src/pages/shell/agent-import.tsx
 msgid "Paste the reply"
@@ -5903,7 +5903,7 @@ msgstr "Voltar à chamada com {0}"
 #: src/pages/McpOAuthCallback.tsx
 #: src/pages/SlackInstallCallback.tsx
 msgid "Return to Shepherd"
-msgstr "Retorno a Shepherd"
+msgstr "Voltar ao Shepherd"
 
 #: src/lib/model-connection-preflight.ts
 msgid "Review provider settings and test again."

@@ -38,12 +38,12 @@ export const PL_MESSAGES: Record<string, string> = {
   "Bring All to Front": "Przenieś wszystkie na wierzch",
 
   // Updates
-  "Shepherd {version} is ready to install.": "Shepherd {version} jest gotowe do zainstalowania.",
+  "Shepherd {version} is ready to install.": "Shepherd {version} jest gotowy do zainstalowania.",
   Restart: "Uruchom ponownie",
   Later: "Później",
   "Could not install the update.": "Nie udało się zainstalować aktualizacji.",
   "Could not check for updates.": "Nie udało się sprawdzić aktualizacji.",
-  "Shepherd is up to date.": "Shepherd jest aktualne.",
+  "Shepherd is up to date.": "Shepherd jest aktualny.",
   "Version {version}": "Wersja {version}",
   "Automatic updates are turned off for this install.":
     "Automatyczne aktualizacje są wyłączone w tej instalacji.",
@@ -104,11 +104,11 @@ export const PL_MESSAGES: Record<string, string> = {
   "Downloading Shepherd…": "Pobieranie Shepherd…",
   "Starting Shepherd…": "Uruchamianie Shepherd…",
   "Almost ready…": "Prawie gotowe…",
-  "Shepherd is ready.": "Shepherd jest gotowe.",
+  "Shepherd is ready.": "Shepherd jest gotowy.",
   "{size} downloaded": "Pobrano {size}",
   "Connecting…": "Łączenie…",
   "Checking…": "Sprawdzanie…",
-  "Shepherd answered at {url}.": "Shepherd odpowiedziało pod adresem {url}.",
+  "Shepherd answered at {url}.": "Shepherd odpowiedział pod adresem {url}.",
   "Enter a server address first.": "Najpierw wpisz adres serwera.",
   "Could not save that address.": "Nie udało się zapisać tego adresu.",
   "Could not save that address. Try again.": "Nie udało się zapisać tego adresu. Spróbuj ponownie.",

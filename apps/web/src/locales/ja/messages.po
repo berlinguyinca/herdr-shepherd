@@ -5050,7 +5050,7 @@ msgstr "ナビゲーションを開く"
 #: src/pages/Invite.tsx
 #: src/pages/SharedPage.tsx
 msgid "Open Shepherd"
-msgstr "Shepherd を開く"
+msgstr "Shepherdを開く"
 
 #: src/pages/ScratchpadSection.tsx
 msgid "Open work"
