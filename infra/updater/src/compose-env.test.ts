@@ -49,6 +49,8 @@ const NOT_PASSED: Record<string, string> = {
   RAKAZO_ALLOW_DEV_SECRETS: "development-only escape hatch for placeholder secrets",
   EMAIL_EMULATOR: "ignored when NODE_ENV=production",
   AWS_KMS_PROFILE: "for maintainer laptops; servers use AWS_KMS_ACCESS_KEY_ID and its secret",
+  RAKAZO_CONFIG:
+    "shepherd.yaml path for the launcher and onboarding CLI, which load it before the processes start",
   GIT_SHA: "baked into the image at build time; a pass-through entry would unset it",
   SHELL: "host shell for the desktop computer, which only the Electron app runs",
   CLOUDFLARE_ACCOUNT_ID: "written into Pi's environment from stored gateway settings",
@@ -132,6 +134,8 @@ function sourceFiles(dir: string): string[] {
     if (statSync(file).isDirectory()) return sourceFiles(file);
     if (!/\.(?:ts|tsx|mts)$/.test(entry) || /\.d\.ts$/.test(entry)) return [];
     if (/\.(?:test|spec)\.|test-support/.test(entry)) return [];
+    // The onboarding CLI reads the operator's shell, not a process's environment.
+    if (entry === "onboard.ts") return [];
     return [file];
   });
 }
