@@ -35,7 +35,11 @@ type RpcPath<T, Prefix extends string = ""> = T extends { "~orpc": unknown }
         [Key in keyof T & string]: RpcPath<T[Key], Prefix extends "" ? Key : `${Prefix}/${Key}`>;
       }[keyof T & string]
     : never;
-type ProtectedRpcPath = Exclude<RpcPath<typeof appContract>, "health">;
+// The Shepherd bridge serves agents and terminal, not this API.
+type ProtectedRpcPath = Exclude<
+  RpcPath<typeof appContract>,
+  "health" | `agents/${string}` | `terminal/${string}`
+>;
 
 process.env.WAKEUP_DRIVER = "memory";
 process.env.SANDBOX_PROVIDER = "fake";
