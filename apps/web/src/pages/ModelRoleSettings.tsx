@@ -37,14 +37,8 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { thinkingLevelLabel } from "../lib/model-catalog";
 import { spaceQueries } from "../lib/query";
 import { useSpaceRpc } from "../lib/space-rpc";
-import type { ConnectableProvider, RoleModelOption } from "./model-settings/role-model-picker";
+import type { RoleModelOption } from "./model-settings/role-model-picker";
 import { RoleModelPicker } from "./model-settings/role-model-picker";
-
-export type ModelRoleConnectIntent = {
-  /** Only the main role's empty first slot takes the new connection's model on connect. */
-  makeDefault: boolean;
-  onConnected: (choice: ModelRoleChoice) => Promise<void>;
-};
 
 type Props = {
   userId: string;
@@ -56,10 +50,8 @@ type Props = {
   title: string;
   /** What runs when the first slot is empty. */
   defaultLabel: string;
-  providers: ConnectableProvider[];
   /** Connection-aware names, such as "Claude subscription" or a compatible server's host. */
   providerLabel: (provider: string) => string;
-  onConnect: (provider: ConnectableProvider, intent: ModelRoleConnectIntent) => void;
   /** Opens one connection's dialog. */
   onManage: (provider: string, credentialId: string) => void;
   /** Offer effort for the first row when its model can think. */
@@ -108,9 +100,7 @@ export function ModelRoleSettings({
   modelRole: role = "main",
   title,
   defaultLabel,
-  providers,
   providerLabel,
-  onConnect,
   onManage,
   thinking,
   onChanged,
@@ -157,12 +147,6 @@ export function ModelRoleSettings({
   }, [queryClient, rpc, userId, spaceId, scope, role]);
   const state = useSyncExternalStore(controller.subscribe, controller.snapshot);
   const [dragging, setDragging] = useState<number | null>(null);
-  // After a connection the slot's picker reopens on that provider's models.
-  const [reopen, setReopen] = useState<{
-    slot: "primary" | number | "add";
-    query: string;
-    key: number;
-  } | null>(null);
   useEffect(() => {
     void controller.load();
   }, [controller, credentials]);
@@ -260,18 +244,6 @@ export function ModelRoleSettings({
     void commit(next);
   };
   const remove = (index: number) => void commit(rows.filter((_, item) => item !== index));
-  const connectFor = (slot: "primary" | number | "add") => (provider: ConnectableProvider) =>
-    onConnect(provider, {
-      makeDefault: role === "main" && slot === "primary" && !primary,
-      onConnected: async (choice) => {
-        await controller.load();
-        onChanged?.();
-        setReopen({ slot, query: providerName(choice), key: Date.now() });
-      },
-    });
-  const reopenFor = (slot: "primary" | number | "add") =>
-    reopen?.slot === slot ? { query: reopen.query, key: reopen.key } : undefined;
-
   const canAdd = backups.length < MAX_MODEL_BACKUPS;
   // Order only means something once there is more than one row.
   const ordered = rows.length + (primary ? 0 : 1) > 1;
@@ -310,12 +282,8 @@ export function ModelRoleSettings({
               )}
               label={t`Change ${title}`}
               options={options}
-              providers={providers}
               disabled={pickerLocked}
               onPick={(option) => (option ? void setPrimary(choiceOf(option)) : null)}
-              onConnect={connectFor("primary")}
-              reopen={reopenFor("primary")}
-              onReopened={() => setReopen(null)}
             />
             {deployment && primaryMenuItems ? (
               <DropdownMenu>
@@ -380,7 +348,6 @@ export function ModelRoleSettings({
                 defaultOption={
                   isPrimary && role !== "main" && deployment ? modelLabel(deployment) : undefined
                 }
-                providers={providers}
                 disabled={pickerLocked}
                 onPick={(option) =>
                   option
@@ -389,9 +356,6 @@ export function ModelRoleSettings({
                         : place(choice, choiceOf(option)))
                     : void setPrimary(null)
                 }
-                onConnect={connectFor(isPrimary ? "primary" : index)}
-                reopen={reopenFor(isPrimary ? "primary" : index)}
-                onReopened={() => setReopen(null)}
               />
               {isPrimary && thinkingLevels.length && choice.thinkingLevel ? (
                 <span className="shrink-0 rounded-full bg-accent px-2 py-0.5 text-body-sm text-muted-foreground">
@@ -492,12 +456,8 @@ export function ModelRoleSettings({
               options={options.filter((option) =>
                 rows.every((row) => !sameChoice(row, choiceOf(option))),
               )}
-              providers={providers}
               disabled={pickerLocked}
               onPick={(option) => (option ? void place("add", choiceOf(option)) : null)}
-              onConnect={connectFor("add")}
-              reopen={reopenFor("add")}
-              onReopened={() => setReopen(null)}
             />
           </li>
         ) : null}

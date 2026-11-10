@@ -11,7 +11,7 @@ import {
   openBotPanelTab,
   openModelConnection,
   openUserSettings,
-  pickReopenedModel,
+  pickRoleModel,
   rpc,
   signup,
 } from "./helpers";
@@ -56,12 +56,12 @@ test("model settings cleanup frames", { tag: "@nightly" }, async ({ page }, test
   expect(rejected.some((credential) => credential.provider === "openrouter")).toBe(false);
   await captureScreenshot(page, testInfo, "model-settings-cleanup-1a-rejected-key");
 
-  // Connecting from the empty first slot makes the provider's model the main model.
+  // Connecting only makes the provider's models available; the main model is then picked.
   await dialog.getByLabel("API key").fill("fake-cleanup-api-key");
   providerConnected = true;
   await dialog.getByRole("button", { name: "Connect API key", exact: true }).click();
   await expect(dialog).toBeHidden();
-  await pickReopenedModel(page);
+  await pickRoleModel(page, "main");
   const primary = mainList.getByTestId("model-role-row-1");
   await expect(primary).toContainText("OpenRouter");
   const addFallback = mainList.getByRole("button", { name: "Add fallback", exact: true });
@@ -299,7 +299,7 @@ test("connects, lists, and uses an OpenAI-compatible endpoint", async ({ page },
 
     await page.getByRole("button", { name: "Save", exact: true }).click();
     await expect(modelConnectionDialog(page, "OpenAI-compatible")).toBeHidden();
-    await pickReopenedModel(page);
+    await pickRoleModel(page, "main");
     await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
     await expect(page.getByTestId("model-role-main").getByTestId("model-role-row-1")).toContainText(
       LOCAL_MODEL_ID,

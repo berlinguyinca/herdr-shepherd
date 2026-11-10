@@ -79,35 +79,32 @@ it("uses the shared matcher in Add provider and keeps an active search after the
   expect(input()).toBeNull();
 });
 
-it("searches role models and providers together, including provider names and model ids", async () => {
+it("searches role models by provider name and model id, and lists no provider rows", async () => {
   const onPick = vi.fn();
+  const models = Array.from({ length: 11 }, (_, index) => ({
+    id: `model-${index}`,
+    label: `Model ${index}`,
+    provider: "fixture",
+    providerName: index === 0 ? "Café" : "Fixture",
+    billing: "API key",
+  }));
   await act(async () =>
     root.render(
       <RoleModelPicker
         trigger={<button type="button">Choose</button>}
         label="Choose"
-        options={[
-          {
-            id: "café-model",
-            label: "Model",
-            provider: "fixture",
-            providerName: "Café",
-            billing: "API key",
-          },
-        ]}
-        providers={providers.slice(0, 10)}
+        options={models}
         onPick={onPick}
-        onConnect={() => {}}
       />,
     ),
   );
   await click("Choose");
   await type(" CAFÉ ");
-  expect(options()).toEqual(["Model", "Café providerConnect"]);
-  await type("café-model");
-  expect(options()).toEqual(["Model"]);
+  expect(options()).toEqual(["Model 0"]);
+  await type("model-0");
+  expect(options()).toEqual(["Model 0"]);
   await act(async () => document.querySelector<HTMLElement>("[cmdk-item]")!.click());
-  expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: "café-model" }));
+  expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: "model-0" }));
 });
 
 it("searches Onboarding's discovered models and keeps manual model entry available", async () => {
@@ -134,16 +131,21 @@ it("searches Onboarding's discovered models and keeps manual model entry availab
 });
 
 it("keeps a short role list usable from the keyboard without search", async () => {
-  const onConnect = vi.fn();
+  const onPick = vi.fn();
+  const option = {
+    id: "model-a",
+    label: "Model A",
+    provider: "fixture",
+    providerName: "Fixture",
+    billing: "API key",
+  };
   await act(async () =>
     root.render(
       <RoleModelPicker
         trigger={<button type="button">Choose</button>}
         label="Choose"
-        options={[]}
-        providers={providers.slice(0, 1)}
-        onPick={() => {}}
-        onConnect={onConnect}
+        options={[option]}
+        onPick={onPick}
       />,
     ),
   );
@@ -154,5 +156,5 @@ it("keeps a short role list usable from the keyboard without search", async () =
   await act(async () =>
     command.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", bubbles: true })),
   );
-  expect(onConnect).toHaveBeenCalledWith(providers[0]);
+  expect(onPick).toHaveBeenCalledWith(expect.objectContaining({ id: "model-a" }));
 });

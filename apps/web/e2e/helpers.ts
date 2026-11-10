@@ -245,54 +245,45 @@ export function modelConnectionDialog(page: Page, provider: string) {
     .filter({ has: page.getByRole("heading", { name: new RegExp(`^(Connect )?${name}$`) }) });
 }
 
-/** A picker option that connects a provider, listed after the connected models with a "Connect" shortcut. */
-export function modelConnectOption(page: Page, provider: string) {
-  return page
-    .locator('[role="option"][data-value^="connect:"]')
-    .filter({ has: page.getByText(provider, { exact: true }) });
-}
-
 /**
- * Opens a model list's picker on the Models settings page and chooses a provider that still
- * needs connecting. The "main" slot is the list's first row, so connecting there sets the
- * role's primary model; "fallback" appends through "Add fallback".
+ * Opens the Add provider list on the Models settings page and chooses a provider to connect.
+ * Model pickers list only connected providers' models, so connecting always starts here.
  */
 export async function openModelConnection(
   page: Page,
   provider: string,
-  {
-    slot = "main",
-    role = "main",
-    search = provider,
-  }: { slot?: "main" | "fallback"; role?: "main" | "approval"; search?: string } = {},
+  { search = provider }: { search?: string } = {},
 ) {
-  const section = page.getByTestId(`model-role-${role}`);
-  await (slot === "main"
-    ? section.getByRole("button", { name: /^Change / }).first()
-    : section.getByRole("button", { name: "Add fallback", exact: true })
-  ).click();
-  await page.getByRole("combobox", { name: "Search models" }).fill(search);
-  await modelConnectOption(page, provider).click();
+  await page.getByTestId("model-providers").getByRole("button", { name: "Add provider" }).click();
+  const query = page.getByRole("combobox", { name: "Add provider", exact: true });
+  if (await query.isVisible()) await query.fill(search);
+  await page
+    .getByRole("option")
+    .filter({ has: page.getByText(provider, { exact: true }) })
+    .first()
+    .click();
   const dialog = modelConnectionDialog(page, provider);
   await expect(dialog).toBeVisible();
   return dialog;
 }
 
 /**
- * After a connection the slot's picker reopens on that provider's models. Picks `model`
- * there, or closes the picker when the test keeps whatever the connection placed.
+ * Chooses a model for a role's first row from its picker. Connecting a provider does not
+ * choose a model, so a test picks one once the connection is saved: `model` by name, or the
+ * list's first model.
  */
-export async function pickReopenedModel(page: Page, model?: string) {
-  const search = page.getByRole("combobox", { name: "Search models" });
-  await expect(search).toBeVisible();
-  if (model === undefined) await search.press("Escape");
-  else
-    await page
-      .getByRole("listbox", { name: "Model options" })
-      .getByRole("option", { name: model, exact: true })
-      .first()
-      .click();
-  await expect(search).toBeHidden();
+export async function pickRoleModel(page: Page, role: "main" | "approval", model?: string) {
+  await page
+    .getByTestId(`model-role-${role}`)
+    .getByRole("button", { name: /^Change / })
+    .first()
+    .click();
+  const options = page.getByRole("listbox", { name: "Model options" }).getByRole("option");
+  await (model === undefined
+    ? options.first()
+    : options.filter({ hasText: model }).first()
+  ).click();
+  await expect(page.getByRole("listbox", { name: "Model options" })).toBeHidden();
 }
 
 export async function manageModelConnection(

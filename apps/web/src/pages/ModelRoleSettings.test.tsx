@@ -7,8 +7,8 @@ import { act } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-/** Provider rows end with their "Connect" action; models show their name alone. */
-const optionName = (entry: Element) => entry.textContent?.replace(/(Connect|Default)$/, "");
+/** The default row ends with its "Default" tag; models show their name alone. */
+const optionName = (entry: Element) => entry.textContent?.replace(/Default$/, "");
 const api = vi.hoisted(() => ({ role: vi.fn(), forRole: vi.fn(), setRole: vi.fn() }));
 vi.mock("../lib/localized-provider-hint", () => ({
   providerDisplayName: (provider: string, name: string, auth?: string) =>
@@ -53,10 +53,8 @@ const credentials = [
 const jev = { provider: "openrouter", modelId: "typesafe/jev-1.14" };
 const chat = { provider: "openrouter", modelId: "chat" };
 const mini = { provider: "openrouter", modelId: "mini" };
-const deepseek = { id: "deepseek", name: "DeepSeek" };
 /** A pick from a connection runs on that connection. */
 const pin = <T extends object>(choice: T) => ({ ...choice, credentialId: "key" });
-const onConnect = vi.fn();
 const onManage = vi.fn();
 let container: HTMLDivElement;
 let root: ReturnType<typeof createRoot>;
@@ -69,9 +67,7 @@ const props = {
   credentials,
   title: "Main model",
   defaultLabel: "Deployment default",
-  providers: [deepseek],
   providerLabel: (id: string) => (id === "openrouter" ? "OpenRouter" : id),
-  onConnect,
   onManage,
 };
 async function render(extra: Partial<ComponentProps<typeof ModelRoleSettings>> = {}) {
@@ -126,7 +122,6 @@ beforeEach(() => {
   Element.prototype.scrollIntoView = () => undefined;
   saved = { primary: null, backups: [] };
   queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  onConnect.mockReset();
   onManage.mockReset();
   api.role.mockReset().mockImplementation(async () => saved);
   api.forRole.mockReset().mockResolvedValue(catalog);
@@ -275,66 +270,14 @@ describe("shared role editor", () => {
     await pick("Change Jev 1.14", "Mini");
     expect(saved).toEqual({ primary: chat, backups: [pin(mini)] });
   });
-  it("hands a not-connected provider to the connect flow and reopens its models once connected", async () => {
+  it("lists only models of connected providers, with no provider or connect rows", async () => {
     saved = { primary: chat, backups: [] };
     await render();
-    await pick("Add fallback", "DeepSeek");
-    expect(onConnect).toHaveBeenCalledWith(
-      deepseek,
-      expect.objectContaining({ makeDefault: false }),
-    );
-    const intent = onConnect.mock.lastCall?.[1];
-    await act(async () => intent.onConnected({ provider: "openrouter", modelId: "mini" }));
-    expect(api.setRole).not.toHaveBeenCalled();
-    const search = document.querySelector<HTMLInputElement>('input[aria-label="Search models"]');
-    expect(search?.value).toBe("OpenRouter");
-  });
-  it("does not reopen a picker after its model is replaced following a connection", async () => {
-    saved = { primary: chat, backups: [] };
-    await render();
-    await pick("Change Chat", "DeepSeek");
-    await act(async () =>
-      onConnect.mock.lastCall?.[1].onConnected({ provider: "openrouter", modelId: "chat" }),
-    );
-    const search = () =>
-      document.querySelector<HTMLInputElement>('input[aria-label="Search models"]');
-    expect(search()?.value).toBe("OpenRouter");
-    const option = [...document.querySelectorAll<HTMLElement>('[role="option"]')].find(
-      (entry) => optionName(entry) === "Mini",
-    );
-    await click(option);
-    expect(saved.primary).toEqual(expect.objectContaining(mini));
-    expect(search()).toBeNull();
-  });
-  it("makes only the main role's first slot the space default on connect", async () => {
-    await render();
-    await pick("Change Main model", "DeepSeek");
-    expect(onConnect).toHaveBeenLastCalledWith(
-      deepseek,
-      expect.objectContaining({ makeDefault: true }),
-    );
-    // The connection itself sets the main model, so the list only reloads and reopens.
-    await act(async () =>
-      onConnect.mock.lastCall?.[1].onConnected({ provider: "deepseek", modelId: "deepseek-chat" }),
-    );
-    expect(api.setRole).not.toHaveBeenCalled();
-    expect(api.role).toHaveBeenCalledTimes(2);
-
-    await act(async () => root.unmount());
-    root = createRoot(container);
-    await render({ modelRole: "approval", title: "Approval model" });
-    await pick("Change Approval model", "DeepSeek");
-    expect(onConnect).toHaveBeenLastCalledWith(
-      deepseek,
-      expect.objectContaining({ makeDefault: false }),
-    );
-    await act(async () =>
-      onConnect.mock.lastCall?.[1].onConnected({ provider: "deepseek", modelId: "deepseek-chat" }),
-    );
-    expect(api.setRole).not.toHaveBeenCalled();
-    expect(
-      document.querySelector<HTMLInputElement>('input[aria-label="Search models"]')?.value,
-    ).toBe("deepseek");
+    await click(trigger("Add fallback"));
+    const names = [...document.querySelectorAll<HTMLElement>('[role="option"]')].map(optionName);
+    expect(names).toEqual(["Jev 1.14", "Chat", "Mini"]);
+    expect(document.body.textContent).not.toContain("Connect");
+    expect(document.body.textContent).not.toContain("DeepSeek");
   });
   it("manages a connected row's provider and shows thinking only on the main primary", async () => {
     api.forRole.mockResolvedValue(
