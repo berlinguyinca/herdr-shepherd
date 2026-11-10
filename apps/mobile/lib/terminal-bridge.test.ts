@@ -1,5 +1,6 @@
 import { MAX_FONT_SCALE } from "@rakazo/ui-tokens";
 import { describe, expect, it } from "vitest";
+import type { NativeMsg, PageState } from "./terminal-bridge";
 import {
   base64ToBytes,
   bytesToBase64,
@@ -12,9 +13,7 @@ import {
   MAX_CLIPBOARD_BYTES,
   MAX_FONT_PX,
   MIN_FONT_PX,
-  type NativeMsg,
   OUT_CHUNK_BYTES,
-  type PageState,
   pageReducer,
   pasteMessage,
   TERMINAL_FONT_SIZE,

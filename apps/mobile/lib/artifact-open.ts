@@ -21,7 +21,7 @@ export function writeArtifactCacheFile(
 ): File {
   const file = new File(Paths.cache, artifactCacheFileName(artifactId, mimeType));
   file.create({ overwrite: true });
-  file.write(contentBase64, { encoding: "base64" });
+  file.writeSync(contentBase64, { encoding: "base64" });
   return file;
 }
 
@@ -131,10 +131,19 @@ async function cacheMobileArtifact(
   // Invalidate first so an interrupted overwrite cannot leave valid metadata for wrong bytes.
   if (metadata.exists) metadata.delete();
   file.create({ overwrite: true });
-  file.write(artifact.contentBase64, { encoding: "base64" });
+  file.writeSync(artifact.contentBase64, { encoding: "base64" });
   metadata.create({ overwrite: true });
-  metadata.write(JSON.stringify({ key }));
+  metadata.writeSync(JSON.stringify({ key }));
   return file;
+}
+
+/** An artifact's text, read through the same authenticated, session-scoped cache. */
+export async function textMobileArtifact(
+  target: MobileArtifactTarget,
+  artifactId: string,
+  mimeType: string,
+): Promise<string> {
+  return (await cacheMobileArtifact(target, artifactId, mimeType)).text();
 }
 
 /** Local playback URI using the same authenticated, session-scoped artifact cache. */
@@ -144,15 +153,6 @@ export async function audioArtifactUri(
   mimeType: string,
 ): Promise<string> {
   return (await cacheMobileArtifact(target, artifactId, mimeType)).uri;
-}
-
-export async function readMobileArtifactText(
-  target: MobileArtifactTarget,
-  artifactId: string,
-  mimeType: string,
-): Promise<string> {
-  const file = await cacheMobileArtifact(target, artifactId, mimeType);
-  return file.text();
 }
 
 export async function openMobileArtifact(

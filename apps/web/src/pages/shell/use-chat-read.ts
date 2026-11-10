@@ -1,6 +1,6 @@
 import type { Bot, Group } from "@rakazo/contracts";
 import type { ReadBoundary } from "@rakazo/core";
-import { createChatQueues, settleReadBoundary } from "@rakazo/core";
+import { chatWoke, createChatQueues, settleReadBoundary } from "@rakazo/core";
 import type { Dispatch, SetStateAction } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { autoReadStillWanted } from "../../lib/auto-read";
@@ -58,6 +58,10 @@ export function useChatRead({
       );
     });
   }, []);
+  // A read ends a snooze that has woken, as the server does.
+  const endBotWake = useCallback((id: string) => {
+    setBots((current) => endWake(current, id));
+  }, []);
   // `stillWanted` makes it an automatic read: one that waited in the queue skips once the user
   // has left. Only an explicit read clears a Mark as Unread hold, and it does so up front, so an
   // automatic read answering after the user marked the chat unread can't undo the hold.
@@ -71,10 +75,11 @@ export function useChatRead({
         !stillWanted || stillWanted() ? rpc.threads.markRead({ botId: id }) : Promise.resolve(null),
       );
       if (!answer) return undefined;
+      endBotWake(id);
       if (!manuallyUnread.current.has(id)) updateBotUnread(id, false);
       return answer.unreadAfterSeq;
     },
-    [readInOrder, updateBotUnread],
+    [readInOrder, updateBotUnread, endBotWake],
   );
   const markBotUnread = useCallback(
     async (id: string, messageId?: string) => {
@@ -138,6 +143,7 @@ export function useChatRead({
           }
           captureReadBoundary(visit, answer.unreadAfterSeq);
           setGroups((current) => {
+            current = endWake(current, groupId);
             const group = current.find((candidate) => candidate.id === groupId);
             if (!group?.unread) return current;
             return current.map((candidate) =>
@@ -191,20 +197,23 @@ export function useChatRead({
   }, [activeGroup?.id, groupId, markGroupReadIfVisible]);
 
   /** Mark as Unread from a group message: the next open starts the New divider there. */
-  function markGroupUnreadFrom(groupId: string, messageId: string) {
-    manuallyUnread.current.add(groupId);
-    const visit = readVisit.current.visit;
-    void readInOrder(`group:${groupId}`, () => rpc.threads.markUnread({ groupId, messageId }))
-      .then(() => {
-        if (readVisit.current.visit === visit) {
-          setMarkedUnread({ visit, messageId });
-        }
-        setGroups((current) =>
-          current.map((group) => (group.id === groupId ? { ...group, unread: true } : group)),
-        );
-      })
-      .catch(() => manuallyUnread.current.delete(groupId));
-  }
+  const markGroupUnreadFrom = useCallback(
+    (groupId: string, messageId: string) => {
+      manuallyUnread.current.add(groupId);
+      const visit = readVisit.current.visit;
+      void readInOrder(`group:${groupId}`, () => rpc.threads.markUnread({ groupId, messageId }))
+        .then(() => {
+          if (readVisit.current.visit === visit) {
+            setMarkedUnread({ visit, messageId });
+          }
+          setGroups((current) =>
+            current.map((group) => (group.id === groupId ? { ...group, unread: true } : group)),
+          );
+        })
+        .catch(() => manuallyUnread.current.delete(groupId));
+    },
+    [readInOrder, rpc, setGroups],
+  );
 
   /** Mark as Read or Unread from the chat list. */
   function toggleGroupUnread(groupId: string, unread: boolean) {
@@ -219,7 +228,9 @@ export function useChatRead({
     void request
       .then(() =>
         setGroups((current) =>
-          current.map((group) => (group.id === groupId ? { ...group, unread } : group)),
+          (unread ? current : endWake(current, groupId)).map((group) =>
+            group.id === groupId ? { ...group, unread } : group,
+          ),
         ),
       )
       .catch(() => {
@@ -246,4 +257,15 @@ export function useChatRead({
     markedUnreadMessageId,
     unreadAfterSeq,
   };
+}
+
+function endWake<T extends { id: string; snoozedUntil?: string | null }>(
+  chats: T[],
+  id: string,
+): T[] {
+  const chat = chats.find((candidate) => candidate.id === id);
+  if (!chat || !chatWoke(chat, Date.now())) return chats;
+  return chats.map((candidate) =>
+    candidate.id === id ? { ...candidate, snoozedUntil: null } : candidate,
+  );
 }

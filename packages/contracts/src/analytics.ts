@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { BILLING_CANCELLATION_REASONS } from "./billing.js";
 import { SIGNUP_SURVEY_TEAM_SIZES, SIGNUP_SURVEY_USES } from "./domain.js";
 import { RUN_ERROR_KINDS, RunTriggerSchema } from "./runs.js";
 
@@ -38,7 +39,9 @@ export const AnalyticsBotSetting = z.enum([
   "computer",
   "team_chat",
   "cross_space",
+  "daily_check_ins",
   "fleet_management",
+  "reply_mode",
   "tools",
 ]);
 export const AnalyticsTrigger = RunTriggerSchema;
@@ -85,6 +88,14 @@ export const AnalyticsEvent = z.discriminatedUnion("name", [
       skipped: z.boolean(),
       use: z.enum(SIGNUP_SURVEY_USES).optional(),
       teamSize: z.enum(SIGNUP_SURVEY_TEAM_SIZES).optional(),
+    })
+    .strict(),
+  // Only the fixed reason; the comment stays in the database.
+  z
+    .object({
+      name: z.literal("subscription_cancel_feedback"),
+      reason: z.enum(BILLING_CANCELLATION_REASONS).optional(),
+      commented: z.boolean(),
     })
     .strict(),
 ]);

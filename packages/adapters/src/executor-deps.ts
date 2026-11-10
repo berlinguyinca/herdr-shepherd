@@ -11,14 +11,15 @@ import type {
   MediaGenerationProvider,
   MemoryStore,
   NotificationProvider,
+  PaidServiceProvider,
   PaymentWalletProvider,
   SandboxProvider,
   SecretStore,
+  TransactionalEmailProvider,
   WebProvider,
 } from "@rakazo/adapter-kit";
 import type { PrismaClient, RunLease, ThreadEvents } from "@rakazo/db";
 import type { CloudAgentConnection } from "./cloud-agent-factory.js";
-import type { McpStdioPolicy } from "./mcp-transport.js";
 import type { MemoryProviderResolver } from "./memory-provider-factory.js";
 import type { CodexLiveCatalog } from "./pi-codex-catalog.js";
 import type { RemoteTransportDependencies } from "./remote-mcp.js";
@@ -26,6 +27,8 @@ import type { TicketChangeNotifier } from "./ticket-changes.js";
 import type { UserDeviceGateway } from "./user-device-protocol.js";
 
 export interface ExecutorDeps {
+  /** The present moment the agent is told; evals move it to a follow-up's due time. */
+  now?: () => Date;
   maxUploadSizeBytes?: number;
   contextStrategy?: AgentContextStrategy;
   prisma: PrismaClient;
@@ -54,6 +57,10 @@ export interface ExecutorDeps {
   onTicketChange?: TicketChangeNotifier;
   ticketBoardEnabled?: boolean;
   phoneCallsEnabled?: boolean;
+  /** The domain bot email addresses are on; absent when this server receives no email. */
+  inboundEmailDomain?: string;
+  /** Sends a bot's email from its own address; absent when this server sends no email. */
+  email?: TransactionalEmailProvider;
   phoneCallCooldownMinutes?: number;
   phoneCallRingSeconds?: number;
   /** Messaging surface; absent means zero identity queries and no chat prompts. */
@@ -62,13 +69,12 @@ export interface ExecutorDeps {
   /** Builtin web_search / web_fetch. Defaults to keyless HTTP when omitted. */
   web?: WebProvider;
   mediaGeneration?: MediaGenerationProvider;
+  paidServices?: PaidServiceProvider;
   /** Page browser (DOM refs) on the bot computer. Defaults to the sandbox live browser when supported. */
   browser?: BrowserProvider;
   secretHttp?: RemoteTransportDependencies;
   /** Allow RFC1918 / Docker-network MCP URLs when the operator enabled the escape. */
   mcpAllowPrivateEndpoint?: boolean;
-  /** Which stdio MCP servers this deployment runs; absent runs none. */
-  mcpStdio?: McpStdioPolicy;
   /** Remote cloud coding agents. Null/omit means tools stay uninjected. */
   cloudAgent?: CloudAgentConnection | null;
   /** The deployment's payment wallet. Null/omit means purchase tools stay uninjected. */

@@ -1,11 +1,7 @@
-import {
-  base64ToBytes,
-  decodeFromWeb,
-  exceedsClipboardCap,
-  type NativeMsg,
-  pasteMessage,
-} from "./terminal-bridge";
-import { type KeyName, pressRowKey } from "./terminal-keys";
+import type { NativeMsg } from "./terminal-bridge";
+import { base64ToBytes, decodeFromWeb, exceedsClipboardCap, pasteMessage } from "./terminal-bridge";
+import type { KeyName } from "./terminal-keys";
+import { pressRowKey } from "./terminal-keys";
 
 export type TerminalHandlerDeps = {
   ready(): void;

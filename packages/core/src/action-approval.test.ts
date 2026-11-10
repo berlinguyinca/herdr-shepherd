@@ -4,6 +4,9 @@ import {
   applyJudgeDecision,
   approvalModeFromPreference,
   approvalPreferenceFromMode,
+  approvalRuleApplies,
+  approvalRuleChoices,
+  approvalRuleEffectChoices,
   batchActions,
   connectorKindFromToolName,
   connectorReadRequiresApproval,
@@ -15,6 +18,7 @@ import {
   newSiteOutcome,
   outboundSiteGate,
   planActionGate,
+  receiptItems,
   repeatsDeniedAction,
   resolveActionApproval,
   resolveActionApprovalDetail,
@@ -27,6 +31,31 @@ import {
 } from "./action-approval.js";
 
 describe("toolRequiresApproval", () => {
+  it.each([
+    { effect: "deny" as const, decision: "deny" },
+    { effect: "require_approval" as const, decision: "ask" },
+    { effect: "always_allow" as const, decision: "allow" },
+  ])("keeps original and scoped tool rules effective: $effect", ({ effect, decision }) => {
+    const tool = { name: "mail_send_email", aliases: ["mail_send_email__account"] };
+    for (const matchValue of [tool.name, tool.aliases[0]!]) {
+      expect(
+        resolveActionApprovalForTools({
+          tools: [tool],
+          rules: [{ effect, matchKind: "tool", matchValue }],
+        }).decision,
+      ).toBe(decision);
+    }
+    expect(
+      resolveActionApprovalForTools({
+        tools: [tool],
+        rules: [
+          { effect: "always_allow", matchKind: "tool", matchValue: tool.aliases[0]! },
+          { effect: "deny", matchKind: "tool", matchValue: tool.name },
+        ],
+      }).decision,
+    ).toBe("deny");
+  });
+
   it("requires approval for consequential builtins and connector writes", () => {
     expect(toolRequiresApproval("destination.write", true)).toBe(true);
     expect(toolRequiresApproval("secret_request", false)).toBe(true);
@@ -35,7 +64,9 @@ describe("toolRequiresApproval", () => {
     expect(toolRequiresApproval("list_secrets", false)).toBe(false);
     // A random value the bot cannot read exposes nothing, and never replaces a saved credential.
     expect(toolRequiresApproval("generate_secret", false)).toBe(false);
-    expect(toolRequiresApproval("delete_bot", false)).toBe(true);
+    expect(toolRequiresApproval("delete_bot", false)).toBe(false);
+    expect(toolRequiresApproval("delete_bot", true, true)).toBe(true);
+    expect(toolRequiresApproval("delete_bot", true, false)).toBe(true);
     expect(toolRequiresApproval("archive_bot", false)).toBe(true);
     expect(toolRequiresApproval("cloud_agent_launch", false)).toBe(true);
     expect(toolRequiresApproval("create_space", false)).toBe(true);
@@ -63,16 +94,17 @@ describe("toolRequiresApproval", () => {
     }
   });
 
-  it("always asks before bot management writes that touch several bots, cost money or rewrite a bot", () => {
-    for (const name of [
-      "create_group",
-      "update_group",
-      "set_child_instructions",
-      "set_child_bot_model",
-      "create_child_routine",
-    ]) {
+  it("always asks before bot management writes that cost money or rewrite a bot", () => {
+    for (const name of ["set_child_instructions", "set_child_bot_model"]) {
       expect(toolRequiresApproval(name, false)).toBe(true);
       expect(toolRequiresExplicitApproval(name)).toBe(true);
+    }
+  });
+
+  it("treats grouping and scheduling other bots as ordinary approvals that Never ask skips", () => {
+    for (const name of ["create_group", "update_group", "create_child_routine"]) {
+      expect(toolRequiresApproval(name, false)).toBe(true);
+      expect(toolRequiresExplicitApproval(name)).toBe(false);
     }
   });
 
@@ -97,6 +129,7 @@ describe("toolRequiresApproval", () => {
     expect(toolRequiresApproval("contacts_get_or_create", true)).toBe(true);
     expect(toolRequiresApproval("notion_search_and_update", true)).toBe(true);
     expect(toolRequiresApproval("crm_get_then_upsert", true)).toBe(true);
+    expect(toolRequiresApproval("github_get_and_lock_issue", true)).toBe(true);
   });
 });
 
@@ -104,6 +137,14 @@ describe("connectorToolRequiresApproval", () => {
   it("matches read-only connector tool names", () => {
     expect(connectorToolRequiresApproval("list_items")).toBe(false);
     expect(connectorToolRequiresApproval("send_message")).toBe(true);
+  });
+
+  it("reads words separated by hyphens", () => {
+    expect(connectorToolRequiresApproval("gmail-find-email", true)).toBe(false);
+    expect(connectorToolRequiresApproval("google_calendar-list-events", true)).toBe(false);
+    expect(connectorToolRequiresApproval("gmail-send-email", true)).toBe(true);
+    expect(connectorToolRequiresApproval("google_sheets-get-or-create-row", true)).toBe(true);
+    expect(connectorToolRequiresApproval("hubspot-find-and-update-contact", true)).toBe(true);
   });
 
   it("requires approval for a declared write whatever its name says", () => {
@@ -118,6 +159,10 @@ describe("connectorToolRequiresApproval", () => {
     expect(connectorToolRequiresApproval("get_or_create_contact", true)).toBe(true);
     expect(connectorToolRequiresApproval("profile_card", true)).toBe(true);
   });
+
+  it("still requires approval for a declared read whose name says load", () => {
+    expect(connectorToolRequiresApproval("warehouse-load-rows", true)).toBe(true);
+  });
 });
 
 describe("resolveActionApprovalDetail", () => {
@@ -128,6 +173,33 @@ describe("resolveActionApprovalDetail", () => {
     const base = { toolName: "gmail_read_thread", connectorKind: "gmail", rules };
     expect(resolveActionApprovalDetail(base).decision).toBe("allow");
     expect(resolveActionApprovalDetail({ ...base, readOnly: false }).decision).toBe("ask");
+  });
+
+  it("pipedream-connector-rule", () => {
+    const deny = (matchValue: string) => [
+      { effect: "deny" as const, matchKind: "connector" as const, matchValue },
+    ];
+    expect(
+      resolveActionApprovalDetail({
+        toolName: "gmail-delete-email",
+        readOnly: false,
+        rules: deny("gmail"),
+      }).decision,
+    ).toBe("deny");
+    expect(
+      resolveActionApprovalDetail({
+        toolName: "google_calendar-delete-event",
+        readOnly: false,
+        rules: deny("google_calendar"),
+      }).decision,
+    ).toBe("deny");
+    expect(
+      resolveActionApprovalDetail({
+        toolName: "gmail-delete-email",
+        readOnly: false,
+        rules: [{ effect: "require_approval", matchKind: "category", matchValue: "email" }],
+      }).decision,
+    ).toBe("ask");
   });
 });
 
@@ -218,6 +290,15 @@ describe("isApprovalAskBlock", () => {
         actions: [{ id: "deny", label: "No" }],
       }),
     ).toBe(false);
+    for (const ids of [["allow"], ["allow", "deny", "edit"]]) {
+      expect(
+        isApprovalAskBlock({
+          kind: "ask",
+          approvalEffectId: "effect-1",
+          actions: ids.map((id) => ({ id, label: id })),
+        }),
+      ).toBe(false);
+    }
   });
 });
 
@@ -244,6 +325,30 @@ describe("connectorKindFromToolName", () => {
     expect(
       connectorKindFromToolName("microsoft_outlook_send_email", ["microsoft", "microsoft_outlook"]),
     ).toBe("microsoft_outlook");
+  });
+
+  it("matches a known kind before a hyphen and keeps the longest slug", () => {
+    const kinds = ["gmail", "google_calendar", "github"];
+    expect(connectorKindFromToolName("gmail-find-email", kinds)).toBe("gmail");
+    expect(connectorKindFromToolName("gmail-delete-email", kinds)).toBe("gmail");
+    expect(connectorKindFromToolName("gmail-bulk-archive-emails", kinds)).toBe("gmail");
+    expect(connectorKindFromToolName("google_calendar-list-events", kinds)).toBe("google_calendar");
+    expect(connectorKindFromToolName("google_calendar-delete-event", kinds)).toBe(
+      "google_calendar",
+    );
+    expect(connectorKindFromToolName("gmail_send_email", kinds)).toBe("gmail");
+    expect(
+      connectorKindFromToolName("microsoft_outlook_send_email", ["microsoft", "microsoft_outlook"]),
+    ).toBe("microsoft_outlook");
+  });
+
+  it("reads a plain slug before the first hyphen when no kind is known", () => {
+    expect(connectorKindFromToolName("gmail-find-email")).toBe("gmail");
+    expect(connectorKindFromToolName("google_calendar-list-events")).toBe("google_calendar");
+    expect(connectorKindFromToolName("gmail_send_email")).toBe("gmail");
+    expect(connectorKindFromToolName("COMPOSIO_MULTI_EXECUTE_TOOL")).toBe("composio");
+    expect(connectorKindFromToolName("mcp__server__tool")).toBe("mcp");
+    expect(connectorKindFromToolName("mcp__server-tool")).toBe("mcp");
   });
 });
 
@@ -407,6 +512,15 @@ describe("planActionGate", () => {
     }
   });
 
+  it("asks for a purchase in every mode, past an allow rule, and still refuses a block", () => {
+    for (const mode of ["never", "auto", "ask"] as const) {
+      expect(gate(mode, { purchase: true, consequential: false })).toBe("ask");
+      expect(gate(mode, { purchase: true, resolved: allowed })).toBe("ask");
+      expect(gate(mode, { purchase: true, mandatory: true, steerable: true })).toBe("ask");
+      expect(gate(mode, { purchase: true, resolved: blocked })).toBe("deny");
+    }
+  });
+
   it("runs reads in every mode", () => {
     for (const mode of ["never", "auto", "ask"] as const) {
       expect(gate(mode, { consequential: false })).toBe("allow");
@@ -487,8 +601,8 @@ describe("block rules", () => {
       resolveActionApprovalDetail({
         toolName: "COMPOSIO_REMOTE_WORKBENCH",
         rules: [rule("always_allow", "tool", "GMAIL_SEND_EMAIL")],
-      }).decision,
-    ).toBe("allow");
+      }),
+    ).toMatchObject({ decision: "allow", source: "default" });
   });
 
   it("refuses a blocked tool in a change watch", () => {
@@ -650,6 +764,7 @@ describe("batches", () => {
       decision: "allow",
       source: "default",
     });
+    expect(resolve()).toMatchObject({ decision: "allow", source: "default" });
   });
 
   it("matches a tool or category rule on the action inside the batch", () => {
@@ -812,6 +927,20 @@ describe("outboundSiteGate", () => {
       "allow",
     );
     expect(outboundSiteGate({ site: "other.com", trusted: false, rules: [siteRule] })).toBe("new");
+    expect(
+      outboundSiteGate({
+        site: "example.com",
+        trusted: false,
+        rules: [{ ...siteRule, effect: "require_approval" }],
+      }),
+    ).toBe("new");
+    expect(
+      outboundSiteGate({
+        site: "example.com",
+        trusted: false,
+        rules: [{ ...siteRule, matchValue: "Example.COM" }],
+      }),
+    ).toBe("allow");
   });
 
   it("matches site rules ahead of tool rules", () => {
@@ -912,5 +1041,66 @@ describe("repeatsDeniedAction", () => {
       repeatsDeniedAction({ toolName: WRAPPER, args: args("GMAIL_SEND_DRAFT"), denied: [sent] }),
     ).toBe(false);
     expect(repeatsDeniedAction({ toolName: WRAPPER, args: {}, denied: [sent] })).toBe(false);
+  });
+});
+
+describe("receiptItems", () => {
+  it("leaves out page lines named like the card's own rows, in the app's words", () => {
+    const items = [
+      { name: "Bananas", amount: "$3.00" },
+      { name: " gesamt ", amount: "$1.00" },
+      { name: "Gesamt: fällig", amount: "$1.00" },
+      { name: "Gesamtpaket Socken", amount: "$9.00" },
+      { name: "Auf der Schaltfläche", amount: "$1.00" },
+    ];
+    expect(receiptItems(items, ["Gesamt", "Auf der Schaltfläche"])).toEqual([
+      { name: "Bananas", amount: "$3.00" },
+      { name: "Gesamtpaket Socken", amount: "$9.00" },
+    ]);
+  });
+});
+
+describe("approvalRuleChoices", () => {
+  it("lists built-in tools by name and skips any that has a rule", () => {
+    const choices = approvalRuleChoices([
+      { effect: "require_approval", matchKind: "tool", matchValue: "Web_Search" },
+      { effect: "deny", matchKind: "connector", matchValue: "shell" },
+    ]);
+    expect(choices).toContainEqual({ matchKind: "tool", matchValue: "shell", label: "Shell" });
+    expect(choices.some((choice) => choice.matchValue === "web_search")).toBe(false);
+    // Always approved by a person, but still worth blocking.
+    expect(choices.some((choice) => choice.matchValue === "create_space")).toBe(true);
+    const labels = choices.map((choice) => choice.label);
+    expect(labels).toEqual([...labels].sort((a, b) => a.localeCompare(b)));
+  });
+});
+
+describe("approvalRuleApplies", () => {
+  it("keeps only blocks in Never ask and every rule otherwise", () => {
+    expect(approvalRuleApplies("never", "deny")).toBe(true);
+    expect(approvalRuleApplies("never", "require_approval")).toBe(false);
+    expect(approvalRuleApplies("never", "always_allow")).toBe(false);
+    expect(approvalRuleApplies("ask", "always_allow")).toBe(true);
+    expect(approvalRuleApplies(null, "require_approval")).toBe(true);
+  });
+});
+
+describe("approvalRuleEffectChoices", () => {
+  it("never offers Allow for a tool a person approves every time", () => {
+    const rule = (matchKind: "tool" | "category", matchValue: string) => ({
+      effect: "require_approval" as const,
+      matchKind,
+      matchValue,
+    });
+    expect(approvalRuleEffectChoices(rule("tool", "create_space"))).toEqual([
+      "require_approval",
+      "deny",
+    ]);
+    expect(approvalRuleEffectChoices(rule("tool", "shell"))).toEqual([
+      "always_allow",
+      "require_approval",
+      "deny",
+    ]);
+    expect(approvalRuleEffectChoices(rule("category", "email"))).toEqual([]);
   });
 });

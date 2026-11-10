@@ -6,6 +6,7 @@ import {
   captureScreenshot,
   completeOnboarding,
   expectCardWidth,
+  openBotPanelTab,
   realSandboxTimeout,
   rpc,
   signup,
@@ -67,12 +68,14 @@ test("takeover, routine, plugins, and export are reachable", async ({ page }, te
       message: "the second protected-input run must be ready for takeover",
     })
     .toBe("waiting_takeover");
-  // Agent computer toggles the panel. Re-open when closed so Open can refresh computer status.
+  // Reopen the computer tab so Open sees a refreshed computer status.
   const sidePanel = page.getByTestId("side-panel");
-  if ((await sidePanel.getAttribute("data-panel")) === "computer") {
-    await page.getByRole("button", { name: "Agent computer", exact: true }).click();
+  const pill = page.getByTestId("bot-settings-trigger");
+  if ((await pill.getAttribute("aria-expanded")) === "true") {
+    await pill.click();
+    await expect(sidePanel).toHaveAttribute("data-panel", "closed");
   }
-  await page.getByRole("button", { name: "Agent computer", exact: true }).click();
+  await openBotPanelTab(page, "Computer");
   await expect(sidePanel).toHaveAttribute("data-panel", "computer");
   await expect(sidePanel).toHaveCSS("width", "384px");
   const [mainBox, panelBox] = await Promise.all([
@@ -99,6 +102,7 @@ test("takeover, routine, plugins, and export are reachable", async ({ page }, te
   });
   await captureScreenshot(page, testInfo, "09a-computer-takeover-skipped");
 
+  await openBotPanelTab(page, "Routines");
   await page.getByRole("button", { name: "Create Routine" }).click();
   await page.locator("label:has-text('Name') input").fill("Monday briefing");
   await page
@@ -170,10 +174,22 @@ test("takeover, routine, plugins, and export are reachable", async ({ page }, te
   await accountLabel.clear();
   await accountLabel.pressSequentially(`${accountName}overflow`);
   await expect(accountLabel).toHaveValue(accountName);
+  const windowKeys = await page.evaluateHandle(() => {
+    const keys: string[] = [];
+    window.addEventListener("keydown", (event) => keys.push(event.key));
+    return keys;
+  });
+  // These synthetic keyboard events exercise the browser event flags; they do not start an OS IME.
+  for (const composition of [{ isComposing: true }, { keyCode: 229 }]) {
+    await accountLabel.dispatchEvent("keydown", { key: "Enter", ...composition });
+    await accountLabel.dispatchEvent("keydown", { key: "Escape", ...composition });
+    expect(await windowKeys.evaluate((keys) => keys.includes("Escape"))).toBe(false);
+    await expect(accountLabel).toBeFocused();
+  }
   const renamed = page.waitForResponse(
     (response) => response.url().includes("connections/rename") && response.ok(),
   );
-  await detail.getByLabel("Account label").nth(1).blur();
+  await accountLabel.press("Enter");
   await renamed;
   await expect(detail.getByLabel("Account label").nth(1)).toHaveValue(accountName);
   await captureScreenshot(page, testInfo, "11a2-multi-account-plugins");
@@ -221,7 +237,7 @@ test("takeover, routine, plugins, and export are reachable", async ({ page }, te
   await expect(page.getByTestId("connection-detail")).toHaveCount(0);
   await expect(linearRow.getByRole("button", { name: "Add", exact: true })).toBeVisible();
 
-  // Custom sources live behind one menu: GitHub, then MCP → OpenAPI → GraphQL → Executor → Treg.
+  // Custom sources live behind one menu: GitHub, then MCP → OpenAPI → GraphQL → Executor.
   await page.getByRole("button", { name: "Add custom", exact: true }).click();
   const addItems = page.getByRole("menuitem");
   await expect(addItems).toHaveText([
@@ -230,7 +246,6 @@ test("takeover, routine, plugins, and export are reachable", async ({ page }, te
     "OpenAPI",
     "GraphQL",
     "Executor",
-    "Treg",
     "Browse MCP servers",
     "Search by domain",
     "Manage MCP servers",
@@ -272,11 +287,6 @@ test("takeover, routine, plugins, and export are reachable", async ({ page }, te
   };
   const toolSources = page.getByTestId("tool-sources");
 
-  await addSource("Treg");
-  await form.getByLabel("Treg token", { exact: true }).fill("fake-treg-browser-credential");
-  await form.getByRole("button", { name: "Verify and add", exact: true }).click();
-  await expect(toolSources.getByText(/MCP\s*https:\/\/treg\.to\/mcp\//)).toBeVisible();
-
   await addSource("MCP server");
   await form.getByLabel("Name", { exact: true }).fill("Browser MCP");
   await form.getByLabel("URL", { exact: true }).fill("https://mcp.example.test/mcp");
@@ -294,7 +304,7 @@ test("takeover, routine, plugins, and export are reachable", async ({ page }, te
   await addSource("Executor");
   await expect(form.getByLabel("Name", { exact: true })).toHaveValue("Executor");
   await form.getByLabel("URL", { exact: true }).fill("https://executor.example.test/mcp");
-  await form.getByLabel("Executor token", { exact: true }).fill("fake-executor-browser-credential");
+  await form.getByLabel("Bearer token", { exact: true }).fill("fake-executor-browser-credential");
   await form.getByRole("button", { name: "Verify and add", exact: true }).click();
   await expect(toolSources.getByText(/MCP\s*https:\/\/executor\.example\.test\/mcp/)).toBeVisible();
   await captureScreenshot(page, testInfo, "11d-provider-emulators");
@@ -311,15 +321,7 @@ test("takeover, routine, plugins, and export are reachable", async ({ page }, te
   await page.getByRole("button", { name: "Close integrations" }).click();
 
   await page.getByText("Chief").first().click();
-  const gear = page.getByRole("button", { name: "Show settings" });
-  if (!(await gear.isVisible().catch(() => false))) {
-    await page.getByRole("button", { name: "Agent computer", exact: true }).click();
-  }
-  await gear.click();
-  await page
-    .getByTestId("bot-settings")
-    .getByRole("button", { name: "Advanced", exact: true })
-    .click();
+  await openBotPanelTab(page, "Advanced");
   const downloadPromise = page.waitForEvent("download");
   await page.getByRole("button", { name: "Export" }).click();
   const download = await downloadPromise;
@@ -389,6 +391,9 @@ test("sign-in, spawn, and stop work in the shell", async ({ page }, testInfo) =>
   await expect(holdToTalk).toBeVisible();
   await composer.fill("Use the newer report and keep the answer short.");
   await expect(holdToTalk).toHaveCount(0);
+  // Stop can arrive over the live stream before the first send returns; Send stays disabled
+  // until then, and Tab would skip it.
+  await expect(page.getByRole("button", { name: "Send", exact: true })).toBeEnabled();
   await composer.press("Tab");
   await expect(page.getByRole("button", { name: "Send", exact: true })).toBeFocused();
   await page.keyboard.press("Enter");

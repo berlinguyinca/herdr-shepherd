@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import type { KeyName } from "./terminal-keys";
 import {
   compactKeyRow,
   controlByte,
@@ -6,7 +7,6 @@ import {
   createKeyRepeater,
   isRepeatable,
   KEY_ROW,
-  type KeyName,
   keyBytes,
   pressRowKey,
   REPEAT_DELAY_MS,

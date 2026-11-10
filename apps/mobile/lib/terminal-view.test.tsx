@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
-import { act, forwardRef, type ReactNode, useImperativeHandle, useState } from "react";
-import { createRoot, type Root } from "react-dom/client";
+import type { ReactNode } from "react";
+import { act, forwardRef, useImperativeHandle, useState } from "react";
+import type { Root } from "react-dom/client";
+import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TerminalView } from "../components/terminal-view";
 import type { TerminalState } from "./terminal";

@@ -1,4 +1,5 @@
-import { type SpeechLocale, speechLocaleTag } from "@rakazo/core";
+import type { SpeechLocale } from "@rakazo/core";
+import { speechLocaleTag } from "@rakazo/core";
 import { File, Paths } from "expo-file-system";
 import { getLocales } from "expo-localization";
 import type * as ExpoSpeech from "expo-speech";
@@ -26,7 +27,7 @@ async function loadAssignments(): Promise<Record<string, string>> {
 function saveAssignments(assignments: Record<string, string>): void {
   const file = assignmentsFile();
   if (!file.exists) file.create();
-  file.write(JSON.stringify(assignments));
+  file.writeSync(JSON.stringify(assignments));
 }
 
 // Serialize assignment updates so concurrent bots keep distinct voices.

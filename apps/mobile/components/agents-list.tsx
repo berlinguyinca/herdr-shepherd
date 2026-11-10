@@ -96,7 +96,7 @@ export function AgentsList({
           <Text style={[styles.message, { color: tokens.mutedForeground }]}>{message}</Text>
           {failed ? (
             <Pressable accessibilityRole="button" onPress={() => void refetch()}>
-              <Text style={[styles.message, { color: tokens.foreground }]}>{t("Try Again")}</Text>
+              <Text style={[styles.message, { color: tokens.foreground }]}>{t("Try again")}</Text>
             </Pressable>
           ) : null}
         </View>
@@ -141,7 +141,7 @@ export function AgentsList({
                   {t("Show older")}
                 </Text>
               </Pressable>
-            ) : null
+            ) : undefined
           }
         />
       )}

@@ -2,8 +2,10 @@ import { lookup } from "node:dns/promises";
 import type { LookupFunction } from "node:net";
 import type { Model, MutableModels, Provider, ProviderStreams } from "@earendil-works/pi-ai";
 import { createProvider } from "@earendil-works/pi-ai";
+import { anthropicMessagesApi } from "@earendil-works/pi-ai/api/anthropic-messages.lazy";
 import { openAICompletionsApi } from "@earendil-works/pi-ai/api/openai-completions.lazy";
 import { openAIResponsesApi } from "@earendil-works/pi-ai/api/openai-responses.lazy";
+import { builtinModels } from "@earendil-works/pi-ai/providers/all";
 import type { ModelApiProtocol } from "@rakazo/contracts";
 import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
@@ -15,9 +17,10 @@ import {
   MODEL_KEY_REJECTED_ERROR,
   parseModelHeaders,
 } from "@rakazo/contracts";
+import type { Dispatcher } from "undici";
 import { Agent } from "undici";
 import { declaredVisionModelIds, inputModalities } from "./model-modalities.js";
-import type { ResolveHostname } from "./network-address.js";
+import type { ResolvedAddress, ResolveHostname } from "./network-address.js";
 import { createAddressCheckedLookup } from "./network-address.js";
 import type { OpenAiCompatibleUrlPolicy } from "./openai-compatible-url.js";
 import {
@@ -25,12 +28,14 @@ import {
   assertAllowedOpenAiCompatibleUrl,
   assertHttpsForKeyedOpenAiCompatibleUrl,
   isPrivateOpenAiCompatibleHostname,
+  loopbackOnHost,
   normalizeOpenAiCompatibleBaseUrl,
   OPENAI_COMPATIBLE_PROVIDER_ID,
   PRIVATE_MODEL_ENDPOINT_MESSAGE,
 } from "./openai-compatible-url.js";
-import { MODEL_CONNECT_TIMEOUT_MS } from "./pi-runtime-limits.js";
+import { MODEL_CONNECT_TIMEOUT_MS, modelConnectTimeoutMs } from "./pi-runtime-limits.js";
 import { guardToolCallNames } from "./pi-tool-call-guard.js";
+import { createCheckedProxyDispatcher } from "./proxy-dispatcher.js";
 import { dispatcherFetch, fetchPairedWithDispatcher } from "./undici-fetch.js";
 
 export { OPENAI_COMPATIBLE_PROVIDER_ID };
@@ -60,6 +65,8 @@ function modelsProbeLimits(catalogProbe?: boolean): { maxBytes: number; maxModel
 }
 
 const OPENAI_COMPAT_BASE = "http://127.0.0.1:1/v1";
+/** The version the Anthropic SDK pins; mirrored by the keyless-server probe. */
+const ANTHROPIC_MESSAGES_VERSION = "2023-06-01";
 const resolveHostname: ResolveHostname = (hostname) =>
   lookup(hostname, { all: true, verbatim: true });
 
@@ -71,22 +78,35 @@ export function openAiCompatibleModel(
   maxTokens = DEFAULT_MODEL_MAX_TOKENS,
   contextWindow = DEFAULT_MODEL_CONTEXT_WINDOW,
   apiProtocol: ModelApiProtocol = "chat-completions",
-): Model<"openai-completions" | "openai-responses"> {
+): Model<"openai-completions" | "openai-responses" | "anthropic-messages"> {
   return {
     id,
     name: id,
-    api: apiProtocol === "responses" ? "openai-responses" : "openai-completions",
+    api:
+      apiProtocol === "responses"
+        ? "openai-responses"
+        : apiProtocol === "anthropic-messages"
+          ? "anthropic-messages"
+          : "openai-completions",
     provider: OPENAI_COMPATIBLE_PROVIDER_ID,
-    baseUrl,
+    baseUrl: apiProtocol === "anthropic-messages" ? anthropicMessagesBaseUrl(baseUrl) : baseUrl,
     reasoning,
-    compat: {
-      // `store: false` is already the default, and Google's endpoint rejects the field.
-      supportsStore: false,
-      supportsDeveloperRole: false,
-      supportsReasoningEffort: reasoning,
-      thinkingFormat: "openai",
-    },
-    thinkingLevelMap: reasoning ? { off: "none", xhigh: "xhigh", max: "max" } : { off: "none" },
+    ...(apiProtocol === "anthropic-messages"
+      ? // pi-ai derives budget-based thinking from `reasoning` alone, which newer models
+        // reject; a model the built-in catalog knows keeps its own thinking settings.
+        anthropicCatalogThinking(id)
+      : {
+          compat: {
+            // `store: false` is already the default, and Google's endpoint rejects the field.
+            supportsStore: false,
+            supportsDeveloperRole: false,
+            supportsReasoningEffort: reasoning,
+            thinkingFormat: "openai",
+          },
+          thinkingLevelMap: reasoning
+            ? { off: "none", xhigh: "xhigh", max: "max" }
+            : { off: "none" },
+        }),
     input: inputModalities(acceptsImages),
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow,
@@ -94,12 +114,47 @@ export function openAiCompatibleModel(
   };
 }
 
+let anthropicCatalog: ReturnType<typeof builtinModels> | undefined;
+
+/**
+ * The built-in Anthropic catalog's thinking settings for the same model id, if any. Only the
+ * thinking shape is copied: the catalog's other flags (mid-conversation effort and system
+ * messages, fallbacks) describe Anthropic's own API, which a compatible endpoint may not accept.
+ */
+function anthropicCatalogThinking(
+  id: string,
+): Pick<Model<"anthropic-messages">, "compat" | "thinkingLevelMap"> {
+  anthropicCatalog ??= builtinModels();
+  const known = anthropicCatalog.getModel("anthropic", id) as
+    | Model<"anthropic-messages">
+    | undefined;
+  if (known?.api !== "anthropic-messages") return {};
+  return {
+    ...(known.compat?.forceAdaptiveThinking ? { compat: { forceAdaptiveThinking: true } } : {}),
+    ...(known.thinkingLevelMap ? { thinkingLevelMap: known.thinkingLevelMap } : {}),
+  };
+}
+
+/**
+ * The Anthropic SDK appends `/v1/messages` itself, so the endpoint it gets must
+ * not carry the `/v1` the normalized OpenAI-style base URL ends with.
+ */
+function anthropicMessagesBaseUrl(baseUrl: string): string {
+  const url = new URL(baseUrl);
+  url.pathname = url.pathname.replace(/\/v1\/*$/, "");
+  return url.toString().replace(/\/$/, "");
+}
+
 function openAiCompatibleProvider(
-  models: Model<"openai-completions" | "openai-responses">[],
+  models: Model<"openai-completions" | "openai-responses" | "anthropic-messages">[],
   policy: { allowPrivate?: boolean; headers?: Record<string, string> } = {},
 ): Provider {
   const api = (protocol: string) =>
-    protocol === "openai-responses" ? openAIResponsesApi() : openAICompletionsApi();
+    protocol === "openai-responses"
+      ? openAIResponsesApi()
+      : protocol === "anthropic-messages"
+        ? anthropicMessagesApi()
+        : openAICompletionsApi();
   // Guard the fetch the caller supplied (the runtime's seam for tests) or the
   // dispatcher-matched default; never the bare global.
   const safeApi: ProviderStreams = {
@@ -137,12 +192,19 @@ export function createOpenAiCompatibleLookup(
   resolve: ResolveHostname = resolveHostname,
   opts?: { allowPrivate?: boolean },
 ): LookupFunction {
+  return createAddressCheckedLookup(resolve, openAiCompatibleAddressCheck(url, opts));
+}
+
+function openAiCompatibleAddressCheck(
+  url: URL,
+  opts?: { allowPrivate?: boolean },
+): (addresses: ResolvedAddress[]) => void {
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
   const privateHostname = isPrivateOpenAiCompatibleHostname(hostname);
   if (privateHostname && opts?.allowPrivate !== true) {
     throw new Error(PRIVATE_MODEL_ENDPOINT_MESSAGE);
   }
-  return createAddressCheckedLookup(resolve, (addresses) => {
+  return (addresses) => {
     if (addresses.length === 0) throw new Error("Model server did not resolve to an address");
     if (addresses.some((entry) => isCloudMetadataAddress(entry.address))) {
       throw new Error("Model server hostname resolved to a blocked metadata address");
@@ -163,25 +225,24 @@ export function createOpenAiCompatibleLookup(
     if (addresses.some((entry) => isNonPublicAddress(entry.address))) {
       throw new Error("Public model server hostname resolved to a private address");
     }
-  });
+  };
+}
+
+function isAuthHeader(name: string, value: string | null | undefined): boolean {
+  const lower = name.toLowerCase();
+  return (lower === "authorization" || lower === "x-api-key") && Boolean(value);
 }
 
 function headersCarryAuthorization(headers: HeadersInit): boolean {
-  if (headers instanceof Headers) return Boolean(headers.get("authorization"));
-  if (Array.isArray(headers)) {
-    return headers.some(
-      ([name, value]) => name.toLowerCase() === "authorization" && Boolean(value),
-    );
-  }
-  return Object.entries(headers).some(
-    ([name, value]) => name.toLowerCase() === "authorization" && Boolean(value),
-  );
+  const entries =
+    headers instanceof Headers || Array.isArray(headers) ? [...headers] : Object.entries(headers);
+  return entries.some(([name, value]) => isAuthHeader(name, value));
 }
 
 /** Matches fetch: when init.headers is set it replaces Request headers entirely. */
 function requestCarriesAuthorization(input: RequestInfo | URL, init?: RequestInit): boolean {
   if (init?.headers !== undefined) return headersCarryAuthorization(init.headers);
-  return input instanceof Request ? Boolean(input.headers.get("authorization")) : false;
+  return input instanceof Request ? headersCarryAuthorization(input.headers) : false;
 }
 
 export function createOpenAiCompatibleFetch(
@@ -191,7 +252,10 @@ export function createOpenAiCompatibleFetch(
 ): typeof globalThis.fetch {
   return async (input, init) => {
     const rawUrl = input instanceof Request ? input.url : String(input);
-    const url = assertAllowedOpenAiCompatibleRequestUrl(rawUrl, opts);
+    const url = assertAllowedOpenAiCompatibleRequestUrl(
+      loopbackOnHost(assertAllowedOpenAiCompatibleRequestUrl(rawUrl, opts)).href,
+      opts,
+    );
     const customHeaders = opts?.headers === undefined ? undefined : parseModelHeaders(opts.headers);
     if (requestCarriesAuthorization(input, init) || Object.keys(customHeaders ?? {}).length > 0) {
       assertHttpsForKeyedOpenAiCompatibleUrl(
@@ -201,14 +265,21 @@ export function createOpenAiCompatibleFetch(
       );
     }
     const hostname = url.hostname.replace(/^\[|\]$/g, "");
-    const dispatcher = new Agent({
-      connect: {
-        timeout: MODEL_CONNECT_TIMEOUT_MS,
-        ...(ipVersion(hostname) === 0
-          ? { lookup: createOpenAiCompatibleLookup(url, resolve, opts) }
-          : {}),
-      },
-    });
+    // Local model servers stay on the direct route; public endpoints honor HTTP(S)_PROXY.
+    const dispatcher: Dispatcher = isPrivateOpenAiCompatibleHostname(hostname)
+      ? new Agent({
+          connect: {
+            timeout: modelConnectTimeoutMs(),
+            ...(ipVersion(hostname) === 0
+              ? { lookup: createOpenAiCompatibleLookup(url, resolve, opts) }
+              : {}),
+          },
+        })
+      : createCheckedProxyDispatcher(
+          resolve,
+          openAiCompatibleAddressCheck(url, opts),
+          modelConnectTimeoutMs(),
+        );
     // Node's fetch rejects this package Agent. Use its matching fetch;
     // a caller-supplied fetch stays in charge.
     const transport = fetchPairedWithDispatcher(baseFetch);
@@ -225,7 +296,7 @@ export function createOpenAiCompatibleFetch(
         headers,
         redirect: "error",
         dispatcher,
-      } as RequestInit & { dispatcher: Agent });
+      } as RequestInit & { dispatcher: Dispatcher });
       return await closeDispatcherWithResponse(response, dispatcher);
     } catch (error) {
       await dispatcher.destroy().catch(() => undefined);
@@ -253,7 +324,7 @@ async function requestInitFor(input: RequestInfo | URL, init?: RequestInit): Pro
 
 async function closeDispatcherWithResponse(
   response: Response,
-  dispatcher: Agent,
+  dispatcher: Dispatcher,
 ): Promise<Response> {
   if (!response.body) {
     await dispatcher.close();
@@ -496,8 +567,27 @@ export async function verifyOpenAiCompatibleApiKey(
   if (!response.ok) throw new Error("Could not verify the API key. Try again.");
 }
 
+const CONNECTION_REFUSED_MESSAGE = "Could not reach the model server. Check that it's running.";
+
+/** undici keeps the refusal in `cause`, or in each address's error of a happy-eyeballs AggregateError. */
+function connectionRefused(error: unknown, depth = 0): boolean {
+  if (depth > 4 || !(error instanceof Error)) return false;
+  if ((error as { code?: unknown }).code === "ECONNREFUSED") return true;
+  if (
+    error instanceof AggregateError &&
+    error.errors.some((inner) => connectionRefused(inner, depth + 1))
+  )
+    return true;
+  return connectionRefused(error.cause, depth + 1);
+}
+
 export async function probeOpenAiCompatibleModels(
-  input: { baseUrl: string; apiKey?: string; headers?: Record<string, string> },
+  input: {
+    baseUrl: string;
+    apiKey?: string;
+    headers?: Record<string, string>;
+    apiProtocol?: ModelApiProtocol;
+  },
   fetchImpl?: typeof fetch,
   signal?: AbortSignal,
   opts?: OpenAiCompatibleUrlPolicy & { catalogProbe?: boolean },
@@ -514,7 +604,14 @@ export async function probeOpenAiCompatibleModels(
   const merged = signal ? AbortSignal.any([signal, controller.signal]) : controller.signal;
   try {
     const headers: Record<string, string> = { Accept: "application/json" };
-    if (input.apiKey?.trim()) headers.Authorization = `Bearer ${input.apiKey.trim()}`;
+    // Anthropic Messages authenticates with its own headers, not a Bearer token;
+    // the version header is required even when the endpoint needs no key.
+    if (input.apiProtocol === "anthropic-messages") {
+      headers["anthropic-version"] = ANTHROPIC_MESSAGES_VERSION;
+      if (input.apiKey?.trim()) headers["x-api-key"] = input.apiKey.trim();
+    } else if (input.apiKey?.trim()) {
+      headers.Authorization = `Bearer ${input.apiKey.trim()}`;
+    }
     const safeFetch = createOpenAiCompatibleFetch(fetchImpl, undefined, {
       ...opts,
       headers: input.headers,
@@ -548,6 +645,9 @@ export async function probeOpenAiCompatibleModels(
       // Caller-cancelled probes keep the original AbortError; the 5s probe budget gets a hint.
       if (signal?.aborted) throw error;
       throw new Error(`Model server probe timed out. ${OPENAI_COMPAT_PROBE_HAND_FILL_HINT}`);
+    }
+    if (error instanceof TypeError && connectionRefused(error)) {
+      throw new Error(CONNECTION_REFUSED_MESSAGE);
     }
     throw error;
   } finally {

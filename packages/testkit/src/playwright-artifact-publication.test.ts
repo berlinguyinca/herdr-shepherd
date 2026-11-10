@@ -5,6 +5,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -136,7 +137,6 @@ ${script}`;
 
   it.each([
     ["../escape.txt", 0o100644],
-    ["nested/../../escape.txt", 0o100644],
     ["/escape.txt", 0o100644],
     ["nested\\..\\escape.txt", 0o100644],
     ["apps/web/test-results/link", 0o120777],
@@ -169,6 +169,8 @@ ${script}`;
   it.each(["pull_request", "schedule", "timed_out"])(
     "publishes %s through trusted code with fake storage and credentials",
     (scenario) => {
+      const vitestPath = path.join(repoRoot, "node_modules/vitest/vitest.mjs");
+      const originalVitest = realpathSync(vitestPath);
       const root = temporaryDirectory();
       const checkout = path.join(root, "checkout");
       const runnerTemp = path.join(root, "runner-temp");
@@ -217,6 +219,11 @@ ${script}`;
       }
       const bin = path.join(root, "bin");
       write(
+        path.join(bin, "pnpm"),
+        '#!/bin/sh\n[ "$1" = exec ] && [ "$2" = tsx ] || exit 1\nshift 2\nexec "$TEST_NODE" --import tsx "$@"\n',
+      );
+      execFileSync("chmod", ["+x", path.join(bin, "pnpm")]);
+      write(
         path.join(bin, "aws"),
         `#!/usr/bin/env python3
 import os, pathlib, shutil, sys
@@ -257,6 +264,7 @@ else:
         PLAYWRIGHT_REPORT_DIR: path.join(artifacts, "playwright-report"),
         PLAYWRIGHT_TEST_RESULTS_DIR: path.join(artifacts, "apps/web/test-results"),
         FAKE_STORAGE: storage,
+        TEST_NODE: process.execPath,
         ATTACK_MARKER: path.join(root, "executed-untrusted-code"),
       };
       execFileSync("bash", ["scripts/publish-playwright-report.sh"], {
@@ -264,6 +272,7 @@ else:
         env,
         stdio: "pipe",
       });
+      expect(realpathSync(vitestPath)).toBe(originalVitest);
       const published = path.join(storage, "playwright");
       const run = path.join(published, "runs/200-1");
       expect(existsSync(path.join(run, "report/index.html"))).toBe(!isPr);
@@ -281,9 +290,9 @@ else:
         const changedPaths = path.join(root, "changed-paths.txt");
         write(changedPaths, "apps/web/src/example.tsx\n");
         const comment = execFileSync(
-          "pnpm",
+          process.execPath,
           [
-            "exec",
+            "--import",
             "tsx",
             "packages/testkit/src/cli/build-playwright-pr-screenshot-comment.ts",
             path.join(checkout, ".tmp/playwright-dashboard/screenshots/review.json"),

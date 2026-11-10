@@ -6,18 +6,19 @@ import type { Root } from "react-dom/client";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import SignIn from "../app/sign-in";
+import { rpc } from "./api";
 import {
-  loadSessionToken,
   openOwnerSession,
   passwordResetCapabilities,
-  rpc,
   sendSignInCode,
   signIn,
   signInWithCode,
   signUp,
-} from "./api";
+} from "./api-auth";
+import type * as Endpoint from "./endpoint";
 import type { NativeActionButtonProps } from "./native-controls";
 import { passkeysAvailable, signInWithPasskey } from "./passkey";
+import { loadSessionToken } from "./session";
 import { continueWithSso } from "./sso";
 
 const route = vi.hoisted(() => ({ mode: "in", waiting: false, redirect: vi.fn() }));
@@ -123,17 +124,26 @@ vi.mock("./i18n", () => ({
   }),
 }));
 let setupNeeded = false;
+vi.mock("./api-server", () => ({}));
+vi.mock("./api-live", () => ({}));
 vi.mock("./api", () => ({
   currentApiBase: () => server.base,
   serverNeedsSetup: () => setupNeeded,
+  rpc: vi.fn(),
+}));
+vi.mock("./endpoint", async (importOriginal) => ({
+  ...(await importOriginal<typeof Endpoint>()),
   displayApiHost: () => "example.invalid",
   usesCustomApiBase: () => false,
+}));
+vi.mock("./session", () => ({
   loadSessionToken: vi.fn().mockResolvedValue(null),
+}));
+vi.mock("./api-auth", () => ({
   // a server that has not enabled open_owner refuses, and the form stays
   openOwnerSession: vi.fn().mockRejectedValue(new Error("no open session")),
   passwordResetCapabilities: vi.fn(),
   requestPasswordReset: vi.fn(),
-  rpc: vi.fn(),
   sendSignInCode: vi.fn(),
   signIn: vi.fn(),
   signInWithCode: vi.fn(),

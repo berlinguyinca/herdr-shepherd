@@ -4,16 +4,22 @@ import type { CallExchange } from "@rakazo/core";
 import {
   CALL_FAREWELL_TIMEOUT_MS,
   callClientNonce,
+  callTurn,
   createCallSendTracker,
   createInterimBargeIn,
   errorStatus,
+  isActive,
+  isApprovalAskBlock,
   isCallBargeIn,
   isFarewell,
+  isRunTerminalEvent,
   isSecretAskBlock,
+  isThreadSnapshotEvent,
   newClientId,
+  pendingCallSecretAsk,
+  reduceThreadSnapshot,
   runThreadSubscription,
   speechFromBlocks,
-  spokenDecision,
   spokenMemory,
 } from "@rakazo/core";
 import { getGlobalBroadcastChannel } from "better-auth/client";
@@ -27,7 +33,6 @@ import {
 } from "./logo-avatar-activity.js";
 import { reportClientError } from "./monitoring";
 import { recheckSessionOnUnauthorized, rpc } from "./rpc.js";
-import { isThreadSnapshotEvent, reduceThreadSnapshot } from "./thread-events.js";
 import { speaker } from "./tts.js";
 import { errorText } from "./user-error";
 
@@ -106,6 +111,10 @@ let micOpen = false;
 let bargedIn = false;
 /** A turn is in flight: its reply must be spoken even if the mic reopened meanwhile. */
 let awaitingReply = false;
+/** The run whose approval card the caller was sent to answer on screen. */
+let approvalRunId: string | null = null;
+let awaitedRunId: string | null = null;
+const finishedRunIds = new Set<string>();
 /** Counting down an interim phrase heard over the reply, before it counts as cutting in. */
 const interim = createInterimBargeIn(() => {
   if (state?.phase !== "speaking") return;
@@ -159,6 +168,9 @@ export function startCall(call: {
   micOpen = false;
   bargedIn = false;
   awaitingReply = false;
+  approvalRunId = null;
+  awaitedRunId = null;
+  finishedRunIds.clear();
   state = {
     botId: call.botId,
     botName: call.botName,
@@ -190,7 +202,7 @@ export function startCall(call: {
   unsubDictation = dictation.subscribe((heard) => {
     if (!state) return;
     if (heard.status === "listening") {
-      set({ heard: pendingSecretAsk(thread) ? "" : heard.transcript });
+      set({ heard: pendingCallSecretAsk(thread) ? "" : heard.transcript });
       watchInterim(heard.transcript);
     } else interim.clear();
     if (heard.error) {
@@ -269,6 +281,9 @@ function dropCall(): void {
   micOpen = false;
   bargedIn = false;
   awaitingReply = false;
+  approvalRunId = null;
+  awaitedRunId = null;
+  finishedRunIds.clear();
   unsubSpeech?.();
   unsubDictation?.();
   unsubSpeech = null;
@@ -456,6 +471,7 @@ function watchThread(botId: string) {
       ),
     beforeEvent: (event) => webLogoAvatarActivity.apply(avatarSource, event),
     applyEvent: (event) => {
+      if (event.runId && isRunTerminalEvent(event)) finishedRunIds.add(event.runId);
       if (isThreadSnapshotEvent(event)) commit(reduceThreadSnapshot(thread, event));
     },
     onEvent: (event) => {
@@ -491,6 +507,19 @@ function speakFarewell(payload: Record<string, unknown>) {
 
 function commit(next: ThreadSnapshot | null) {
   if (!next) return null;
+  const nextRuns = [...(next.activeRuns ?? []), ...(next.run ? [next.run] : [])];
+  for (const run of [...(thread?.activeRuns ?? []), ...(thread?.run ? [thread.run] : [])]) {
+    if (
+      isActive(run.status) &&
+      !nextRuns.some((nextRun) => nextRun.id === run.id && isActive(nextRun.status))
+    ) {
+      finishedRunIds.add(run.id);
+    }
+  }
+  for (const run of nextRuns) {
+    if (isActive(run.status)) finishedRunIds.delete(run.id);
+    else finishedRunIds.add(run.id);
+  }
   thread = next;
   reactToThread();
   return next;
@@ -523,7 +552,7 @@ async function listen() {
   if (guardTimer) return;
   set({ phase: "listening", heard: "" });
   speaker.stop();
-  if (state.muted || pendingSecretAsk(thread)) {
+  if (state.muted || pendingCallSecretAsk(thread)) {
     dictation.stop("cancel");
     micOpen = false;
     return;
@@ -533,7 +562,7 @@ async function listen() {
 
 /** Starts dictation unless it is already running, muted, or waiting on a typed secret. */
 async function openMic() {
-  if (!state || micOpen || state.muted || pendingSecretAsk(thread)) return;
+  if (!state || micOpen || state.muted || pendingCallSecretAsk(thread)) return;
   micOpen = true;
   try {
     await dictation.listen({
@@ -574,18 +603,30 @@ async function handleTranscript(text: string) {
     void listen();
     return;
   }
-  if (pendingSecretAsk(thread)) {
+  const turn = callTurn(thread, text);
+  if (turn.kind === "enter_code") {
     set({ heard: "", caption: t`Hang up, then enter the code on screen.` });
     return;
   }
   const { botId, exchanges } = state;
-  const askId = latestAskId(thread);
-  const askMessage = thread?.messages.find((message) => message.id === askId);
   // Captured now: a call started while this is in flight must not re-attach the new feed
   // or commit this turn onto it. The same bot can be called again, so the bot id is not enough.
   const callFeed = feed;
   const turnCallId = callId;
   const closing = isFarewell(text);
+  // An approval is only answered on screen, next to its details; a spoken reply would be refused.
+  if (turn.kind === "approve_on_screen") {
+    // The caption covers a card the call never read; once tapped, it must not pass for the reply.
+    spokenMessageIds.add(turn.messageId);
+    approvalRunId = turn.runId;
+    awaitingReply = true;
+    if (closing) hangUpAfterReply = true;
+    set({ heard: "", caption: t`Approve or deny it on screen.` });
+    void listen();
+    return;
+  }
+  approvalRunId = null;
+  awaitedRunId = turn.kind === "answer" ? turn.runId : null;
   awaitingReply = true;
   set({ heard: text, phase: "thinking", exchanges: [...exchanges, { role: "user", text }] });
   if (closing) {
@@ -598,19 +639,22 @@ async function handleTranscript(text: string) {
   let releasePendingSend: () => void = () => undefined;
   try {
     const clientNonce = callClientNonce(turnCallId);
-    const sendRequest = askMessage
-      ? rpc.threads.answer({
-          botId,
-          runId: askMessage.runId ?? "",
-          messageId: askMessage.id,
-          answer: spokenDecision(text) ?? text,
-          clientNonce,
-        })
-      : runActive(thread)
-        ? rpc.threads.followUp({ botId, text, clientNonce })
-        : rpc.threads.send({ botId, clientNonce, text });
+    const sendRequest =
+      turn.kind === "answer"
+        ? rpc.threads.answer({
+            botId,
+            runId: turn.runId,
+            messageId: turn.messageId,
+            answer: turn.answer,
+            clientNonce,
+          })
+        : turn.kind === "follow_up"
+          ? rpc.threads.followUp({ botId, text, clientNonce })
+          : rpc.threads.send({ botId, clientNonce, text });
     releasePendingSend = callSends.track(turnCallId, sendRequest);
-    await sendRequest;
+    const receipt = await sendRequest;
+    if (!state || state.botId !== botId || callId !== turnCallId) return;
+    if ("runId" in receipt) awaitedRunId = receipt.runId;
   } catch (error) {
     if (!state || state.botId !== botId || callId !== turnCallId) return;
     awaitingReply = false;
@@ -643,7 +687,7 @@ function watchInterim(text: string) {
 }
 
 /**
- * Speak whatever the call's bot said last. A call never speaks tool activity: the
+ * Speak the bot's reply to the caller's latest turn. A call never speaks tool activity: the
  * card's phase indicator is the only feedback, so nothing talks over the caller.
  */
 function reactToThread() {
@@ -651,7 +695,7 @@ function reactToThread() {
   if (!state || state.phase === "ringing" || openingPending) return;
   // The bot already said goodbye: neither its marker nor the work it files after it is spoken.
   if (botEndedCall) return;
-  if (pendingSecretAsk(thread)) {
+  if (pendingCallSecretAsk(thread)) {
     dictation.stop("cancel");
     micOpen = false;
     set({ heard: "" });
@@ -660,23 +704,40 @@ function reactToThread() {
   if (state.phase === "listening" && !awaitingReply) return;
   const { botId } = state;
   const messages = thread?.messages ?? [];
-  const lastBot = [...messages].reverse().find((message) => message.role === "bot");
+  // Only what the bot wrote after the caller's latest turn answers it. A run that stopped on a
+  // card keeps its live progress message after the card; that is not a reply.
+  const turnIndex = messages.findLastIndex((message) => message.role === "user");
+  const replyRunId = approvalRunId ?? awaitedRunId;
+  const lastBot = messages
+    .slice(turnIndex + 1)
+    .findLast(
+      (message) =>
+        message.role === "bot" &&
+        !(message.id.startsWith("progress:") && replyFinished(message)) &&
+        (!replyRunId || message.runId === replyRunId),
+    );
   if (lastBot && !spokenMessageIds.has(lastBot.id) && replyFinished(lastBot)) {
     const text = speechFromBlocks(lastBot.blocks);
     const ask = lastBot.blocks.find((block) => block.kind === "ask" && block.status !== "answered");
     const secretAsk = ask && isSecretAskBlock(ask);
+    const approvalAsk = ask && isApprovalAskBlock(ask);
     if (text) {
       // Never spoken again, interrupted or not.
       spokenMessageIds.add(lastBot.id);
-      awaitingReply = false;
+      // An approval is answered on screen, which sends no turn: keep waiting for the reply
+      // its run writes next.
+      approvalRunId = approvalAsk ? (lastBot.runId ?? null) : null;
+      awaitingReply = approvalRunId !== null;
       set({ exchanges: [...state.exchanges, { role: "bot", text }], heard: "" });
       spokenMemory.remember(text);
       void speaker.speak(
         secretAsk
           ? `${text}. ${t`Hang up first, then enter the code on screen.`}`
-          : ask
-            ? `${text}. ${t`Say yes or no, or answer in a sentence.`}`
-            : text,
+          : approvalAsk
+            ? `${text}. ${t`Approve or deny it on screen.`}`
+            : ask
+              ? `${text}. ${t`Say yes or no, or answer in a sentence.`}`
+              : text,
         { botId, messageId: lastBot.id },
       );
       return;
@@ -687,6 +748,13 @@ function reactToThread() {
       void listen();
     }
   }
+  if (awaitingReply && replyRunId && finishedRunIds.has(replyRunId)) {
+    awaitingReply = false;
+    approvalRunId = null;
+    awaitedRunId = null;
+    set({ caption: errorText(thread?.run?.id === replyRunId ? thread.run.error : undefined) });
+    void listen();
+  }
 }
 
 /**
@@ -694,7 +762,7 @@ function reactToThread() {
  * still streaming clips it, and later updates of the same id never get a turn.
  */
 function replyFinished(message: ThreadMessage) {
-  const run = thread?.run;
+  const run = thread?.activeRuns?.find((run) => run.id === message.runId) ?? thread?.run;
   if (!run) return true;
   if (message.runId && message.runId !== run.id) return true;
   return !RUN_ACTIVE.includes(run.status);
@@ -702,26 +770,4 @@ function replyFinished(message: ThreadMessage) {
 
 function runActive(snapshot: ThreadSnapshot | null) {
   return Boolean(snapshot?.run && RUN_ACTIVE.includes(snapshot.run.status));
-}
-
-function pendingSecretAsk(snapshot: ThreadSnapshot | null) {
-  const askId = latestAskId(snapshot);
-  const askMessage = snapshot?.messages.find((message) => message.id === askId);
-  return Boolean(
-    askMessage?.blocks.some(
-      (block) => block.kind === "ask" && isSecretAskBlock(block) && block.status !== "answered",
-    ),
-  );
-}
-
-function latestAskId(snapshot: ThreadSnapshot | null): string | null {
-  if (snapshot?.run?.status !== "waiting_input") return null;
-  for (let index = snapshot.messages.length - 1; index >= 0; index -= 1) {
-    const message = snapshot.messages[index];
-    if (message?.runId !== snapshot.run.id) continue;
-    if (message.blocks.some((block) => block.kind === "ask" && block.status !== "answered")) {
-      return message.id;
-    }
-  }
-  return null;
 }

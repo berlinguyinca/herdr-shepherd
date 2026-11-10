@@ -1,8 +1,10 @@
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import type { ReactNode } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
-import { createKeyPresser, KEY_ROW, type KeyName } from "../lib/terminal-keys";
+import type { KeyName } from "../lib/terminal-keys";
+import { createKeyPresser, KEY_ROW } from "../lib/terminal-keys";
 import { NativeSymbol } from "./native-symbol";
 
 const TAP = 44;

@@ -3,13 +3,8 @@ process.env.EXPO_PUBLIC_PERSONAL_SERVER_ONLY = "false";
 vi.mock("./ai-consent", () => ({ promptAiConsent: vi.fn() }));
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  currentApiBase,
-  resetApiBase,
-  saveApiBase,
-  subscribeApiBase,
-  subscribeSessionRejected,
-} from "./api";
+import { currentApiBase, subscribeApiBase, subscribeSessionRejected } from "./api";
+import { resetApiBase, saveApiBase } from "./api-server";
 import { loadLinkFavicon } from "./link-favicons";
 import { restoreSessionToken } from "./session";
 

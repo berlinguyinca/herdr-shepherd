@@ -1,5 +1,6 @@
 import type { AgentEvent, AgentRow, RpcInput } from "@rakazo/contracts";
-import { rpc, streamRpc } from "./api";
+import { rpc } from "./api";
+import { streamRpc } from "./api-live";
 import { rpcQuery } from "./query";
 
 export type { AgentEvent, AgentRow };

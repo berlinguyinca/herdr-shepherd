@@ -5,7 +5,8 @@ import { afterEach, expect, it, vi } from "vitest";
 
 const call = vi.hoisted(() => vi.fn());
 const stream = vi.hoisted(() => vi.fn());
-vi.mock("./api", () => ({ rpc: call, streamRpc: stream }));
+vi.mock("./api", () => ({ rpc: call }));
+vi.mock("./api-live", () => ({ streamRpc: stream }));
 
 import { useTerminal } from "./terminal";
 

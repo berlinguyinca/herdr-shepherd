@@ -106,6 +106,7 @@ function fakeBot(id: string, name: string): Bot {
     disabledBuiltinTools: [],
     webhookConfigured: false,
     fleetManagement: false,
+    replyMode: "chat",
     spawnKey: null,
   };
 }
@@ -161,10 +162,10 @@ async function click(name: string) {
   });
 }
 
-async function pressEscape(isComposing = false) {
+async function pressEscape(composition: KeyboardEventInit = {}) {
   await act(async () => {
     window.dispatchEvent(
-      new KeyboardEvent("keydown", { key: "Escape", cancelable: true, isComposing }),
+      new KeyboardEvent("keydown", { key: "Escape", cancelable: true, ...composition }),
     );
   });
 }
@@ -219,7 +220,8 @@ describe("GroupSettings", () => {
 
   it("leaves Escape to an input method that is composing", async () => {
     const { onClose } = await render();
-    await pressEscape(true);
+    await pressEscape({ isComposing: true });
+    await pressEscape({ keyCode: 229 });
     expect(onClose).not.toHaveBeenCalled();
   });
 

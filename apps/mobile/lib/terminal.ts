@@ -1,6 +1,7 @@
 import type { RpcOutput, TerminalFrame } from "@rakazo/contracts";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { rpc, streamRpc } from "./api";
+import { rpc } from "./api";
+import { streamRpc } from "./api-live";
 import { base64ToBytes as fromBase64, bytesToBase64 as toBase64 } from "./terminal-bridge";
 
 /**

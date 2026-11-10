@@ -5,26 +5,37 @@ import type {
   BackgroundJobExecution,
   BackgroundJobHandlers,
   JobPublisher,
+  MediaGenerationProvider,
   MessagingSurface,
   PaymentWalletProvider,
   SandboxProvider,
   SecretStore,
 } from "@rakazo/adapter-kit";
-import { messagingDeliverJob } from "@rakazo/adapter-kit";
+import {
+  messagingDeliverJob,
+  SandboxRateLimitError,
+  SandboxUnavailableError,
+  SandboxUnresponsiveError,
+} from "@rakazo/adapter-kit";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
 import { runAsSystem, runAsTenant } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { settleCallRequest } from "./call-request.js";
 import type { CloudAgentConnection } from "./cloud-agent-factory.js";
 import { pollCloudAgent } from "./cloud-agent-poll.js";
-import { expireComputerControl } from "./computer-control.js";
-import { scheduleComputerSleep, sleepComputerIfIdle } from "./computer-idle.js";
+import { expireComputerControl, scheduleComputerControlExpiry } from "./computer-control.js";
+import { rateLimitEnds, scheduleComputerSleep, sleepComputerIfIdle } from "./computer-idle.js";
 import { performComputerUpdate } from "./computer-update.js";
 import type { createRunExecutor } from "./executor.js";
 import type { ExpoPushProvider } from "./expo-push.js";
 import { compactHistory } from "./history-compaction.js";
+import { pollMediaVideo } from "./media-video-poll.js";
 import type { MemoryProviderResolver } from "./memory-provider-factory.js";
-import { deliverMessagingOutbound, mirrorMessagingOutbound } from "./messaging-delivery.js";
+import {
+  deliverMessagingOutbound,
+  mirrorMessagingOutbound,
+  mirrorMessagingProgress,
+} from "./messaging-delivery.js";
 import { pollPurchase } from "./purchase-poll.js";
 import { expireTaughtSkillTeaching } from "./teaching-session.js";
 
@@ -49,6 +60,7 @@ function asOwner<Key, P extends Key>(
 }
 
 const OWNER = { spaceId: true, userId: true } as const;
+const CONTROL_EXPIRE_RETRY_MS = 30_000;
 
 export function createBackgroundJobHandlers(deps: {
   executor: ReturnType<typeof createRunExecutor>;
@@ -68,6 +80,8 @@ export function createBackgroundJobHandlers(deps: {
   cloudAgent?: CloudAgentConnection | null;
   paymentWallet?: PaymentWalletProvider | null;
   notifications?: ExpoPushProvider;
+  mediaGeneration?: MediaGenerationProvider;
+  maxUploadSizeBytes?: number;
 }): BackgroundJobHandlers {
   const messagingDeps = deps.messaging
     ? {
@@ -109,6 +123,13 @@ export function createBackgroundJobHandlers(deps: {
     deps.prisma.cloudAgent.findUnique({ where: { id: agentId }, select: OWNER });
   const purchase = ({ purchaseId }: { purchaseId: string }) =>
     deps.prisma.purchase.findUnique({ where: { id: purchaseId }, select: OWNER });
+  const mediaJob = async ({ jobId }: { jobId: string }) =>
+    (
+      await deps.prisma.externalEffect.findUnique({
+        where: { id: jobId },
+        select: { run: { select: OWNER } },
+      })
+    )?.run ?? null;
   const updatedComputer = async ({ updateId }: { updateId: string }) =>
     (
       await deps.prisma.computerUpdate.findUnique({
@@ -151,6 +172,11 @@ export function createBackgroundJobHandlers(deps: {
       }
       await drainMessaging();
     },
+    "messaging.progress": async ({ runId }) => {
+      if (!messagingDeps) return;
+      await asOwner(run, () => mirrorMessagingProgress(messagingDeps, runId))({ runId });
+      await drainMessaging();
+    },
     "routine.wakeup": asOwner(routine, async (payload) => {
       await deps.executor.wakeRoutine(payload.routineId, payload.scheduledFor);
     }),
@@ -163,9 +189,26 @@ export function createBackgroundJobHandlers(deps: {
     "computer.sleep": asOwner(computer, async (payload) => {
       await sleepComputerIfIdle(deps, payload.computerId);
     }),
-    "computer.control-expire": asOwner(computer, async (payload) => {
-      if (await expireComputerControl(deps, payload.computerId, payload.leaseId)) {
-        scheduleComputerSleep(deps.jobs, payload.computerId);
+    "computer.control-expire": asOwner(computer, async ({ computerId, leaseId }) => {
+      try {
+        if (await expireComputerControl(deps, computerId, leaseId)) {
+          scheduleComputerSleep(deps.jobs, computerId);
+        }
+      } catch (error) {
+        // Input is already denied and the lease kept, so a provider outage only delays the release.
+        if (
+          !(error instanceof SandboxUnresponsiveError) &&
+          !(error instanceof SandboxUnavailableError) &&
+          !(error instanceof SandboxRateLimitError)
+        )
+          throw error;
+        getLogger().warn("computer.control_expire_deferred", { "computer.id": computerId, error });
+        await scheduleComputerControlExpiry(
+          deps.jobs,
+          computerId,
+          leaseId,
+          rateLimitEnds(error) ?? new Date(Date.now() + CONTROL_EXPIRE_RETRY_MS),
+        );
       }
     }),
     "skill.teaching-expire": asOwner(skill, async (payload) => {
@@ -191,6 +234,9 @@ export function createBackgroundJobHandlers(deps: {
         payload,
       );
     }),
+    "media.poll": asOwner(mediaJob, async (payload) => {
+      await pollMediaVideo(deps, payload);
+    }),
     // A receipt belongs to a device's push token, not to a Space.
     "push.receipt": async (payload) => {
       await runAsSystem("check a push receipt", () => deps.notifications?.checkReceipt(payload));
@@ -210,6 +256,7 @@ export function createBackgroundJobHandlers(deps: {
           ...(deps.executor.resolveModel ? { resolveModel: deps.executor.resolveModel } : {}),
         },
         payload.threadId,
+        payload.userId,
       );
     }),
   };

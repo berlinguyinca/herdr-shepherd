@@ -35,23 +35,25 @@ describe("web provider factory", () => {
 });
 
 describe("keyless HTTP web provider", () => {
-  it("preserves literal text/plain content through the fetch tool", async () => {
-    const body = "Use <project-root>/src &amp; keep  spacing\n  indented\n";
-    const provider = new KeylessHttpWebProvider({
-      fetch: async () =>
-        new Response(body, { headers: { "content-type": "Text/Plain; charset=utf-8" } }),
-      resolveHostname: publicResolver,
-    });
+  it.each(["Text/Plain; charset=utf-8", "text/markdown"])(
+    "preserves literal %s content through the fetch tool",
+    async (contentType) => {
+      const body = "Use <project-root>/src &amp; keep  spacing\n  indented\n";
+      const provider = new KeylessHttpWebProvider({
+        fetch: async () => new Response(body, { headers: { "content-type": contentType } }),
+        resolveHostname: publicResolver,
+      });
 
-    await expect(
-      webFetchFromTool(provider, ctx, { url: "https://example.test/doc" }),
-    ).resolves.toEqual({
-      url: "https://example.test/doc",
-      title: "Untitled",
-      text: body,
-      truncated: false,
-    });
-  });
+      await expect(
+        webFetchFromTool(provider, ctx, { url: "https://example.test/doc" }),
+      ).resolves.toEqual({
+        url: "https://example.test/doc",
+        title: "Untitled",
+        text: body,
+        truncated: false,
+      });
+    },
+  );
 
   it("uses the final response's MIME type after a redirect", async () => {
     const provider = new KeylessHttpWebProvider({
@@ -216,6 +218,30 @@ describe("keyless HTTP web provider", () => {
     );
     expect(extracted.title).toBe("Plain");
     expect(extracted.text).toContain("just text here");
+  });
+
+  it("keeps the HTML strip fallback's output", () => {
+    const html = [
+      "<frameset><TITLE lang=en>A  <b>page</b></title><style>p{}</style>",
+      "<script type=x>var a = '<p>no</p>';</SCRIPT>keep 1 < 2 and <> too",
+      "<p>one</p>   \n\n\n\n<div>two</div><script>unclosed</frameset>",
+    ].join("");
+    expect(extractReadableText(html, "https://example.test/")).toEqual({
+      title: "A <b>page</b>",
+      text: "A page keep 1 too one\n\n two unclosed",
+    });
+  });
+
+  it.each([
+    ["unclosed tags", "<a".repeat(60_000)],
+    ["unclosed scripts", "<script>".repeat(40_000)],
+    ["unclosed titles", "<title>".repeat(40_000)],
+    ["unclosed styles", "<style>".repeat(40_000)],
+    ["whitespace runs", `<p>a${" ".repeat(60_000)}b</p>`],
+  ])("extracts a page full of %s in linear time", (_name, html) => {
+    const started = performance.now();
+    extractReadableText(html, "https://example.test/");
+    expect(performance.now() - started).toBeLessThan(1_500);
   });
 
   it("parses HTML search results with a cap", () => {

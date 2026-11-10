@@ -2,7 +2,9 @@ vi.mock("./ai-consent", () => ({ promptAiConsent: vi.fn() }));
 
 import * as SecureStore from "expo-secure-store";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { currentApiBase, loadApiBase, saveApiBase, signUp } from "./api.js";
+import { currentApiBase } from "./api.js";
+import { signUp } from "./api-auth.js";
+import { loadApiBase, saveApiBase } from "./api-server.js";
 import { defaultApiBase } from "./endpoint.js";
 
 vi.mock("expo-secure-store", () => ({

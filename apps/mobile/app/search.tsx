@@ -1,6 +1,8 @@
 import { botColors, typeScale } from "@rakazo/ui-tokens";
+import type { NativeStackNavigationProp } from "expo-router";
 import { useFocusEffect, useNavigation, useRouter } from "expo-router";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import type { TextInputInstance } from "react-native";
 import {
   Alert,
   FlatList,
@@ -17,9 +19,11 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BotAvatar } from "../components/bot-avatar";
 import { GlassIconButton } from "../components/glass-icon-button";
 import { GroupAvatar } from "../components/group-avatar";
+import { NativeActionButton } from "../components/native-action-button";
 import { NativeSymbol } from "../components/native-symbol";
 import { readableGutters } from "../lib/adaptive-layout";
-import { currentApiBase, selectedSpaceId, selectSpace, spaceSelectionSeq } from "../lib/api";
+import { currentApiBase, selectedSpaceId, spaceSelectionSeq } from "../lib/api";
+import { selectSpace } from "../lib/api-server";
 import { mobileTokens, resolveMobileAppearance } from "../lib/appearance";
 import { useI18n } from "../lib/i18n";
 import { native, useThemedStyles } from "../lib/native";
@@ -40,19 +44,19 @@ const kindIcons = {
 export default function SearchSheet() {
   const { t, locale } = useI18n();
   const router = useRouter();
-  const navigation = useNavigation();
+  const navigation = useNavigation<NativeStackNavigationProp<Record<string, object | undefined>>>();
   const styles = useThemedStyles(createStyles);
   const tokens = mobileTokens();
   const appearance = resolveMobileAppearance();
   const insets = useSafeAreaInsets();
   const gutters = readableGutters(useWindowDimensions().width, insets);
-  const field = useRef<TextInput>(null);
+  const field = useRef<TextInputInstance>(null);
   const opening = useRef(false);
   const attempt = useRef(0);
   const focused = useRef(false);
   const [query, setQuery] = useState("");
   const spaces = useSyncExternalStore(subscribeSearchInbox, getSearchInbox);
-  const { hits, loading } = useSearch(query);
+  const { hits, loading, error, retry } = useSearch(query);
   const rows = useMemo(() => searchSheetRows(spaces, query, hits), [spaces, query, hits, locale]);
 
   const cancelOpen = useCallback(() => {
@@ -63,9 +67,17 @@ export default function SearchSheet() {
 
   useFocusEffect(
     useCallback(() => {
-      focused.current = true;
-      opening.current = false;
-      const unsubscribe = navigation.addListener("beforeRemove", cancelOpen);
+      const arm = () => {
+        focused.current = true;
+        opening.current = false;
+      };
+      arm();
+      // A native dismissal blurs the sheet only once its animation ends, so a pending open is
+      // cancelled as soon as the sheet starts closing, and re-armed if the gesture is abandoned.
+      const unsubscribe = navigation.addListener("transitionStart", (event) => {
+        if (event.data.closing) cancelOpen();
+        else arm();
+      });
       return () => {
         cancelOpen();
         unsubscribe();
@@ -216,12 +228,29 @@ export default function SearchSheet() {
           paddingBottom: insets.bottom + 16,
         }}
         ListEmptyComponent={
-          <Text style={styles.empty}>{loading ? t("Searching…") : t("No results")}</Text>
+          error ? undefined : (
+            <Text style={styles.empty}>{loading ? t("Searching…") : t("No results")}</Text>
+          )
+        }
+        ListFooterComponent={
+          error ? (
+            <View style={styles.failure}>
+              <Text accessibilityRole="alert" style={styles.error}>
+                {error}
+              </Text>
+              <NativeActionButton
+                label={t("Try again")}
+                prominence="secondary"
+                size="compact"
+                onPress={retry}
+              />
+            </View>
+          ) : undefined
         }
         renderItem={({ item }) => (
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={`${item.title}, ${item.label}`}
+            accessibilityLabel={[item.title, item.label, item.preview].filter(Boolean).join(", ")}
             onPress={() => void open(item)}
             style={({ pressed }) => [styles.row, pressed && styles.pressed]}
           >
@@ -246,7 +275,8 @@ export default function SearchSheet() {
                 </Text>
                 <Text style={styles.time}>{item.label}</Text>
               </View>
-              <Text numberOfLines={1} style={styles.preview}>
+              {/* Two lines, so the matched words fit after the text before them. */}
+              <Text numberOfLines={2} style={styles.preview}>
                 {item.preview}
               </Text>
             </View>
@@ -312,5 +342,7 @@ function createStyles() {
       writingDirection: "auto",
     },
     empty: { color: native.secondaryLabel, fontSize: 16, paddingHorizontal: 20, paddingTop: 28 },
+    failure: { alignItems: "flex-start", gap: 12, paddingHorizontal: 20, paddingTop: 28 },
+    error: { color: tokens.destructive, fontSize: 14 },
   });
 }

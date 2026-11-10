@@ -1,6 +1,7 @@
 import type { MessageBlock, ThreadMessage } from "@rakazo/contracts";
 import { cloudAgentBlockFromPayload } from "./cloud-agent.js";
 import { preserveIdentitySource } from "./identity-source.js";
+import { payloadAuthor } from "./message-replies.js";
 import { modelFallbackFailure, parseModelFallbackFailure } from "./run-error.js";
 
 export function projectMessages(
@@ -81,6 +82,7 @@ export function projectMessages(
         role,
         blocks,
         botId: event.botId ?? undefined,
+        ...payloadAuthor(payload),
         runId: event.runId ?? undefined,
         createdAt,
       });
@@ -381,7 +383,40 @@ export function liveActivityLine(
   return (tail?.kind === "progress" && tail.activity && tail.text.trim()) || undefined;
 }
 
-export type ToolStep = { label: string; count: number; note?: string };
+export type ToolStepOutcome = "succeeded" | "failed" | "stopped";
+export type ToolStep = Extract<MessageBlock, { kind: "steps" }>["steps"][number];
+
+/**
+ * Records how each call ended on the step it shows as. `calls` lists every step a call made, in
+ * call order (a connector call can make several). If they stop lining up with the steps, the
+ * steps are returned as they were rather than credited to the wrong step.
+ */
+export function withToolStepOutcomes(
+  segments: readonly MessageBlock[],
+  calls: readonly { label: string; outcome: ToolStepOutcome | undefined }[],
+): MessageBlock[] {
+  let next = 0;
+  const annotated: MessageBlock[] = [];
+  for (const block of segments) {
+    if (block.kind !== "steps") {
+      annotated.push(block);
+      continue;
+    }
+    const steps: ToolStep[] = [];
+    for (const step of block.steps) {
+      const outcomes: NonNullable<ToolStep["outcomes"]> = {};
+      for (let index = 0; index < step.count; index += 1) {
+        const call = calls[next++];
+        if (call?.label !== step.label) return [...segments];
+        if (call.outcome) outcomes[call.outcome] = (outcomes[call.outcome] ?? 0) + 1;
+      }
+      const { outcomes: _previous, ...rest } = step;
+      steps.push(Object.keys(outcomes).length > 0 ? { ...rest, outcomes } : rest);
+    }
+    annotated.push({ ...block, steps });
+  }
+  return annotated;
+}
 
 export function appendToolStep(steps: readonly ToolStep[], toolName: string): ToolStep[] {
   const label = humanizeToolName(toolName);
@@ -429,7 +464,13 @@ export function withoutLastToolStepNotes(
   return next;
 }
 
-export type ToolCallStreak = { key: string | undefined; count: number };
+/** `shape` is the call with the digits in its text arguments blanked, so `echo n-1`, `echo n-2` match. */
+export type ToolCallStreak = {
+  key: string | undefined;
+  count: number;
+  shape?: string;
+  shapeCount?: number;
+};
 
 export function trackToolCallStreak(
   streak: ToolCallStreak,
@@ -437,7 +478,13 @@ export function trackToolCallStreak(
   args: unknown,
 ): ToolCallStreak {
   const key = `${name}:${JSON.stringify(args)}`;
-  return key === streak.key ? { key, count: streak.count + 1 } : { key, count: 1 };
+  const shape = `${name}:${JSON.stringify(args, (_, value) => (typeof value === "string" ? value.replace(/\d+/g, "#") : value))}`;
+  return {
+    key,
+    count: key === streak.key ? streak.count + 1 : 1,
+    shape,
+    shapeCount: shape === streak.shape ? (streak.shapeCount ?? 0) + 1 : 1,
+  };
 }
 
 export type ToolNameStreak = { name: string | undefined; count: number };
@@ -480,6 +527,11 @@ export function humanizeToolName(name: string): string {
   if (!spaced) return name;
   const lower = spaced.toLowerCase();
   return lower.charAt(0).toUpperCase() + lower.slice(1);
+}
+
+/** Reverses humanizeToolName for a typed name; rules match tool names ignoring case. */
+export function toolNameFromLabel(label: string): string {
+  return label.trim().replace(/\s+/g, "_");
 }
 
 export function progressMessageText(

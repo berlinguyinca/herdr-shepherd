@@ -1,4 +1,5 @@
 import type {
+  ModelApiProtocol,
   ModelCatalogEntry,
   ModelConnectInput,
   ModelCredential,
@@ -8,7 +9,6 @@ import type {
 } from "@rakazo/contracts";
 import {
   DEFAULT_MODEL_CONTEXT_WINDOW,
-  isCloudflareModelProvider,
   ModelHeaderRowsSchema,
   modelHeadersInput,
   OPENAI_COMPATIBLE_PROVIDER_ID,
@@ -19,8 +19,8 @@ import {
   savedCompatibleEndpointMatches,
 } from "@rakazo/contracts";
 import {
-  COMPATIBLE_THINKING_LEVELS,
   clampCatalogThinkingLevel,
+  compatibleThinkingLevels,
   connectionMaxTokensField,
   pickCatalogModelId,
 } from "./model-providers.js";
@@ -32,6 +32,7 @@ type DefaultModel = { defaultProvider: string | null; defaultModel: string | nul
 export type ConnectionFormFields = {
   enabledModelIds: string[];
   baseUrl: string;
+  apiProtocol: ModelApiProtocol;
   reasoning: boolean;
   thinkingLevel: ThinkingLevel | null;
   maxTokens: string;
@@ -80,6 +81,7 @@ export function connectionFormFields(input: {
     | "modelId"
     | "enabledModelIds"
     | "baseUrl"
+    | "apiProtocol"
     | "reasoning"
     | "thinkingLevel"
     | "maxTokens"
@@ -89,19 +91,20 @@ export function connectionFormFields(input: {
     | "accountId"
     | "gatewayId"
   >;
-  /** Prefills a new OpenAI-compatible connection, such as the Ollama Cloud preset. */
+  /** Prefills a new OpenAI-compatible connection, such as a hosted preset. */
   presetBaseUrl?: string;
 }): ConnectionFormFields {
   const { catalog, provider, modelId, credential, presetBaseUrl } = input;
   const compatible = provider === OPENAI_COMPATIBLE_PROVIDER_ID;
   const supportedThinking = compatible
     ? credential?.reasoning
-      ? COMPATIBLE_THINKING_LEVELS
+      ? compatibleThinkingLevels(credential?.apiProtocol)
       : []
     : catalog.find((entry) => entry.provider === provider && entry.id === modelId)?.thinkingLevels;
   return {
     enabledModelIds: credential?.enabledModelIds ?? [],
     baseUrl: compatible ? (credential?.baseUrl ?? presetBaseUrl ?? "") : "",
+    apiProtocol: credential?.apiProtocol ?? "chat-completions",
     reasoning: credential?.reasoning ?? false,
     thinkingLevel: clampCatalogThinkingLevel(
       credential?.modelId === modelId ? credential.thinkingLevel : null,
@@ -123,8 +126,10 @@ export function compatibleConnectionReady(input: {
   modelId: string;
   headerRows: ModelHeaderRow[] | null;
   credential?: Pick<ModelCredential, "hasKey" | "baseUrl">;
+  /** The endpoint is a hosted preset, which always needs a key. */
+  keyRequired?: boolean;
 }): boolean {
-  const { apiKey, credential, headerRows, modelId } = input;
+  const { apiKey, credential, headerRows, keyRequired, modelId } = input;
   const baseUrl = input.baseUrl.trim();
   return openAiCompatibleConnectReady({
     apiKey:
@@ -135,6 +140,7 @@ export function compatibleConnectionReady(input: {
     baseUrl,
     modelId:
       headerRows !== null && !ModelHeaderRowsSchema.safeParse(headerRows).success ? "" : modelId,
+    keyRequired,
   });
 }
 
@@ -166,7 +172,10 @@ export type ModelConnectRequest =
  */
 export function modelConnectRequest(input: {
   form: ConnectionFormDraft;
-  selected: Pick<ModelCatalogEntry, "provider" | "providerName" | "id" | "thinkingLevels">;
+  selected: Pick<
+    ModelCatalogEntry,
+    "provider" | "providerName" | "id" | "thinkingLevels" | "routingFields"
+  >;
   credential?: Pick<ModelCredential, "modelId" | "thinkingLevel">;
   credentialId: string | null;
   settingsOnly?: boolean;
@@ -209,7 +218,11 @@ export function modelConnectRequest(input: {
   // save so a previous model's level cannot stick.
   const thinkingLevel = clampCatalogThinkingLevel(
     form.thinkingLevel,
-    compatible ? (form.reasoning ? COMPATIBLE_THINKING_LEVELS : []) : selected.thinkingLevels,
+    compatible
+      ? form.reasoning
+        ? compatibleThinkingLevels(form.apiProtocol)
+        : []
+      : selected.thinkingLevels,
   ) as ThinkingLevel | null;
   const label = selected.providerName ?? selected.provider;
   if (compatible) {
@@ -220,6 +233,7 @@ export function modelConnectRequest(input: {
       input: {
         provider: selected.provider,
         baseUrl,
+        apiProtocol: form.apiProtocol,
         headers: modelHeadersInput(form.headerRows),
         modelId,
         // The server adds the default itself.
@@ -248,7 +262,7 @@ export function modelConnectRequest(input: {
     input: {
       provider: selected.provider,
       ...(newKey ? { apiKey: newKey } : {}),
-      ...(isCloudflareModelProvider(selected.provider)
+      ...(selected.routingFields?.length
         ? { accountId: form.accountId.trim(), gatewayId: form.gatewayId.trim() }
         : {}),
       modelId: selected.id,

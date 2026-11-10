@@ -138,6 +138,8 @@ function simulateRun(
     cacheTracker?: ContextCacheTracker;
     tick?: () => void;
     systemPrompt?: (step: number) => string;
+    /** The model's reasoning carries no signature, as from OpenAI-compatible providers. */
+    unsigned?: boolean;
   } = {},
 ) {
   const policy = createRuntimeContextPolicy(input, undefined, {
@@ -172,7 +174,9 @@ function simulateRun(
         {
           type: "thinking",
           thinking: `Plan step ${index}`,
-          thinkingSignature: prefixSignature(context, context.messages.length),
+          ...(options.unsigned
+            ? {}
+            : { thinkingSignature: prefixSignature(context, context.messages.length) }),
         },
         { type: "toolCall", id, name: step.tool, arguments: {} },
       ],
@@ -339,6 +343,22 @@ describe("append-only run transcript", () => {
     for (const context of sent) expect(staleThinking(context)).toEqual([]);
   });
 
+  it("keeps unsigned thinking through a rebuild", () => {
+    const input = request({
+      contextStrategy: "retrieval",
+      model: { provider: "synthetic-provider", id: "synthetic-model", contextWindow: 40_000 },
+    });
+    const steps: Step[] = Array.from({ length: 18 }, (_, index) => ({
+      tool: "shell" as const,
+      text: `output ${index} ${"synthetic shell output ".repeat(433)}`,
+    }));
+    const sent = simulateRun(input, steps, { unsigned: true });
+    const [first] = rewrites(sent);
+    expect(first).toBeDefined();
+    // Nothing the model wrote can be rejected, so the rebuild drops none of it.
+    expect(thinkingCount(sent[first!]!)).toBe(thinkingCount(sent[first! - 1]!) + 1);
+  });
+
   it("rebuilds a browsing run only when dropping stale pages pays for the broken cache", () => {
     const input = request({ contextStrategy: "retrieval" }, 0);
     const steps: Step[] = Array.from({ length: 24 }, (_, index) => ({
@@ -461,10 +481,10 @@ describe("append-only run transcript boundaries", () => {
     expect(rebuildPaysOff(kept, fresh, 31_996, 3)).toBe(false);
   });
 
-  it("rebuilds once sixteen stale images could be dropped, not at fifteen", () => {
+  it("rebuilds once eight stale images could be dropped, not at seven", () => {
     const fresh = { tokens: 1_000, images: 2 };
-    expect(rebuildPaysOff({ tokens: 1_000, images: 17 }, fresh, 1_000, 0)).toBe(false);
-    expect(rebuildPaysOff({ tokens: 1_000, images: 18 }, fresh, 1_000, 0)).toBe(true);
+    expect(rebuildPaysOff({ tokens: 1_000, images: 9 }, fresh, 1_000, 0)).toBe(false);
+    expect(rebuildPaysOff({ tokens: 1_000, images: 10 }, fresh, 1_000, 0)).toBe(true);
   });
 
   it("never rebuilds when the rebuilt transcript would be larger", () => {
@@ -743,15 +763,15 @@ describe("append-only run transcript boundaries", () => {
     for (const context of sent) expect(staleThinking(context)).toEqual([]);
   });
 
-  it("rebuilds an unlimited run once sixteen stale screenshots could be dropped", () => {
+  it("rebuilds an unlimited run once eight stale screenshots could be dropped", () => {
     const input = request({ contextStrategy: "retrieval" }, 0);
     const steps: Step[] = Array.from({ length: 24 }, () => ({
       tool: "computer_observe",
       screenshot: true,
     }));
     const sent = simulateRun(input, steps);
-    expect(Math.max(...sent.map(imageCount))).toBe(17);
-    expect(rewrites(sent)).toEqual([18]);
-    expect(imageCount(sent[18]!)).toBe(2);
+    expect(Math.max(...sent.map(imageCount))).toBe(9);
+    expect(rewrites(sent)).toEqual([10, 18]);
+    expect(imageCount(sent[10]!)).toBe(2);
   });
 });

@@ -6,20 +6,32 @@ import type {
   MessagingSurface,
   SandboxProvider,
 } from "@rakazo/adapter-kit";
+import { SandboxUnresponsiveError } from "@rakazo/adapter-kit";
 import type { PrismaClient, ThreadEvents } from "@rakazo/db";
 import { currentDbContext } from "@rakazo/db";
 import { createLogger, createTestSink, installLogger } from "@rakazo/logging";
 import { describe, expect, it, vi } from "vitest";
 import { createBackgroundJobHandlers } from "./background-job-handlers.js";
+import type * as ComputerControl from "./computer-control.js";
+import { expireComputerControl } from "./computer-control.js";
 import { createRunExecutor } from "./executor.js";
 import { compactHistory } from "./history-compaction.js";
-import { deliverMessagingOutbound, mirrorMessagingOutbound } from "./messaging-delivery.js";
+import {
+  deliverMessagingOutbound,
+  mirrorMessagingOutbound,
+  mirrorMessagingProgress,
+} from "./messaging-delivery.js";
 import type { EncryptedSecretStore } from "./secrets.js";
 
 vi.mock("./history-compaction.js", () => ({ compactHistory: vi.fn(async () => undefined) }));
+vi.mock("./computer-control.js", async (importOriginal) => ({
+  ...(await importOriginal<typeof ComputerControl>()),
+  expireComputerControl: vi.fn(async () => false),
+}));
 vi.mock("./messaging-delivery.js", () => ({
   deliverMessagingOutbound: vi.fn(async () => undefined),
   mirrorMessagingOutbound: vi.fn(async () => undefined),
+  mirrorMessagingProgress: vi.fn(async () => undefined),
 }));
 
 const owner = { spaceId: "space-1", userId: "user-1" };
@@ -69,6 +81,29 @@ describe("createBackgroundJobHandlers", () => {
     installLogger(createLogger({ service: "rakazo-worker", level: "off", sinks: [] }));
   });
 
+  it("sends a running run's interim messages without marking the run mirrored", async () => {
+    vi.mocked(mirrorMessagingOutbound).mockClear();
+    const handlers = createBackgroundJobHandlers({
+      executor: {} as unknown as ReturnType<typeof createRunExecutor>,
+      prisma: { run: owned() } as unknown as PrismaClient,
+      sandbox: {} as unknown as SandboxProvider,
+      home: {} as unknown as AgentHomeStore,
+      artifacts: {} as unknown as ArtifactStore,
+      jobs: {} as unknown as JobPublisher,
+      events: {} as unknown as ThreadEvents,
+      workerId: "worker-1",
+      runtime: {} as unknown as AgentRuntime,
+      secretStore: {} as unknown as EncryptedSecretStore,
+      memoryProviders: { resolve: vi.fn(async () => null) },
+      messaging: {} as unknown as MessagingSurface,
+    });
+
+    await handlers["messaging.progress"]({ runId: "run-1" });
+
+    expect(mirrorMessagingProgress).toHaveBeenCalledWith(expect.anything(), "run-1");
+    expect(mirrorMessagingOutbound).not.toHaveBeenCalled();
+  });
+
   it("compacts the requested thread with the runtime, job publisher, and model key it was given", async () => {
     const prisma = { thread: owned() } as unknown as PrismaClient;
     const runtime = {} as unknown as AgentRuntime;
@@ -94,7 +129,7 @@ describe("createBackgroundJobHandlers", () => {
       deploymentModelConfigured: true,
     });
 
-    await handlers["history.compact"]({ threadId: "thread-1" });
+    await handlers["history.compact"]({ threadId: "thread-1", userId: "user-1" });
 
     expect(compactHistory).toHaveBeenCalledWith(
       {
@@ -107,6 +142,7 @@ describe("createBackgroundJobHandlers", () => {
         resolveModel,
       },
       "thread-1",
+      "user-1",
     );
   });
 
@@ -177,6 +213,40 @@ describe("createBackgroundJobHandlers", () => {
     expect(continueRun).toHaveBeenCalledTimes(2);
   });
 
+  it("tries a control release again later when the computer provider is unreachable", async () => {
+    const sink = createTestSink();
+    installLogger(createLogger({ service: "rakazo-worker", sinks: [sink] }));
+    vi.mocked(expireComputerControl).mockRejectedValueOnce(
+      new SandboxUnresponsiveError("Boat could not be reached"),
+    );
+    const enqueue = vi.fn(async () => undefined);
+    const handlers = createBackgroundJobHandlers({
+      executor: {} as unknown as ReturnType<typeof createRunExecutor>,
+      prisma: { computer: owned() } as unknown as PrismaClient,
+      sandbox: {} as unknown as SandboxProvider,
+      home: {} as unknown as AgentHomeStore,
+      artifacts: {} as unknown as ArtifactStore,
+      jobs: { enqueue } as unknown as JobPublisher,
+      events: {} as unknown as ThreadEvents,
+      workerId: "worker-1",
+      runtime: {} as unknown as AgentRuntime,
+      secretStore: {} as unknown as EncryptedSecretStore,
+      memoryProviders: { resolve: vi.fn(async () => null) },
+    });
+
+    await handlers["computer.control-expire"]({ computerId: "computer-1", leaseId: "lease-1" });
+
+    expect(enqueue).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "computer.control-expire",
+        payload: { computerId: "computer-1", leaseId: "lease-1" },
+      }),
+    );
+    expect(sink.events.map((event) => [event.level, event.message])).toEqual([
+      ["warn", "computer.control_expire_deferred"],
+    ]);
+  });
+
   it("resolves the deployment model when no user credential is configured", async () => {
     const prisma = {
       userModelPreference: { findFirst: vi.fn(async () => null) },
@@ -195,7 +265,7 @@ describe("createBackgroundJobHandlers", () => {
       executor.resolveModel({ userId: "user-1", spaceId: "workspace-1" }),
     ).resolves.toEqual({
       provider: "openrouter",
-      id: "openai/gpt-6-luna",
+      id: "anthropic/claude-haiku-5.5",
       apiKey: "deployment-key",
       baseUrl: undefined,
       thinkingLevel: null,

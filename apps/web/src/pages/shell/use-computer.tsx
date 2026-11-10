@@ -7,17 +7,16 @@ import type {
   Run,
   ThreadSnapshot,
 } from "@rakazo/contracts";
+import { isComputerAllowanceUsed } from "@rakazo/contracts";
 import {
   createScreenReconnects,
   isRetryableError,
-  SCREEN_RECONNECT_DELAY_MS,
-  SCREEN_RECONNECT_EVERY_MS,
   screenProbeUrl,
   waitForScreenPage,
 } from "@rakazo/core";
 import { Button, Spinner } from "@rakazo/ui-web";
 import type { RefObject } from "react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ComputerMaintenanceActions } from "../../components/ComputerMaintenanceActions";
 import { computersAreUnavailable } from "../../components/ComputersUnavailableHint";
 import {
@@ -28,8 +27,9 @@ import {
   loadComputerScreen,
   probeScreen,
   probeScreenStatus,
+  proxiedScreenCapability,
   SCREEN_FRAME_LOAD_TIMEOUT_MS,
-  sameWuyingScreen,
+  sameEmbeddedComputerScreen,
   screenFrameError,
   screenFrameMessage,
   screenFrameStarted,
@@ -48,6 +48,8 @@ import { errorText } from "../../lib/user-error";
 // Caps the per-bot computer cache so a long session that opens many distinct bots
 // over time doesn't accumulate one entry per bot forever.
 const COMPUTER_CACHE_LIMIT = 20;
+// A remembered view shown on release must outlive the switch; an older one is read again.
+const VIEW_REUSE_MIN_REMAINING_MS = 60_000;
 
 type CachedComputer = { computer: ComputerStatus | null; screenUrl: string | null };
 
@@ -75,6 +77,7 @@ export function useComputerState({
   const booting = bootingBotId !== null && bootingBotId === computer?.botId;
   const bootsInFlight = useRef(new Map<string, symbol>());
   const [screenUrl, setScreenUrl] = useState<string | null>(null);
+  const screenUrlRef = useRef(screenUrl);
   const [screenUrlLoadedBotId, setScreenUrlLoadedBotId] = useState<string | null>(null);
   const [computerOpen, setComputerOpen] = useState(false);
   const [computerBotId, setComputerBotId] = useState<string | undefined>();
@@ -94,6 +97,16 @@ export function useComputerState({
   // and the page reports its own state; nothing past "loading" by the timeout means it stalled.
   const [screenFrame, setScreenFrame] = useState<HTMLIFrameElement | null>(null);
   const [screenLoadError, setScreenLoadError] = useState<string | null>(null);
+  // An error that replaced the screen waits for Retry rather than spending another login code.
+  const screenErrorShown = useRef(false);
+  // Synced before the frame's unmount cleanup runs, from committed renders only.
+  useLayoutEffect(() => {
+    screenUrlRef.current = screenUrl;
+    // A screen-read error stays hidden while a frame still shows the screen.
+    screenErrorShown.current = Boolean(
+      screenLoadError || (computerError && !computerErrorFromScreen),
+    );
+  });
   const screenFrameReported = useRef(false);
   // A screen that drops after connecting loads again by itself now and then, through the proxy's
   // full check, by remounting its frame.
@@ -101,9 +114,52 @@ export function useComputerState({
   const screenReconnects = useRef(createScreenReconnects());
   const screenReconnect = () => screenReconnects.current.for(computerBotIdRef.current ?? "");
   const [screenFrameKey, setScreenFrameKey] = useState(0);
-  // Set once a framed Wuying session ends, so the next read replaces its spent login code.
-  const screenSessionEnded = useRef(false);
-  const wuyingRetryAt = useRef(0);
+  // A new screen of the same bot loads in a new frame while the frame it replaces stays on top,
+  // so taking or releasing control never blanks the screen. The held frame goes once the new one
+  // reports back.
+  const [screenGeneration, setScreenGeneration] = useState(0);
+  const [heldScreen, setHeldScreen] = useState<{ url: string; key: string } | null>(null);
+  const [shownScreen, setShownScreen] = useState<{ botId?: string; url: string | null }>({
+    url: null,
+  });
+  const frameBotId = computerBotId ?? activeId;
+  if (shownScreen.url !== screenUrl || shownScreen.botId !== frameBotId) {
+    const before = embeddableScreenUrl(shownScreen.url);
+    const after = embeddableScreenUrl(screenUrl);
+    const replaced =
+      Boolean(screenFrame) &&
+      shownScreen.botId === frameBotId &&
+      before !== after &&
+      proxiedScreenCapability(before) !== null &&
+      proxiedScreenCapability(after) !== null;
+    // A frame that never connected shows nothing, so an earlier held frame stays instead.
+    setHeldScreen(
+      replaced
+        ? (heldScreen ?? { url: before!, key: `${screenFrameKey}:${screenGeneration}` })
+        : null,
+    );
+    if (replaced) setScreenGeneration((generation) => generation + 1);
+    setShownScreen({ botId: frameBotId, url: screenUrl });
+  }
+  useEffect(() => {
+    if (!heldScreen) return;
+    if (screenLoadError) {
+      setHeldScreen(null);
+      return;
+    }
+    const timer = setTimeout(() => setHeldScreen(null), SCREEN_FRAME_LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [heldScreen, screenLoadError]);
+  useEffect(() => {
+    setHeldScreen(null);
+  }, [computerOpen, panel]);
+  // Each bot's last read-only screen, which a release shows at once instead of after its call.
+  const viewScreenUrls = useRef(new Map<string, string>());
+  // The Wuying URL a mounted frame signed in with, until its session ends. Reads keep it rather
+  // than replace it, since each fresh login code signs the frame's session out.
+  const liveWuyingUrl = useRef<string | null>(null);
+  // A failed Wuying screen waits for Retry rather than spending another login code.
+  const screenAwaitsRetry = useRef(false);
   // Typing goes back into a reconnected screen that had the keyboard when it dropped.
   const screenRefocus = useRef(createScreenRefocus());
   useEffect(() => {
@@ -134,12 +190,42 @@ export function useComputerState({
     if (!screenFrame) return;
     const fallback = t`Could not connect to the computer screen`;
     let reconnect: ReturnType<typeof setTimeout> | undefined;
+    let readDeadline: ReturnType<typeof setTimeout> | undefined;
+    // One reconnect at a time: while its screen read or page wait is still on its way,
+    // further reports of the same drop only describe it again and must not start a second
+    // one, whose failure would cancel the first. A new frame or screen URL re-runs this
+    // effect and starts the next cycle.
+    let reconnectPending = false;
+    // The reconnect's screen read left. Only its completion, or its deadline below,
+    // releases the hold then, so the drop it answers for still suppresses duplicates
+    // while it is out.
+    let reconnectReadOut = false;
+    // The reconnect the flags and timers belong to; a newer grant supersedes them all.
+    let reconnectCycle = 0;
+    // Whether the reporting screen is connected, so a read deadline that lands on a
+    // reconnected screen leaves it showing instead of replacing it with the error.
+    let screenConnected = false;
     const stopped = new AbortController();
     const onMessage = (event: MessageEvent) => {
       if (event.source !== screenFrame.contentWindow) return;
       const message = screenFrameMessage(event.data);
       if (!message) return;
+      if (message.rakazoScreen !== "loading" && message.rakazoScreen !== "connecting") {
+        setHeldScreen(null);
+      }
       if (screenFrameStarted(message)) screenFrameReported.current = true;
+      if (message.rakazoScreen === "connected") screenConnected = true;
+      else if (message.rakazoScreen === "failed" || message.rakazoScreen === "disconnected")
+        screenConnected = false;
+      const wuying = Boolean(screenUrl?.startsWith("wuying:"));
+      if (wuying && message.rakazoScreen === "connected") {
+        // The SDK can rejoin by itself, and a fresh read would sign that session out again.
+        clearTimeout(reconnect);
+        // A reconnected screen releases a retry it kept queued; a read already out holds
+        // until it completes or runs out of time.
+        if (!reconnectReadOut) reconnectPending = false;
+        liveWuyingUrl.current = screenUrl;
+      }
       if (
         message.rakazoScreen === "connected" &&
         screenRefocus.current.connected(document.activeElement, screenFrame, document.body)
@@ -148,25 +234,69 @@ export function useComputerState({
         screenFrame.contentWindow?.postMessage({ rakazoScreenFocus: true }, "*");
       }
       const ended = message.rakazoScreen === "failed" || message.rakazoScreen === "disconnected";
-      if (screenUrl?.startsWith("wuying:") && ended) {
-        // A Wuying login code works once, so a frame that loaded a spent one, or a session
-        // another viewer took over, can only come back with a fresh read of the screen.
-        screenSessionEnded.current = true;
-        const now = Date.now();
-        if (now - wuyingRetryAt.current >= SCREEN_RECONNECT_EVERY_MS) {
-          wuyingRetryAt.current = now;
+      if (wuying && ended) {
+        // A Wuying login code works once, so a dropped session, such as one another viewer took
+        // over, comes back only through a fresh read; remounting would replay the spent code.
+        // A hidden tab leaves the session to the viewer who took it.
+        liveWuyingUrl.current = null;
+        if (
+          document.visibilityState === "visible" &&
+          screenReconnect().report(message.rakazoScreen) === "reconnect"
+        ) {
+          if (reconnectPending) return;
+          reconnectPending = true;
+          reconnectCycle += 1;
+          const cycle = reconnectCycle;
+          screenRefocus.current.dropped(document.activeElement === screenFrame);
           const botId = computerBotIdRef.current;
+          const delay = screenReconnect().delayMs();
           clearTimeout(reconnect);
           reconnect = setTimeout(() => {
-            if (botId && !stopped.signal.aborted) void refreshComputerScreen(botId);
-          }, SCREEN_RECONNECT_DELAY_MS);
+            if (!botId || stopped.signal.aborted) {
+              reconnectPending = false;
+              return;
+            }
+            reconnectReadOut = true;
+            // Claim this read's request token up front, so its deadline can invalidate
+            // exactly this read and never a newer one.
+            const readRequest = ++screenRequest.current;
+            // A read that never settles must not hold the reconnect forever. It gets the
+            // same silence budget a framed screen has; past it the hold is released — a
+            // dropped screen shows the error, a reconnected one keeps showing — and the
+            // hung read's answer is stale, so it cannot commit.
+            readDeadline = setTimeout(() => {
+              if (cycle !== reconnectCycle) return;
+              reconnectPending = false;
+              reconnectReadOut = false;
+              // A newer read — a takeover, a panel refresh — owns the token now; only this
+              // read's own answer is invalidated and shown as timed out.
+              if (readRequest !== screenRequest.current) return;
+              screenRequest.current += 1;
+              if (!screenConnected) {
+                screenRefocus.current.forget();
+                setScreenLoadError(fallback);
+              }
+            }, SCREEN_FRAME_LOAD_TIMEOUT_MS);
+            void refreshComputerScreen(botId, readRequest).finally(() => {
+              if (cycle !== reconnectCycle) return;
+              clearTimeout(readDeadline);
+              reconnectPending = false;
+              reconnectReadOut = false;
+            });
+          }, delay);
           return;
         }
+        screenRefocus.current.forget();
+        setScreenLoadError(screenFrameError(message, fallback));
+        return;
       }
       if (screenReconnect().report(message.rakazoScreen) === "reconnect") {
+        if (reconnectPending) return;
+        reconnectPending = true;
         screenRefocus.current.dropped(document.activeElement === screenFrame);
         clearTimeout(reconnect);
         const url = embeddableScreenUrl(screenUrl);
+        const delay = screenReconnect().delayMs();
         reconnect = setTimeout(() => {
           // Wait out an API that can't be reached, so the one reconnect isn't spent on it.
           void waitForScreenPage(
@@ -182,7 +312,7 @@ export function useComputerState({
             // A refusal shows once the new frame's own check runs.
             else setScreenFrameKey((key) => key + 1);
           });
-        }, SCREEN_RECONNECT_DELAY_MS);
+        }, delay);
         return;
       }
       const error = screenFrameError(message, fallback);
@@ -199,10 +329,33 @@ export function useComputerState({
       // Closing the screen or a new screen URL (taking or releasing control) cancels a reconnect.
       stopped.abort();
       clearTimeout(reconnect);
+      clearTimeout(readDeadline);
       window.removeEventListener("message", onMessage);
       document.removeEventListener("focusin", onFocusIn);
     };
   }, [screenFrame, screenUrl]);
+  useEffect(() => {
+    // Each Wuying frame is keyed by its URL, so it loads exactly one login code.
+    const frameUrl = screenUrlRef.current;
+    if (!screenFrame || !frameUrl?.startsWith("wuying:")) return;
+    liveWuyingUrl.current = frameUrl;
+    return () => {
+      if (liveWuyingUrl.current === frameUrl) liveWuyingUrl.current = null;
+      // A frame replaced by a fresh code leaves that code alone.
+      if (screenUrlRef.current !== frameUrl) return;
+      setScreenUrl(null);
+      if (screenErrorShown.current) {
+        screenAwaitsRetry.current = true;
+        return;
+      }
+      // Another frame may still show this computer, such as the panel once the overlay closes.
+      const botId = computerBotIdRef.current;
+      if (botId && computerVisible.current) {
+        setScreenUrlLoadedBotId(null);
+        void refreshComputerScreen(botId);
+      }
+    };
+  }, [screenFrame]);
   useEffect(() => {
     if (!computerOpen) {
       setComputerViewport(null);
@@ -250,6 +403,7 @@ export function useComputerState({
   /** Opening a bot paints its last-known computer at once; fresh reads reconcile behind it. */
   function showCachedComputer(botId: string) {
     screenRequest.current += 1;
+    screenAwaitsRetry.current = false;
     setScreenUrlLoadedBotId(null);
     setComputerError(null);
     setComputerErrorFromScreen(false);
@@ -262,14 +416,14 @@ export function useComputerState({
     }
   }
 
-  async function refreshComputerScreen(id: string) {
+  async function refreshComputerScreen(id: string, request?: number) {
     if (!computerVisible.current) return null;
-    const request = ++screenRequest.current;
+    const read = request ?? ++screenRequest.current;
     const issuedState = computerRef.current?.botId === id ? computerRef.current.state : undefined;
     return loadComputerScreen({
       load: () => rpc.computer.screenUrl({ botId: id }),
       isCurrent: () =>
-        request === screenRequest.current &&
+        read === screenRequest.current &&
         (activeBotId.current === id || computerBotIdRef.current === id) &&
         computerVisible.current,
       commit: (screen) => {
@@ -280,8 +434,13 @@ export function useComputerState({
             : null,
         );
         setScreenUrl((current) => {
-          if (!screenSessionEnded.current && sameWuyingScreen(current, screen.url)) return current;
-          screenSessionEnded.current = false;
+          if (
+            screen.url?.startsWith("wuying:") &&
+            (screenAwaitsRetry.current ||
+              (current === liveWuyingUrl.current &&
+                sameEmbeddedComputerScreen(current, screen.url)))
+          )
+            return current;
           return screen.url;
         });
         // A screen read replaces only its own error; a failed boot keeps its error and Retry.
@@ -289,10 +448,28 @@ export function useComputerState({
           setComputerError(screen.error);
           setComputerErrorFromScreen(Boolean(screen.error));
         }
-        cacheComputerFor(id, { screenUrl: screen.url });
+        // A Wuying login code works once, so a cached one could only sign in as a spent code.
+        cacheComputerFor(id, { screenUrl: screen.url?.startsWith("wuying:") ? null : screen.url });
+        if (proxiedScreenCapability(screen.url)?.policy === "view") {
+          viewScreenUrls.current.set(id, screen.url!);
+        }
       },
       fallbackError: t`Could not connect to the computer screen`,
     });
+  }
+
+  /** The bot's last read-only screen, while its capability still has time left. */
+  function viewScreenUrlFor(botId: string) {
+    const url = viewScreenUrls.current.get(botId) ?? null;
+    const capability = proxiedScreenCapability(url);
+    return capability && capability.expiresAt - Date.now() > VIEW_REUSE_MIN_REMAINING_MS
+      ? url
+      : null;
+  }
+
+  /** A retry the user pressed starts the visible screen's reconnects over. */
+  function resetScreenReconnect() {
+    screenReconnects.current.for(computerBotIdRef.current ?? "").reset();
   }
 
   return {
@@ -322,11 +499,18 @@ export function useComputerState({
     computerErrorFromScreen,
     setComputerErrorFromScreen,
     setScreenFrame,
-    screenFrameKey,
+    // A fresh Wuying code changes only the URL fragment, which would not reload the frame.
+    screenFrameKey: screenUrl?.startsWith("wuying:")
+      ? `${screenFrameKey}:${screenUrl}`
+      : `${screenFrameKey}:${screenGeneration}`,
+    heldScreen,
     screenLoadError,
     setScreenLoadError,
+    screenAwaitsRetry,
+    resetScreenReconnect,
     computerVisible,
     refreshComputerScreen,
+    viewScreenUrlFor,
   };
 }
 
@@ -346,6 +530,7 @@ export function useComputerControls({
   sandboxProvider,
   refreshThread,
   refreshGroupThread,
+  onUpgrade,
 }: {
   rpc: ReturnType<typeof createSpaceRpc>;
   state: ComputerState;
@@ -359,6 +544,7 @@ export function useComputerControls({
   sandboxProvider: Me["sandboxProvider"] | undefined;
   refreshThread: (botId: string) => Promise<ThreadSnapshot>;
   refreshGroupThread: (groupId: string) => Promise<ThreadSnapshot>;
+  onUpgrade: () => void;
 }) {
   const { t } = useLingui();
   const {
@@ -385,8 +571,11 @@ export function useComputerControls({
     setComputerErrorFromScreen,
     screenLoadError,
     setScreenLoadError,
+    screenAwaitsRetry,
+    resetScreenReconnect,
     computerVisible,
     refreshComputerScreen,
+    viewScreenUrlFor,
   } = state;
   const [keepComputerRecovery, setKeepComputerRecovery] = useState(false);
   const recoveryHoldTimer = useRef<number | undefined>(undefined);
@@ -428,6 +617,7 @@ export function useComputerControls({
     force?: boolean;
   }) {
     setScreenUrlLoadedBotId(null);
+    screenAwaitsRetry.current = false;
     const epoch = ++computerBootEpoch.current;
     const stillThisBoot = () => computerBootEpoch.current === epoch;
     const stillThisBot = () =>
@@ -457,7 +647,9 @@ export function useComputerControls({
       await refreshComputerFor(targetBotId);
     } catch (error) {
       if (!stillThisBoot() || !stillThisBot()) return;
-      setComputerError(errorText(error, t`Could not take control`));
+      setComputerError(
+        errorText(error, takeControl ? t`Could not take control` : t`Computer failed to boot`),
+      );
       setComputerErrorFromScreen(false);
       throw error;
     } finally {
@@ -485,6 +677,8 @@ export function useComputerControls({
     }
     if (!active) return;
     const botId = active.id;
+    // Opening the panel is a fresh try at a screen that failed.
+    screenAwaitsRetry.current = false;
     let cancelled = false;
     void (async () => {
       // Refresh from the server first: a stale SSE "booting" snapshot would
@@ -542,7 +736,8 @@ export function useComputerControls({
   useEffect(() => {
     if (!computerOpen) return;
     function onKey(event: KeyboardEvent) {
-      if (event.key === "Escape") setComputerOpen(false);
+      if (event.key === "Escape" && !event.isComposing && event.keyCode !== 229)
+        setComputerOpen(false);
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
@@ -613,6 +808,15 @@ export function useComputerControls({
   async function releaseComputer(reason?: ComputerReleaseReason) {
     const botId = computerBotIdRef.current ?? activeBotId.current;
     if (!botId) return;
+    // The read-only screen is safe to show at once; the release itself takes a while.
+    const view = computerBotIdRef.current === botId ? viewScreenUrlFor(botId) : null;
+    let controlScreen: string | null = null;
+    if (view) {
+      setScreenUrl((current) => {
+        controlScreen = current;
+        return view;
+      });
+    }
     try {
       await rpc.computer.release({ botId, reason });
       if (computerBotIdRef.current !== botId && activeBotId.current !== botId) return;
@@ -622,6 +826,8 @@ export function useComputerControls({
         await refreshGroupThread(groupId).catch(() => undefined);
       }
     } catch {
+      // Control stays with this person, so their screen goes back to it.
+      if (view) setScreenUrl((current) => (current === view ? controlScreen : current));
       if (computerBotIdRef.current !== botId && activeBotId.current !== botId) return;
       setComputerError(t`Could not continue`);
       setComputerErrorFromScreen(false);
@@ -650,37 +856,48 @@ export function useComputerControls({
           : !booting && computer?.state === "error"
             ? t`Computer failed to boot`
             : null));
+  // Retrying cannot help once the hours are spent; only a plan change can.
+  const allowanceUsed = computer?.state !== "running" && isComputerAllowanceUsed(computerFailure);
   const computerScreenError = computerFailure ? (
-    <div role="alert" className="flex flex-col items-center gap-3 px-6 text-center text-sm">
+    <div role="alert" className="flex flex-col items-center gap-3 px-6 text-center text-body">
       {screenFailure ? (
         <p>
           <Trans>Screen not connected</Trans>
         </p>
       ) : null}
       <p className="text-destructive">{computerFailure}</p>
-      <Button
-        variant="outline"
-        size="sm"
-        onClick={() => {
-          if (!computerBot) return;
-          setScreenLoadError(null);
-          setScreenUrlLoadedBotId(null);
-          if (computer?.state === "running") {
-            // An explicit retry clears any error; background screen reads clear only their own.
-            setComputerError(null);
-            setComputerErrorFromScreen(false);
-            void refreshComputerScreen(computerBot.id);
-          } else
-            void bootComputer({
-              botId: computerBot.id,
-              takeControl: false,
-              showProgress: true,
-              force: true,
-            }).catch(() => undefined);
-        }}
-      >
-        <Trans>Retry screen</Trans>
-      </Button>
+      {allowanceUsed ? (
+        <Button variant="outline" size="sm" onClick={onUpgrade}>
+          <Trans>Upgrade</Trans>
+        </Button>
+      ) : (
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            if (!computerBot) return;
+            setScreenLoadError(null);
+            setScreenUrlLoadedBotId(null);
+            // An explicit retry clears any error and starts the screen's reconnects over;
+            // background screen reads clear only their own error.
+            screenAwaitsRetry.current = false;
+            resetScreenReconnect();
+            if (computer?.state === "running") {
+              setComputerError(null);
+              setComputerErrorFromScreen(false);
+              void refreshComputerScreen(computerBot.id);
+            } else
+              void bootComputer({
+                botId: computerBot.id,
+                takeControl: false,
+                showProgress: true,
+                force: true,
+              }).catch(() => undefined);
+          }}
+        >
+          <Trans>Retry screen</Trans>
+        </Button>
+      )}
       {screenFailure && computer?.state === "running" && computerBot ? (
         <ComputerMaintenanceActions
           visibleRecover

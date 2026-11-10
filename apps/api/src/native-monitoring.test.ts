@@ -31,6 +31,86 @@ describe("native error collector privacy boundary", () => {
     });
   });
 
+  it("keeps the coarse mobile screen name and drops anything route-like", () => {
+    expect(sanitizeNativeEvent({ tags: { screen: "chat" } }, "mobile").tags).toEqual({
+      surface: "mobile",
+      screen: "chat",
+    });
+    for (const screen of ["/thread?id=abc", "Chat with Sam", "chat/123", "alice_smith", 7])
+      expect(sanitizeNativeEvent({ tags: { screen } }, "mobile").tags).toEqual({
+        surface: "mobile",
+      });
+    expect(sanitizeNativeEvent({ tags: { screen: "other" } }, "mobile").tags).toEqual({
+      surface: "mobile",
+      screen: "other",
+    });
+    expect(sanitizeNativeEvent({ tags: { screen: "chat" } }, "desktop").tags).toEqual({
+      surface: "desktop",
+    });
+  });
+
+  it("drops the screen from a startup error replayed from the previous launch", () => {
+    expect(
+      sanitizeNativeEvent({ tags: { screen: "chat", "startup.previous_launch": "true" } }, "mobile")
+        .tags,
+    ).toEqual({ surface: "mobile", "startup.previous_launch": "true" });
+  });
+
+  it("keeps which desktop child process stopped", () => {
+    const tags = { "process.name": "Audio Service", "process.exit_code": "-1" };
+    expect(sanitizeNativeEvent({ tags }, "desktop").tags).toEqual({ surface: "desktop", ...tags });
+    expect(sanitizeNativeEvent({ tags }, "mobile").tags).toEqual({ surface: "mobile" });
+    expect(
+      sanitizeNativeEvent(
+        { tags: { "process.name": "/Users/someone/app", "process.exit_code": "private text" } },
+        "desktop",
+      ).tags,
+    ).toEqual({ surface: "desktop" });
+  });
+
+  it("keeps a desktop renderer's route, uptime and memory trend", () => {
+    const tags = {
+      "renderer.route": "/app/:id",
+      "renderer.uptime_min": "184",
+      "renderer.memory_mb": "812,1460,2210",
+    };
+    expect(sanitizeNativeEvent({ tags }, "desktop").tags).toEqual({ surface: "desktop", ...tags });
+    expect(sanitizeNativeEvent({ tags }, "mobile").tags).toEqual({ surface: "mobile" });
+    for (const route of ["file:", "unknown", "/app/:id/:i"])
+      expect(sanitizeNativeEvent({ tags: { "renderer.route": route } }, "desktop").tags).toEqual({
+        surface: "desktop",
+        "renderer.route": route,
+      });
+    expect(
+      sanitizeNativeEvent(
+        {
+          tags: {
+            "renderer.route": "/Users/someone/private",
+            "renderer.uptime_min": "a while",
+            "renderer.memory_mb": "lots",
+          },
+        },
+        "desktop",
+      ).tags,
+    ).toEqual({ surface: "desktop" });
+  });
+
+  it("keeps a sanitized mobile breadcrumb trail, including native ones", () => {
+    const breadcrumbs = [
+      { category: "app.lifecycle", type: "navigation", data: { state: "background" } },
+      { category: "ui.lifecycle", data: { screen: "RNSScreen", title: "Private chat" } },
+      { category: "console", message: "private output" },
+      { category: "touch", message: "Send private", data: { view: "Private" } },
+    ];
+    expect(
+      sanitizeNativeEvent({ breadcrumbs: { values: breadcrumbs } }, "mobile").breadcrumbs,
+    ).toEqual([
+      { category: "app.lifecycle", type: "navigation", data: { state: "background" } },
+      { category: "ui.lifecycle", data: { screen: "RNSScreen" } },
+    ]);
+    expect(sanitizeNativeEvent({ breadcrumbs }, "desktop").breadcrumbs).toBeUndefined();
+  });
+
   it("keeps replayed startup failures anonymous", () => {
     const event = sanitizeNativeEvent(
       {

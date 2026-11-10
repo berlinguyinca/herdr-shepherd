@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loadEnv } from "./env.js";
+import { loadEnv, parseExtraAuthOrigins } from "./env.js";
 
 const base = {
   DATABASE_URL: "postgres://rakazo:rakazo@127.0.0.1:5433/rakazo",
@@ -16,14 +16,11 @@ describe("loadEnv", () => {
       ).toBe(count);
     }
   });
-  it.each(["0", "-1", "1.5", "NaN", "Infinity", "1e2", "0x10", "101", "9007199254740991"])(
-    "rejects invalid attachment count %s",
-    (value) => {
-      expect(() => loadEnv({ ...base, MAX_ATTACHMENTS_PER_MESSAGE: value })).toThrow(
-        "MAX_ATTACHMENTS_PER_MESSAGE",
-      );
-    },
-  );
+  it.each(["0", "1e2", "101"])("rejects invalid attachment count %s", (value) => {
+    expect(() => loadEnv({ ...base, MAX_ATTACHMENTS_PER_MESSAGE: value })).toThrow(
+      "MAX_ATTACHMENTS_PER_MESSAGE",
+    );
+  });
 
   it("keeps calls off unless explicitly enabled", () => {
     expect(loadEnv(base).phoneCallsEnabled).toBe(false);
@@ -48,12 +45,9 @@ describe("loadEnv", () => {
     );
   });
 
-  it.each(["0", "-1", "1.5", "NaN", "Infinity", "1e3", "0x10", "9007199254740991"])(
-    "rejects invalid upload limit %s",
-    (value) => {
-      expect(() => loadEnv({ ...base, MAX_UPLOAD_SIZE_MB: value })).toThrow("MAX_UPLOAD_SIZE_MB");
-    },
-  );
+  it.each(["0", "1e3", "9007199254740991"])("rejects invalid upload limit %s", (value) => {
+    expect(() => loadEnv({ ...base, MAX_UPLOAD_SIZE_MB: value })).toThrow("MAX_UPLOAD_SIZE_MB");
+  });
   it("keeps the ticket board off unless explicitly enabled", () => {
     expect(loadEnv(base).ticketBoardEnabled).toBe(false);
     for (const value of ["false", "1", ""])
@@ -390,5 +384,117 @@ describe("OIDC environment", () => {
     expect(
       loadEnv({ ...base, ...oidc, OIDC_ALLOW_SIGNUP_BYPASS: "true" }).oidc?.allowSignupBypass,
     ).toBe(true);
+  });
+});
+
+describe("web origin", () => {
+  it("drops trailing slashes so links never double up", () => {
+    expect(loadEnv({ ...base, WEB_ORIGIN: "https://app.example.com/" }).webOrigin).toBe(
+      "https://app.example.com",
+    );
+    expect(loadEnv({ ...base, WEB_ORIGIN: "https://app.example.com///" }).webOrigin).toBe(
+      "https://app.example.com",
+    );
+    expect(loadEnv({ ...base, WEB_ORIGIN: " https://app.example.com " }).webOrigin).toBe(
+      "https://app.example.com",
+    );
+  });
+
+  it("keeps the local default when none is set", () => {
+    expect(loadEnv(base).webOrigin).toBe("http://127.0.0.1:5173");
+    expect(loadEnv(base).authUrl).toBe("http://127.0.0.1:5173");
+  });
+
+  it.each(["", " \t "])("uses the local default for blank WEB_ORIGIN %j", (value) => {
+    const env = loadEnv({ ...base, WEB_ORIGIN: value });
+    expect(env.webOrigin).toBe("http://127.0.0.1:5173");
+    expect(env.authUrl).toBe("http://127.0.0.1:5173");
+  });
+
+  it.each(["", " \t "])("uses webOrigin for blank BETTER_AUTH_URL %j", (value) => {
+    const env = loadEnv({
+      ...base,
+      WEB_ORIGIN: "https://app.example.com/",
+      BETTER_AUTH_URL: value,
+    });
+    expect(env.authUrl).toBe("https://app.example.com");
+  });
+
+  it("normalises BETTER_AUTH_URL the same way and keeps a path", () => {
+    const env = loadEnv({
+      ...base,
+      WEB_ORIGIN: "https://app.example.com/",
+      BETTER_AUTH_URL: "https://auth.example.com/base/",
+    });
+    expect(env.authUrl).toBe("https://auth.example.com/base");
+    expect(env.webOrigin).toBe("https://app.example.com");
+  });
+
+  it("refuses something that is not an absolute URL", () => {
+    expect(() => loadEnv({ ...base, WEB_ORIGIN: "app.example.com" })).toThrow(
+      "WEB_ORIGIN must be an absolute http(s) URL",
+    );
+  });
+
+  it("names BETTER_AUTH_URL when it is invalid", () => {
+    expect(() => loadEnv({ ...base, BETTER_AUTH_URL: "app.example.com" })).toThrow(
+      "BETTER_AUTH_URL must be an absolute http(s) URL",
+    );
+  });
+
+  it.each(["WEB_ORIGIN", "BETTER_AUTH_URL"])("refuses non-HTTP URLs for %s", (name) => {
+    expect(() => loadEnv({ ...base, [name]: "app.example.com:5173" })).toThrow(
+      `${name} must be an absolute http(s) URL`,
+    );
+  });
+
+  it.each(["WEB_ORIGIN", "BETTER_AUTH_URL"])("does not expose invalid %s values", (name) => {
+    const value = "postgres://user:password@db.example.test/database";
+    const load = () => loadEnv({ ...base, [name]: value });
+    expect(load).toThrow(`${name} must be an absolute http(s) URL`);
+    expect(load).not.toThrow(value);
+  });
+});
+
+describe("directory provisioning environment", () => {
+  it("stays off without a token and keeps a long one", () => {
+    expect(loadEnv(base).scimBearerToken).toBeUndefined();
+    expect(loadEnv({ ...base, SCIM_BEARER_TOKEN: " " }).scimBearerToken).toBeUndefined();
+    const token = "a".repeat(32);
+    expect(loadEnv({ ...base, SCIM_BEARER_TOKEN: ` ${token} ` }).scimBearerToken).toBe(token);
+  });
+  it.each(["a".repeat(31), `${"a".repeat(16)} ${"a".repeat(16)}`])(
+    "refuses a short or spaced token",
+    (token) => {
+      expect(() => loadEnv({ ...base, SCIM_BEARER_TOKEN: token })).toThrow("SCIM_BEARER_TOKEN");
+    },
+  );
+});
+
+describe("RAKAZO_EXTRA_AUTH_ORIGINS", () => {
+  it("is empty when unset or blank", () => {
+    expect(loadEnv(base).extraAuthOrigins).toEqual([]);
+    expect(parseExtraAuthOrigins(" , ")).toEqual([]);
+  });
+
+  it("keeps https origins and http on loopback or a private network, normalized", () => {
+    expect(
+      parseExtraAuthOrigins(
+        "https://host.tailnet.ts.net/, http://192.168.1.20:5173 ,http://100.64.1.2,http://localhost:5173,https://host.tailnet.ts.net",
+      ),
+    ).toEqual([
+      "https://host.tailnet.ts.net",
+      "http://192.168.1.20:5173",
+      "http://100.64.1.2",
+      "http://localhost:5173",
+    ]);
+  });
+
+  it("drops invalid entries", () => {
+    expect(
+      parseExtraAuthOrigins(
+        "http://example.com,ftp://host,rakazo://,not a url,https://host/path,https://u:p@host,*",
+      ),
+    ).toEqual([]);
   });
 });

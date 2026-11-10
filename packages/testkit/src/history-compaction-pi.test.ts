@@ -51,6 +51,10 @@ describe("history compaction with real Pi", () => {
     const create = vi.fn();
     const prisma = {
       thread: { findUniqueOrThrow: vi.fn(async () => thread), updateMany },
+      spaceMember: {
+        findUnique: vi.fn(async () => ({ userId: thread.userId })),
+        count: vi.fn(async () => 1),
+      },
       message: {
         findMany: vi.fn(async () => [
           {
@@ -106,7 +110,11 @@ describe("history compaction with real Pi", () => {
         historyCompactedUpToSeq: 49,
         historyCompactionGeneration: 0,
       },
-      data: { historyCompactedUpToSeq: 50, historyCompactionSummary: summary },
+      data: {
+        historyCompactedUpToSeq: 50,
+        historyCompactionSummary: summary,
+        historyCompactionRetryAfterSeq: null,
+      },
     });
     expect(memoryProviders.resolve).toHaveBeenCalledOnce();
     expect(jobs.enqueue).not.toHaveBeenCalled();

@@ -20,8 +20,7 @@ import { FakeSandboxProvider } from "./fake-sandbox.js";
 import { LocalAgentHomeStore } from "./home.js";
 
 const url = process.env.DATABASE_URL;
-const describePostgres =
-  process.env.VERIFY_DATABASE === "1" && url ? describe.sequential : describe.skip;
+const describePostgres = process.env.VERIFY_DATABASE === "1" && url ? describe : describe.skip;
 
 describePostgres("computer runs (PostgreSQL)", () => {
   const stamp = randomUUID();
@@ -192,6 +191,58 @@ describePostgres("computer runs (PostgreSQL)", () => {
     );
   });
 
+  it("sleeps past a background helper, which never uses the computer", async () => {
+    const o = await owner();
+    await o.start();
+    const bot = await system.bot.create({
+      data: {
+        spaceId: o.id,
+        userId: o.id,
+        name: "Delegating",
+        color: "ink",
+        computerId: o.id,
+        thread: { create: { spaceId: o.id, userId: o.id } },
+      },
+    });
+    const helperThread = await system.thread.create({
+      data: { spaceId: o.id, userId: o.id, helperBotId: bot.id },
+    });
+    const task = await system.task.create({
+      data: {
+        spaceId: o.id,
+        userId: o.id,
+        botId: bot.id,
+        threadId: helperThread.id,
+        prompt: "Compare venues",
+        status: "running",
+      },
+    });
+    const helper = await system.run.create({
+      data: {
+        spaceId: o.id,
+        userId: o.id,
+        botId: bot.id,
+        threadId: helperThread.id,
+        taskId: task.id,
+        status: "running",
+        trigger: "helper",
+        leaseExpiresAt: new Date(Date.now() + 60_000),
+      },
+    });
+
+    await o.sleep();
+    expect((await system.computer.findUniqueOrThrow({ where: { id: o.id } })).state).toBe(
+      "suspended",
+    );
+    // The same run as the bot's own turn keeps the computer up.
+    await o.start();
+    await system.run.update({ where: { id: helper.id }, data: { trigger: "user" } });
+    await o.sleep();
+    expect((await system.computer.findUniqueOrThrow({ where: { id: o.id } })).state).toBe(
+      "running",
+    );
+  });
+
   it("ends the run when the provider has already lost the sandbox", async () => {
     const o = await owner();
     await o.start();
@@ -209,6 +260,53 @@ describePostgres("computer runs (PostgreSQL)", () => {
     expect(await o.runs()).toEqual([
       expect.objectContaining({ endedAt: expect.any(Date), endReason: "gone" }),
     ]);
+  });
+
+  it("ends a run lost at the provider when it was last seen running, not when that was noticed", async () => {
+    const lostAtStart = await owner();
+    const lostBySleep = await owner();
+    const lostUnseen = await owner();
+    await Promise.all([lostAtStart.start(), lostBySleep.start(), lostUnseen.start()]);
+    const lastSeenAt = new Date(Date.now() - 3 * 60 * 60_000);
+    const startedAt = new Date(lastSeenAt.getTime() - 60 * 60_000);
+    for (const o of [lostAtStart, lostBySleep]) {
+      await system.computer.update({ where: { id: o.id }, data: { runningSince: startedAt } });
+      await system.computerRun.updateMany({
+        where: { computerId: o.id },
+        data: { startedAt, lastSeenAt },
+      });
+    }
+    await system.computer.update({
+      where: { id: lostUnseen.id },
+      data: { runningSince: startedAt },
+    });
+    await system.computerRun.updateMany({
+      where: { computerId: lostUnseen.id },
+      data: { startedAt, lastSeenAt: null },
+    });
+
+    // The next start has to bring the computer back, and the idle check finds it gone.
+    await runAsTenant(lostAtStart.tenant, () =>
+      recordComputerRunStart(db.prisma, lostAtStart.computer, new Date(), "gone"),
+    );
+    for (const o of [lostBySleep, lostUnseen]) {
+      o.sandbox.isRunning = async () => false;
+      o.sandbox.exportWorkspace = async function* () {
+        yield* [];
+        throw Object.assign(new Error("sandbox removed"), { name: "SandboxNotFoundError" });
+      };
+      await o.sleep();
+    }
+
+    const [lostAtStartRun] = await lostAtStart.runs();
+    expect(lostAtStartRun).toMatchObject({ endReason: "gone", endedAt: lastSeenAt });
+    expect(await lostBySleep.runs()).toEqual([
+      expect.objectContaining({ endReason: "gone", endedAt: lastSeenAt }),
+    ]);
+    // Never seen running: the end stays when it was noticed.
+    const [unseen] = await lostUnseen.runs();
+    expect(unseen!.endReason).toBe("gone");
+    expect(unseen!.endedAt!.getTime()).toBeGreaterThan(Date.now() - 60_000);
   });
 
   it("closes the open runs of deleted and stopped computers, and leaves running ones open", async () => {
@@ -268,6 +366,7 @@ describePostgres("computer runs (PostgreSQL)", () => {
         providerRef,
         startedAt: runningSince,
         endedAt: null,
+        lastSeenAt: runningSince,
       }),
     ]);
   });
