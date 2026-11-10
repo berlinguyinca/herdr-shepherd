@@ -445,7 +445,7 @@ if (!setting("WEB_PORT") && !setting("API_PORT")) {
   env.API_PROXY_TARGET = `http://${host.includes(":") ? `[${host}]` : host}:${yamlEnv.API_PORT}`;
 }
 // A port the file names is kept, so a second checkout running at once must pick its own.
-if (!ports && yamlEnv.API_PORT && !process.env.API_PORT && !fileEnv.API_PORT) {
+if (!ports && yamlEnv.API_PORT && !env.API_PORT && !fileEnv.API_PORT) {
   const named = Number(yamlEnv.API_PORT);
   if (!(await portFree(named)))
     throw new Error(
