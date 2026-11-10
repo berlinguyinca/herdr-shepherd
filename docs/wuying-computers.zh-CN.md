@@ -7,10 +7,10 @@ Bot 可以把一台现有的[无影云电脑](https://www.aliyun.com/product/ecs
 
 ## 整体结构
 
-| 组成部分             | 作用                                                                       |
-| -------------------- | -------------------------------------------------------------------------- |
-| ECD API（AccessKey） | 查询云电脑状态、开机、签发一次性的屏幕登录码                               |
-| 云电脑的 MCP 网关    | 执行命令、读写文件、截屏、发送鼠标和键盘输入                               |
+| 组成部分             | 作用                                                                         |
+| -------------------- | ---------------------------------------------------------------------------- |
+| ECD API（AccessKey） | 查询云电脑状态、开机、签发一次性的屏幕登录码                                 |
+| 云电脑的 MCP 网关    | 执行命令、读写文件、截屏、发送鼠标和键盘输入                                 |
 | 无影 Web SDK         | 在电脑面板里显示实时画面，由 Shepherd 在 `/computer-screen/screen.html` 提供 |
 
 每台 bot 电脑的 home 是云电脑上的一个文件夹：`%USERPROFILE%\rakazo\<home>`。文件保存在云电脑自己的磁盘上。
@@ -102,7 +102,7 @@ SDK 的本地模式在屏幕页内加载 `/computer-screen/sdk/ASP/container.htm
 | 电脑面板一直是空白                                                     | 运行 `node scripts/wuying-web-sdk.mjs`，页面需要 `WuyingWebSDK.js` 和 `sdk/ASP/container.html`                         |
 | 画面连上后很快断开                                                     | 有另一个查看端占用了会话，关掉另一个面板或无影客户端                                                                   |
 | 保存时提示 `Could not reach the Wuying desktop`                        | 检查 AccessKey 权限、地域和云电脑 ID；云电脑运行时，MCP 网关必须能响应                                                 |
-| 中文输出是乱码                                                         | 命令没有经过 PowerShell。Shepherd 会把 PowerShell 的输出切换成 UTF-8，其他 shell 仍使用系统代码页                        |
+| 中文输出是乱码                                                         | 命令没有经过 PowerShell。Shepherd 会把 PowerShell 的输出切换成 UTF-8，其他 shell 仍使用系统代码页                      |
 | 设置里没有切换沙箱的选项                                               | 在 API 上设置 `COMPUTER_SETTINGS_ENABLED=true`；部署表单还需要管理员账号，检查 `RAKAZO_ADMIN_EMAILS`，并确认邮箱已验证 |
 | 连接 OpenAI 或 Anthropic 时返回 `unsupported_country_region_territory` | 这是模型提供方的地区限制，与无影无关：rakazo 后端所在网络的出口地区不受支持                                            |
 

@@ -830,6 +830,6 @@ describe("favicon SSRF guard", () => {
 
     expect(seen.cookie).toBeUndefined();
     expect(seen.authorization).toBeUndefined();
-    expect(seen["user-agent"]).toMatch(/^Shepherd\//);
+    expect(seen["user-agent"]).toMatch(/^Rakazo\//);
   });
 });

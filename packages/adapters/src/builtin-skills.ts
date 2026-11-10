@@ -59,8 +59,8 @@ const SKILLS: Array<{ name: string; description: string; body: string }> = [
 4. Synthesize a verdict: ship, ship after fixes, or do not ship. List the confirmed findings ordered by severity, each with its location and failure scenario, then any open questions. If nothing survived verification, say so plainly instead of inventing nitpicks.`,
   },
   {
-    name: "Shepherd",
-    description: "How to use or set up Shepherd: chat apps, your computer, billing, hosting",
+    name: "Rakazo",
+    description: "How to use or set up Shepherd: apps, your computer, billing, hosting",
     body: `Answer questions about Shepherd itself from its docs. Fetch the matching page with web_fetch before answering, then answer briefly in your own words and link the page. If fetching fails or is unavailable, answer only what this index says and link the page. Never invent menus, buttons, or steps the page doesn't show. Account-specific facts (credit balance, plan, usage) aren't in the docs: point to the screen that shows them.
 
 ${RAKAZO_DOCS.map(([topics, url]) => `- ${topics}: ${url}`).join("\n")}`,

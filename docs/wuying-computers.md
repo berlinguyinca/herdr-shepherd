@@ -8,10 +8,10 @@ and use the mouse and keyboard there, and you can watch or take over the screen 
 
 ## How it fits together
 
-| Part                      | What it does                                                                                    |
-| ------------------------- | ----------------------------------------------------------------------------------------------- |
-| ECD API (AccessKey)       | Reads the desktop's state, starts it, and issues one-time screen logins                         |
-| The desktop's MCP gateway | Runs commands, reads and writes files, takes screenshots, sends mouse and keyboard input        |
+| Part                      | What it does                                                                                      |
+| ------------------------- | ------------------------------------------------------------------------------------------------- |
+| ECD API (AccessKey)       | Reads the desktop's state, starts it, and issues one-time screen logins                           |
+| The desktop's MCP gateway | Runs commands, reads and writes files, takes screenshots, sends mouse and keyboard input          |
 | Wuying Web SDK            | Draws the live screen in the computer panel, served by Shepherd at `/computer-screen/screen.html` |
 
 Each bot computer's home is a folder on the desktop, `%USERPROFILE%\rakazo\<home>`. The desktop's
@@ -145,5 +145,5 @@ An unchanged Caddy matcher would add X-Frame-Options to the new runtime and bloc
 | Computer panel stays blank                   | Run `node scripts/wuying-web-sdk.mjs`; the page needs `WuyingWebSDK.js` and `sdk/ASP/container.html`                                      |
 | Screen connects, then drops                  | Another viewer took the session; close the other panel or the Wuying client                                                               |
 | `Could not reach the Wuying desktop` on Save | Check the AccessKey's permissions, the region and the desktop ID; a running desktop's gateway must answer                                 |
-| Chinese output is garbled                    | The command did not run through PowerShell; Shepherd switches PowerShell output to UTF-8, other shells keep the system code page            |
+| Chinese output is garbled                    | The command did not run through PowerShell; Shepherd switches PowerShell output to UTF-8, other shells keep the system code page          |
 | Settings has no Computer provider choice     | Set `COMPUTER_SETTINGS_ENABLED=true` on the API; for the deployment form, also check `RAKAZO_ADMIN_EMAILS` and that the email is verified |
