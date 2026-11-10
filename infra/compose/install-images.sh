@@ -18,7 +18,7 @@ done
 case "$DOWNLOAD_BASE" in
   https://*) ;;
   *)
-    echo "Rakazo setup failed: RAKAZO_DOWNLOAD_BASE must use https." >&2
+    echo "Shepherd setup failed: RAKAZO_DOWNLOAD_BASE must use https." >&2
     exit 1
     ;;
 esac
@@ -75,7 +75,7 @@ cleanup() {
 trap cleanup EXIT
 
 fail() {
-  echo "Rakazo setup failed: $*" >&2
+  echo "Shepherd setup failed: $*" >&2
   exit 1
 }
 
@@ -417,7 +417,7 @@ validate_required_secrets
 warn_unpassed_settings
 
 if [[ "$prepare_only" == true ]]; then
-  echo "Rakazo files are ready. Edit .env, then run: bash install-images.sh"
+  echo "Shepherd files are ready. Edit .env, then run: bash install-images.sh"
   exit 0
 fi
 
@@ -451,4 +451,4 @@ else
 fi
 remove_replaced_images
 
-echo "Rakazo is starting at http://127.0.0.1:5173"
+echo "Shepherd is starting at http://127.0.0.1:5173"

@@ -984,7 +984,6 @@ export const ES_MESSAGES: Record<string, string> = {
   Memory: "Memoria",
   "Privacy policies": "Políticas de privacidad",
   Shepherd: "Shepherd",
-  Rakazo: "Rakazo",
   "Withdraw all permissions": "Retirar todos los permisos",
   "Withdraw all permissions?": "¿Retirar todos los permisos?",
   "New mobile actions won't send data to these services. Runs already in progress and routines keep going until you stop them.":

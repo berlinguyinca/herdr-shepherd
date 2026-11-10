@@ -188,14 +188,14 @@ export function verificationEmail(
   return message(
     email,
     locale,
-    say("Verify your Rakazo email"),
+    say("Verify your Shepherd email"),
     <>
       <Text>
         <Link href={url} style={linkStyle}>
           {say("Verify email")}
         </Link>
       </Text>
-      <Text>{say("Then return to Rakazo to sign in.")}</Text>
+      <Text>{say("Then return to Shepherd to sign in.")}</Text>
       <Text>
         {say("This link expires in one hour. If you did not register, ignore this email.")}
       </Text>
@@ -212,9 +212,9 @@ export function signInCodeEmail(
   return message(
     email,
     locale,
-    say("Your Rakazo sign-in code"),
+    say("Your Shepherd sign-in code"),
     <>
-      <Text>{say("Enter this code to sign in to Rakazo:")}</Text>
+      <Text>{say("Enter this code to sign in to Shepherd:")}</Text>
       <Text>
         <strong>{code}</strong>
       </Text>
@@ -234,10 +234,10 @@ export function passwordResetEmail(
   return message(
     user.email,
     locale,
-    say("Reset your Rakazo password"),
+    say("Reset your Shepherd password"),
     <>
       <Text>{greeting(say, user.name)}</Text>
-      <Text>{say("Reset your Rakazo password:")}</Text>
+      <Text>{say("Reset your Shepherd password:")}</Text>
       <Text>
         <Link href={resetUrl} style={linkStyle}>
           {say("Reset password")}
@@ -261,9 +261,9 @@ export function accountDeletionEmail(
   return message(
     email,
     locale,
-    say("Confirm Rakazo account deletion"),
+    say("Confirm Shepherd account deletion"),
     <>
-      <Text>{say("Enter this code in Rakazo to delete your account:")}</Text>
+      <Text>{say("Enter this code in Shepherd to delete your account:")}</Text>
       <Text>{code}</Text>
       <Text>
         {say(
@@ -283,9 +283,9 @@ export function identityCodeEmail(
   return message(
     email,
     locale,
-    say("Your Rakazo confirmation code"),
+    say("Your Shepherd confirmation code"),
     <>
-      <Text>{say("Enter this code in Rakazo to confirm it's you:")}</Text>
+      <Text>{say("Enter this code in Shepherd to confirm it's you:")}</Text>
       <Text>
         <strong>{code}</strong>
       </Text>

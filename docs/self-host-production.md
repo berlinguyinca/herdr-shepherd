@@ -1,6 +1,6 @@
 # Production deployment
 
-Run Rakazo on a public server with automatic HTTPS, hardened hosts and zero-downtime deploys.
+Run Shepherd on a public server with automatic HTTPS, hardened hosts and zero-downtime deploys.
 
 ## Public single-VM deployment
 

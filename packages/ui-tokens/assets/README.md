@@ -38,7 +38,7 @@ it is not available at the script's default location.
 
 ## Animated vector avatars
 
-The animated Rakazo avatar uses SVG paths and gradients in the shared
+The animated Shepherd avatar uses SVG paths and gradients in the shared
 `logo-avatar-art.ts` definition. Its contour is sampled from this canonical
 source's alpha silhouette. The hands and lighting are simplified vector shapes;
 the original photographic skin grain is intentionally not reproduced. No raster

@@ -22,8 +22,8 @@ import { readUiLocale, writeUiLocale } from "./setup-store.js";
 const srcDir = import.meta.dirname;
 /** Product and vendor names the setup page shows as they are. */
 const UNTRANSLATED = new Set([
-  "Rakazo",
-  "Rakazo Cloud",
+  "Shepherd",
+  "Shepherd Cloud",
   "Docker Desktop",
   "OrbStack",
   "Docker Engine",
@@ -83,8 +83,8 @@ describe("desktop language", () => {
   it("starts in the saved language, ignoring a saved value that is not a language tag", () => {
     expect(startDesktopLocale("es-MX", "en-US")).toBe("es");
     expect(t("Check for Updates…")).toBe("Buscar actualizaciones…");
-    expect(t("Rakazo {version} is ready to install.", { version: "1.2.0" })).toBe(
-      "Rakazo 1.2.0 está listo para instalarse.",
+    expect(t("Shepherd {version} is ready to install.", { version: "1.2.0" })).toBe(
+      "Shepherd 1.2.0 está listo para instalarse.",
     );
     expect(desktopMessages()).toBe(ES_MESSAGES);
 
@@ -97,8 +97,8 @@ describe("desktop language", () => {
     expect(startDesktopLocale("pl-PL", "en-US")).toBe("pl");
     expect(desktopMessages()).toBe(PL_MESSAGES);
     expect(t("Check for Updates…")).toBe("Sprawdź aktualizacje…");
-    expect(t("Rakazo {version} is ready to install.", { version: "1.2.0" })).toBe(
-      "Rakazo 1.2.0 jest gotowe do zainstalowania.",
+    expect(t("Shepherd {version} is ready to install.", { version: "1.2.0" })).toBe(
+      "Shepherd 1.2.0 jest gotowe do zainstalowania.",
     );
   });
 

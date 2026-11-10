@@ -1,21 +1,21 @@
-# Deploy and Host Rakazo on Railway
+# Deploy and Host Shepherd on Railway
 
-## About Hosting Rakazo
+## About Hosting Shepherd
 
-The template runs Rakazo, PostgreSQL and agent computers on Railway. No Docker host or separate sandbox provider is needed. Railway usage and any connected model provider are billed separately.
+The template runs Shepherd, PostgreSQL and agent computers on Railway. No Docker host or separate sandbox provider is needed. Railway usage and any connected model provider are billed separately.
 
 ## Deploy
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/new/template/rakazo-template)
 
 1. Deploy the template. Enter your email in `OWNER_EMAIL` and a Railway workspace or account API token in `RAILWAY_API_TOKEN`.
-2. Wait for Rakazo to become healthy. Open its generated HTTPS domain.
-3. Sign in with your email and the generated `OWNER_PASSWORD` from the Rakazo service's Variables tab. Change the password in account settings.
-4. Connect your model account in Rakazo and send Chief a message.
+2. Wait for Shepherd to become healthy. Open its generated HTTPS domain.
+3. Sign in with your email and the generated `OWNER_PASSWORD` from the Shepherd service's Variables tab. Change the password in account settings.
+4. Connect your model account in Shepherd and send Chief a message.
 
 The token must be able to create environments and sandboxes in the project. Prefer a dedicated Railway workspace. Never place it in a bot's files or model connection settings.
 
-## Why Deploy Rakazo on Railway
+## Why Deploy Shepherd on Railway
 
 - The initial ordinary account is created before the public web server starts. Public registration is closed on every start; this template is intended for a personal deployment.
 - Every install gets separate random database, authentication, encryption, screen and initial owner secrets. Keep the encryption key and database password stable across redeploys.
@@ -37,9 +37,9 @@ The sandbox environment is separate from the app environment. Do not put trusted
 
 ## Common Use Cases
 
-A personal AI assistant with browser access, persistent files and scheduled tasks. Choose your model through Rakazo's connection settings.
+A personal AI assistant with browser access, persistent files and scheduled tasks. Choose your model through Shepherd's connection settings.
 
-## Dependencies for Rakazo
+## Dependencies for Shepherd
 
 The template cannot generate a Railway API credential or a model account for you. These are the only outside account setup steps; no third-party sandbox service is required.
 

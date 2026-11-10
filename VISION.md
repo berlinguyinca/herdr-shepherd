@@ -1,6 +1,6 @@
 # Vision
 
-Rakazo exists so that people can own AI teammates that persist, use computers, and finish work beyond a single chat.
+Shepherd exists so that people can own AI teammates that persist, use computers, and finish work beyond a single chat.
 It serves people who want capable agents without surrendering their choice of models, infrastructure, or where their data lives.
 It owns exactly one thing: the durable home in which each AI teammate's identity, conversation, memory, routines, and computer remain available over time.
 
@@ -18,7 +18,7 @@ The complete core product runs on infrastructure controlled by its operator unde
 No hosted vendor is required for models, computers, memory, voice, integrations, or another core workflow.
 External services remain optional choices behind provider-neutral contracts, and new providers reuse shared contracts and deterministic offline conformance tests.
 Bot state remains inspectable, exportable, recoverable, and portable across provider failure or replacement.
-A managed Rakazo service may improve convenience, but it does not become a hidden dependency of the self-hosted core.
+A managed Shepherd service may improve convenience, but it does not become a hidden dependency of the self-hosted core.
 
 ## One product across every surface
 
@@ -52,8 +52,8 @@ Important effects are verified independently, recovery preserves known-good user
 
 ## Scope
 
-Rakazo is not a model provider, a hosted-only service, a general virtual-machine manager, a visual workflow builder, or a CI system.
-Rakazo does not promise that a trusted host computer or third-party destination is isolated from data deliberately sent to it.
+Shepherd is not a model provider, a hosted-only service, a general virtual-machine manager, a visual workflow builder, or a CI system.
+Shepherd does not promise that a trusted host computer or third-party destination is isolated from data deliberately sent to it.
 [PRODUCT.md](PRODUCT.md) defines behavior by capability and identifies intended changes that are not yet implemented.
 Implementation plans and technical documentation explain mechanics; they follow this vision and the product definition.
 A change aligns when it strengthens persistent useful work, user ownership, safe autonomy, shared product behavior, or calm interaction without weakening an explicit boundary.

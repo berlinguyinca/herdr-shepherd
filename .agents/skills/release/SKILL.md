@@ -1,6 +1,6 @@
 ---
 name: release
-description: Prepare a Rakazo release - draft the CHANGELOG section from the pull requests merged since the last tag, bump the desktop version, open the release PR, and tag it once merged. Use when asked to cut, prepare, or ship a release or a new version.
+description: Prepare a Shepherd release - draft the CHANGELOG section from the pull requests merged since the last tag, bump the desktop version, open the release PR, and tag it once merged. Use when asked to cut, prepare, or ship a release or a new version.
 ---
 
 # Release

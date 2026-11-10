@@ -55,7 +55,7 @@ export class TeamChatDelivery {
     await this.sendOnce(message.id, {
       conversationId: message.externalConversation.conversationId,
       replyThreadId: message.replyThreadId,
-      content: `${this.target()?.name ?? "The agent"} could not complete that request. Open Rakazo for details.`,
+      content: `${this.target()?.name ?? "The agent"} could not complete that request. Open Shepherd for details.`,
       idempotencyKey: `external-message:${message.id}:failure`,
     });
   }

@@ -67,7 +67,7 @@ function restoreAppWindowAfterSetup() {
   desktop.mainWindow.show();
   desktop.mainWindow.focus();
 }
-/** Setup IPC must only answer the setup window, never a connected Rakazo server. */
+/** Setup IPC must only answer the setup window, never a connected Shepherd server. */
 function fromSetupWindow(event: Pick<Electron.IpcMainInvokeEvent, "sender">) {
   return (
     desktop.setupWindow !== null &&
@@ -187,7 +187,7 @@ export function registerSetupIpc({
           if (managedUrl === null || !(await desktop.localStack.matchesDesiredStack())) {
             return {
               ok: false,
-              error: t("The app-managed Rakazo services are not ready. Retry setup."),
+              error: t("The app-managed Shepherd services are not ready. Retry setup."),
             };
           }
           openSetup = { mode: "new", serverUrl: managedUrl };

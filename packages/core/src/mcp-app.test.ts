@@ -10,7 +10,7 @@ import {
 } from "./mcp-app.js";
 
 describe("MCP app domains", () => {
-  it("keeps public https origins and drops what could reach the person's network or Rakazo", () => {
+  it("keeps public https origins and drops what could reach the person's network or Shepherd", () => {
     expect(
       mcpAppDomains(
         [

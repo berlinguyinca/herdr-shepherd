@@ -30,9 +30,9 @@ import {
 export const USER_DEVICE_FORWARD_PATH = "/internal/user-devices/request";
 export const USER_DEVICE_DISCONNECT_PATH = "/internal/user-devices/disconnect";
 export const USER_DEVICE_OFFLINE_MESSAGE =
-  "Your computer is not connected. Open the Rakazo desktop app.";
+  "Your computer is not connected. Open the Shepherd desktop app.";
 const DISCONNECTED_MESSAGE = "Your computer disconnected. Check the result before retrying.";
-const REVOKED_MESSAGE = "This computer was disconnected from Rakazo.";
+const REVOKED_MESSAGE = "This computer was disconnected from Shepherd.";
 export const USER_DEVICE_LIMIT = 10;
 const PING_INTERVAL_MS = 25_000;
 /** A connection row older than this has lost its holding process. */

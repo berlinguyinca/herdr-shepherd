@@ -286,7 +286,7 @@ async function pushPickerFiles() {
     "base64",
   );
   await writeFile(path.join(dir, PICKER_FILES.image), png);
-  await writeFile(path.join(dir, PICKER_FILES.pdf), onePagePdf("Rakazo fixture PDF"));
+  await writeFile(path.join(dir, PICKER_FILES.pdf), onePagePdf("Shepherd fixture PDF"));
   const targets = [
     [PICKER_FILES.image, "/sdcard/Pictures"],
     [PICKER_FILES.pdf, "/sdcard/Download"],

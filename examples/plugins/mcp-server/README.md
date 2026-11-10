@@ -5,7 +5,7 @@ A manifest, a hosted MCP connection, and an optional skill teaching bots to use 
 1. Copy this folder into a public GitHub repository.
 2. Replace `https://mcp.example.com/mcp` in `mcp.json` with your public HTTPS MCP endpoint.
    The example URL is a placeholder; this folder does not run or deploy a server.
-   Rakazo never runs repository code or local stdio servers from plugins.
+   Shepherd never runs repository code or local stdio servers from plugins.
 3. Open **Integrations** → **+** → **From GitHub**, paste your repository or folder URL,
    and choose **Preview**, then **Connect**. Choose **Add skills** under Skills to try the companion skill.
 4. Sign in if needed, choose **Use in this bot** with a bot selected, and ask it to search your docs.

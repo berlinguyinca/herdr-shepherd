@@ -68,7 +68,7 @@ Resend:
 ```env
 EMAIL_PROVIDER=resend
 EMAIL_API_KEY=replace-with-sending-api-key
-EMAIL_FROM=Rakazo <hello@mail.example.com>
+EMAIL_FROM=Shepherd <hello@mail.example.com>
 ```
 
 SMTP: `SMTP_URL=smtps://...` และ `EMAIL_FROM` development ใช้ `EMAIL_EMULATOR=true` ได้ (ปิดบน production)

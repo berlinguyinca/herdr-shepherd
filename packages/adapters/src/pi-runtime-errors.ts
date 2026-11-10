@@ -140,7 +140,7 @@ function modelFailureClass(error: string, message: string, provider: string): nu
     return MODEL_FAILURE_RANK.indexOf(ModelAccountError);
   if (kind || recovery) return MODEL_FAILURE_RANK.indexOf(ModelAccountError);
   // The user's own endpoint refused a request its model or settings cannot take. On a named
-  // provider the same rejection more likely means Rakazo built the request wrong.
+  // provider the same rejection more likely means Shepherd built the request wrong.
   if ((status === 400 || status === 422) && OWN_ENDPOINT_PROVIDERS.has(provider))
     return MODEL_FAILURE_RANK.indexOf(ModelAccountError);
   return MODEL_FAILURE_RANK.indexOf(Error);

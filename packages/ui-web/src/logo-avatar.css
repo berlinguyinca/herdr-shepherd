@@ -285,7 +285,7 @@
     transform: translateY(1.4px);
   }
 }
-/* Soft thinking gaze is an original Rakazo pose study, not a runtime reasoning signal. */
+/* Soft thinking gaze is an original Shepherd pose study, not a runtime reasoning signal. */
 @keyframes logo-avatar-think {
   0%,
   8%,

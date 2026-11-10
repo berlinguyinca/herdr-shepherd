@@ -22,7 +22,7 @@ Run `node .agents/skills/translate/catalog-gaps.ts check`. If it exits 0, push w
 
 For each locale with gaps, `node .agents/skills/translate/catalog-gaps.ts list <locale>` prints the empty entries with their source files and placeholder notes. With several locales, fan out one subagent per locale (pair the small ones).
 
-- Read the catalog's existing translations first and match their terms, tone and formality. Keep "Rakazo" and other names as they are.
+- Read the catalog's existing translations first and match their terms, tone and formality. Keep "Shepherd" and other names as they are.
 - Keep every placeholder (`{name}`, `{0}`), numbered tag (`<0>…</0>`, `<1/>`) and plural `#`. In `plural`/`select` messages keep the structure and variable, translate only the branch text, and use the language's own plural categories (Russian one/few/many/other, Hebrew one/two/other, Japanese, Korean and Chinese only other).
 - Short labels stay short. Read the source file when the meaning is unclear. Use the source text for code, URLs and example values.
 

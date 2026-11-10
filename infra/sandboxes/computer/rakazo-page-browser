@@ -2,7 +2,7 @@
 """Serve the page-browser commands on the Chromium showing on this computer's DISPLAY.
 
 agent-browser (pinned in the image) attaches to that Chromium over CDP and browses. This wrapper
-keeps Rakazo's contract and policy on top: which tab, refs that must still name the element the
+keeps Shepherd's contract and policy on top: which tab, refs that must still name the element the
 bot saw, the snapshot's size, masked secrets, upload confinement, and the computer_act fallback.
 Saved logins, cards and pay tokens go through page_secrets instead.
 """

@@ -11,7 +11,7 @@ const scope = { botId: "bot-1", signal: new AbortController().signal };
 const notepad = [
   { id: "w-7", title: "Find", app_name: "notepad.exe", pid: 41, minimized: true },
   { id: "w-8", title: "Untitled - Notepad", app_name: "notepad.exe", pid: 41 },
-  { id: "w-9", title: "Rakazo", app_name: "Rakazo.exe", pid: 99 },
+  { id: "w-9", title: "Shepherd", app_name: "Rakazo.exe", pid: 99 },
   { id: "w-10", title: "Notes", app_name: "notes-sync.exe", pid: 50 },
 ];
 const snapshot = {
@@ -98,7 +98,7 @@ describe("agent-desktop host screen", () => {
       'No open app is named exactly "note". Open apps with similar names: notepad, notes-sync.',
     );
     await expect(screen.observe(scope, "rakazo")).rejects.toThrow(
-      "Rakazo can't use its own window.",
+      "Shepherd can't use its own window.",
     );
     expect(calls.filter(([name]) => name === "launch")).toEqual([
       ["launch", "--", "Photoshop"],

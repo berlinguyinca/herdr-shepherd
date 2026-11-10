@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Restricted egress for Rakazo bot computers (SANDBOX_COMPUTER_EGRESS=restricted).
+# Restricted egress for Shepherd bot computers (SANDBOX_COMPUTER_EGRESS=restricted).
 #
 # Computers keep full public-internet egress (browsing, DNS, apt, git over SSH)
 # but can no longer reach the destinations below. Docker before 28, and DNS
@@ -331,7 +331,7 @@ install_persistence() {
   fi
   cat >"$UNIT_PATH" <<EOF
 [Unit]
-Description=Restrict Rakazo bot-computer egress (rakazo-c* bridges)
+Description=Restrict Shepherd bot-computer egress (rakazo-c* bridges)
 After=docker.service
 Wants=docker.service
 

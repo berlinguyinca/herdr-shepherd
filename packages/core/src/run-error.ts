@@ -33,11 +33,11 @@ export const MODEL_REQUEST_LIMIT_ERROR =
 
 export const MISSING_MODEL_RUN_ERROR = "Connect a model in Settings before running bots.";
 
-/** A deployment model run while the organization has not chosen Rakazo credits. */
+/** A deployment model run while the organization has not chosen Shepherd credits. */
 export const HOSTED_MODEL_CREDITS_REQUIRED_ERROR =
-  "Connect your own API key in Models or choose Rakazo credits in Billing.";
+  "Connect your own API key in Models or choose Shepherd credits in Billing.";
 
-/** A metered model call the organization's Rakazo credits cannot cover. */
+/** A metered model call the organization's Shepherd credits cannot cover. */
 export const MODEL_CREDITS_EXHAUSTED_ERROR =
   "Not enough model credits. Add credits in Billing or connect your own API key.";
 

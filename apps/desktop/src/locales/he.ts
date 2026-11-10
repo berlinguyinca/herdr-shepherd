@@ -3,7 +3,7 @@ export const HE_MESSAGES: Record<string, string> = {
   "Check for Updates…": "בדיקת עדכונים…",
   "Computer Access…": "גישה למחשב…",
   "Revoke Local Computer Access": "ביטול הגישה למחשב המקומי",
-  "Change Rakazo Server…": "החלפת שרת Rakazo…",
+  "Change Shepherd Server…": "החלפת שרת Shepherd…",
   "Stop Local Stack": "עצירת ה-Stack המקומי",
   "Hide {name}": "הסתרת {name}",
   "Hide Others": "הסתרת אחרים",
@@ -35,22 +35,22 @@ export const HE_MESSAGES: Record<string, string> = {
   Close: "סגירה",
   "Close Window": "סגירת החלון",
   "Bring All to Front": "הבאת הכל לחזית",
-  "Rakazo {version} is ready to install.": "Rakazo {version} מוכן להתקנה.",
+  "Shepherd {version} is ready to install.": "Shepherd {version} מוכן להתקנה.",
   Restart: "הפעלה מחדש",
   Later: "אחר כך",
   "Could not install the update.": "לא ניתן היה להתקין את העדכון.",
   "Could not check for updates.": "לא ניתן היה לבדוק אם יש עדכונים.",
-  "Rakazo is up to date.": "Rakazo מעודכן.",
+  "Shepherd is up to date.": "Shepherd מעודכן.",
   "Version {version}": "גרסה {version}",
   "Automatic updates are turned off for this install.": "העדכונים האוטומטיים כבויים בהתקנה הזו.",
   "Automatic updates only run in an installed build.": "עדכונים אוטומטיים פועלים רק בגרסה מותקנת.",
   "No desktop releases are published for this build yet.":
     "עדיין לא פורסמו גרסאות שולחן עבודה עבור ה-build הזה.",
-  "Move Rakazo to Applications to install updates.":
-    "יש להעביר את Rakazo לתיקיית ״יישומים״ כדי להתקין עדכונים.",
+  "Move Shepherd to Applications to install updates.":
+    "יש להעביר את Shepherd לתיקיית ״יישומים״ כדי להתקין עדכונים.",
   "Free up disk space to install updates.": "יש לפנות מקום בדיסק כדי להתקין עדכונים.",
-  "This update could not be verified. Reinstall Rakazo from a trusted download.":
-    "לא ניתן היה לאמת את העדכון הזה. יש להתקין מחדש את Rakazo מהורדה מהימנה.",
+  "This update could not be verified. Reinstall Shepherd from a trusted download.":
+    "לא ניתן היה לאמת את העדכון הזה. יש להתקין מחדש את Shepherd מהורדה מהימנה.",
   "The update could not be completed. Try again later.":
     "לא ניתן היה להשלים את העדכון. כדאי לנסות שוב מאוחר יותר.",
   "Could not reach the update server.": "לא ניתן היה להתחבר לשרת העדכונים.",
@@ -69,12 +69,13 @@ export const HE_MESSAGES: Record<string, string> = {
     "כבר מתבצע ניסיון התחברות. יש לבטל אותו ולנסות שוב.",
   "Could not open browser sign-in. Close other sign-in attempts and retry.":
     "לא ניתן היה לפתוח התחברות בדפדפן. יש לסגור ניסיונות התחברות אחרים ולנסות שוב.",
-  "Sign-in callback rejected. Return to Rakazo to retry.":
-    "תגובת ההתחברות נדחתה. יש לחזור ל-Rakazo כדי לנסות שוב.",
-  "You can close this tab and return to Rakazo.": "אפשר לסגור את הכרטיסייה הזו ולחזור ל-Rakazo.",
-  "Set up Rakazo": "הגדרת Rakazo",
-  "Quit Rakazo": "יציאה מ-Rakazo",
-  "Welcome to Rakazo": "ברוכים הבאים ל-Rakazo",
+  "Sign-in callback rejected. Return to Shepherd to retry.":
+    "תגובת ההתחברות נדחתה. יש לחזור ל-Shepherd כדי לנסות שוב.",
+  "You can close this tab and return to Shepherd.":
+    "אפשר לסגור את הכרטיסייה הזו ולחזור ל-Shepherd.",
+  "Set up Shepherd": "הגדרת Shepherd",
+  "Quit Shepherd": "יציאה מ-Shepherd",
+  "Welcome to Shepherd": "ברוכים הבאים ל-Shepherd",
   "Choose which server this app should use.": "יש לבחור באיזה שרת האפליקציה תשתמש.",
   Instance: "מופע",
   "This computer": "המחשב הזה",
@@ -89,14 +90,14 @@ export const HE_MESSAGES: Record<string, string> = {
   "Check again": "בדיקה חוזרת",
   Retry: "ניסיון חוזר",
   "Getting ready…": "מתכוננים…",
-  "Downloading Rakazo…": "מוריד את Rakazo…",
-  "Starting Rakazo…": "מפעיל את Rakazo…",
+  "Downloading Shepherd…": "מוריד את Shepherd…",
+  "Starting Shepherd…": "מפעיל את Shepherd…",
   "Almost ready…": "כמעט מוכן…",
-  "Rakazo is ready.": "Rakazo מוכן.",
+  "Shepherd is ready.": "Shepherd מוכן.",
   "{size} downloaded": "הורדו {size}",
   "Connecting…": "מתחבר…",
   "Checking…": "בודק…",
-  "Rakazo answered at {url}.": "Rakazo הגיב בכתובת {url}.",
+  "Shepherd answered at {url}.": "Shepherd הגיב בכתובת {url}.",
   "Enter a server address first.": "יש להזין קודם כתובת שרת.",
   "Could not save that address.": "לא ניתן היה לשמור את הכתובת הזו.",
   "Could not save that address. Try again.": "לא ניתן היה לשמור את הכתובת הזו. כדאי לנסות שוב.",
@@ -106,16 +107,16 @@ export const HE_MESSAGES: Record<string, string> = {
     "לא ניתן היה להפעיל את ה-Stack המקומי. כדאי לנסות שוב.",
   "Could not run the connection check. Try again.": "לא ניתן היה לבדוק את החיבור. כדאי לנסות שוב.",
   "Setup bridge unavailable.": "גשר ההגדרה לא זמין.",
-  "Setup could not start. Quit Rakazo and try again.":
-    "לא ניתן היה להתחיל את ההגדרה. יש לצאת מ-Rakazo ולנסות שוב.",
+  "Setup could not start. Quit Shepherd and try again.":
+    "לא ניתן היה להתחיל את ההגדרה. יש לצאת מ-Shepherd ולנסות שוב.",
   "Enter a server address.": "יש להזין כתובת שרת.",
   "Enter a valid http:// or https:// address.": "יש להזין כתובת http:// או https:// תקינה.",
   "Enter a valid server address. Public servers require HTTPS; a new local instance must use localhost.":
     "יש להזין כתובת שרת תקינה. שרתים ציבוריים מחייבים HTTPS; מופע מקומי חדש חייב להשתמש ב-localhost.",
   "Invalid custom headers": "כותרות מותאמות אישית לא תקינות",
-  "That address redirects elsewhere. Enter the final Rakazo server address.":
-    "הכתובת הזו מפנה למקום אחר. יש להזין את הכתובת הסופית של שרת Rakazo.",
-  "That address did not respond like a Rakazo server.": "הכתובת הזו לא הגיבה כמו שרת Rakazo.",
+  "That address redirects elsewhere. Enter the final Shepherd server address.":
+    "הכתובת הזו מפנה למקום אחר. יש להזין את הכתובת הסופית של שרת Shepherd.",
+  "That address did not respond like a Shepherd server.": "הכתובת הזו לא הגיבה כמו שרת Shepherd.",
   "The server answered with HTTP {status}.": "השרת הגיב עם HTTP {status}.",
   "Timed out reaching that address.": "תם הזמן לחיבור לכתובת הזו.",
   "Nothing is listening at that address yet.": "עדיין אין שום דבר שמאזין בכתובת הזו.",
@@ -140,8 +141,8 @@ export const HE_MESSAGES: Record<string, string> = {
     "לא ניתן היה לשמור את ההגדרה. המופע הקודם שוחזר.",
   "Connected, but could not save setup for the next launch. Try Continue again.":
     "החיבור הצליח, אבל לא ניתן היה לשמור את ההגדרה להפעלה הבאה. יש ללחוץ שוב על ״המשך״.",
-  "The app-managed Rakazo services are not ready. Retry setup.":
-    "שירותי Rakazo שהאפליקציה מנהלת אינם מוכנים. יש לנסות את ההגדרה שוב.",
+  "The app-managed Shepherd services are not ready. Retry setup.":
+    "שירותי Shepherd שהאפליקציה מנהלת אינם מוכנים. יש לנסות את ההגדרה שוב.",
   "Docker is not installed on this computer.": "Docker לא מותקן במחשב הזה.",
   "Docker is installed, but Docker Compose is missing. Install Docker Desktop or the docker-compose-plugin.":
     "Docker מותקן, אבל Docker Compose חסר. יש להתקין את Docker Desktop או את docker-compose-plugin.",
@@ -164,10 +165,10 @@ export const HE_MESSAGES: Record<string, string> = {
     "Docker הפסיק להגיב. יש להפעיל את Docker ולנסות שוב.",
   "Docker Compose is missing. Install Docker Desktop or the docker-compose-plugin, then retry.":
     "Docker Compose חסר. יש להתקין את Docker Desktop או את docker-compose-plugin ולנסות שוב.",
-  "Downloading Rakazo images failed. Check the output below, then retry.":
-    "הורדת האימג׳ים של Rakazo נכשלה. יש לעיין בפלט שלמטה ולנסות שוב.",
-  "Rakazo services did not start. Check the output below, then retry.":
-    "שירותי Rakazo לא הופעלו. יש לעיין בפלט שלמטה ולנסות שוב.",
+  "Downloading Shepherd images failed. Check the output below, then retry.":
+    "הורדת האימג׳ים של Shepherd נכשלה. יש לעיין בפלט שלמטה ולנסות שוב.",
+  "Shepherd services did not start. Check the output below, then retry.":
+    "שירותי Shepherd לא הופעלו. יש לעיין בפלט שלמטה ולנסות שוב.",
   "The stack started but the web app did not answer. Retry, and check the output below.":
     "ה-Stack הופעל, אבל אפליקציית האינטרנט לא הגיבה. יש לנסות שוב ולעיין בפלט שלמטה.",
   "Could not prepare the local stack. Retry.":
