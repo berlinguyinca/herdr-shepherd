@@ -16,9 +16,14 @@ export type KeyAutosave = {
   onKeyChange: (key: string, options?: { immediate?: boolean }) => void;
   /** Call from the key field's blur handler; saves a pending edit now. */
   onKeyBlur: () => void;
+  /** Drops a pending edit and any run in flight; call when the form moves to another connection. */
+  cancel: () => void;
 };
 
 const KEY_SAVE_DELAY_MS = 800;
+
+/** A catalog provider's key shorter than this is treated as still being typed. */
+export const MIN_AUTOSAVE_KEY_LENGTH = 8;
 
 /** True when a change event came from pasting, which saves without the typing delay. */
 export function isPasteChange(event: { nativeEvent: Event }): boolean {
@@ -26,9 +31,11 @@ export function isPasteChange(event: { nativeEvent: Event }): boolean {
 }
 
 /**
- * Saves an API key shortly after the person stops editing it, then refreshes the model list.
- * Only an edit starts work, never a state change, so a save or refresh cannot trigger itself.
- * A newer edit drops the older run's refresh, and saves run one at a time in edit order.
+ * Checks an API key shortly after the person stops editing it and saves it only if the check
+ * passes, so a half-typed key never replaces a working saved one. The check is the model
+ * lookup (`findModels` resolves true when the typed key worked); the draft stays either way.
+ * Only an edit starts work, never a state change, so a save or lookup cannot trigger itself.
+ * A newer edit drops the older run, and runs go one at a time in edit order.
  */
 export function useKeyAutosave({
   save,
@@ -36,7 +43,7 @@ export function useKeyAutosave({
   delayMs = KEY_SAVE_DELAY_MS,
 }: {
   save: (key: string) => Promise<KeyAutosaveOutcome>;
-  findModels: () => Promise<void>;
+  findModels: () => Promise<boolean>;
   delayMs?: number;
 }): KeyAutosave {
   const [status, setStatus] = useState<KeyAutosaveStatus>({ phase: "idle" });
@@ -65,22 +72,25 @@ export function useKeyAutosave({
     if (key === null) return;
     const mine = revision.current;
     queue.current = queue.current.then(async () => {
-      if (!mounted.current) return;
+      if (!mounted.current || mine !== revision.current) return;
+      show("finding", mine);
+      let verified = false;
+      try {
+        verified = await latest.current.findModels();
+      } catch {
+        // The lookup reports its own failure through the form's notice.
+      }
+      if (mine !== revision.current || !mounted.current) return;
+      if (!verified) return show("idle", mine);
+      // Let the form render what the lookup staged before the save reads it.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      if (mine !== revision.current || !mounted.current) return;
       show("saving", mine);
       let outcome: KeyAutosaveOutcome;
       try {
         outcome = await latest.current.save(key);
       } catch {
         outcome = "failed";
-      }
-      if (mine !== revision.current || !mounted.current) return;
-      if (outcome === "failed") return show("idle", mine);
-      show(outcome === "saved" ? "saved" : "idle", mine);
-      show("finding", mine);
-      try {
-        await latest.current.findModels();
-      } catch {
-        // The probe reports its own failure through the form's notice.
       }
       show(outcome === "saved" ? "saved" : "idle", mine);
     });
@@ -104,6 +114,13 @@ export function useKeyAutosave({
     if (pending.current !== null) run();
   }
 
+  function cancel() {
+    clearTimer();
+    revision.current += 1;
+    pending.current = null;
+    if (mounted.current) setStatus({ phase: "idle" });
+  }
+
   useEffect(() => {
     mounted.current = true;
     return () => {
@@ -113,5 +130,5 @@ export function useKeyAutosave({
     };
   }, []);
 
-  return { status, onKeyChange, onKeyBlur };
+  return { status, onKeyChange, onKeyBlur, cancel };
 }

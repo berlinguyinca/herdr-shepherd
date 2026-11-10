@@ -58,7 +58,7 @@ function props(compatibleRows: string[], enabledModelIds: string[], modelId = ""
     preflightFailure: null,
     preflightTarget: null,
     probeModels: [],
-    probeServerModels: () => Promise.resolve(),
+    probeServerModels: () => Promise.resolve(true),
     probing: false,
     completionTest: {
       ready: false,

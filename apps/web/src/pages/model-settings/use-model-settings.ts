@@ -33,7 +33,7 @@ import {
 import { useSpaceQueries } from "../../lib/query";
 import { useSpaceRpc } from "../../lib/space-rpc";
 import type { KeyAutosaveOutcome } from "../../lib/use-key-autosave";
-import { useKeyAutosave } from "../../lib/use-key-autosave";
+import { MIN_AUTOSAVE_KEY_LENGTH, useKeyAutosave } from "../../lib/use-key-autosave";
 import { useModelOAuthSignIn } from "../../lib/use-model-oauth-signin";
 import { errorText } from "../../lib/user-error";
 import { useModelConnectionForm } from "./use-model-connection-form";
@@ -325,6 +325,7 @@ export function useModelSettings(onClose: () => void, scope: SettingsScope) {
     targetCredentialId: string | null = null,
   ) {
     cancelOAuthAttempt();
+    keyAutosave.cancel();
     formRevisionRef.current += 1;
     selectionRevisionRef.current += 1;
     const nextCredential = targetCredentialId
@@ -464,14 +465,16 @@ export function useModelSettings(onClose: () => void, scope: SettingsScope) {
     if (busy) return "skipped";
     const ready = isOpenAiCompatible
       ? openAiCompatibleReady
-      : acceptsKey && routingReady && apiKey.trim().length >= 8;
+      : acceptsKey && routingReady && apiKey.trim().length >= MIN_AUTOSAVE_KEY_LENGTH;
     return ready ? connectKey({ autosave: true }) : "skipped";
   }
 
   /** Refreshes what the key unlocks: a custom server's model list, or a catalog provider's check. */
-  async function refreshAfterKey() {
-    if (isOpenAiCompatible) await form.probeServerModels();
-    else if (selected?.catalogProbe && apiKey.trim().length >= 8) await form.testApiKeyConnection();
+  async function refreshAfterKey(): Promise<boolean> {
+    if (isOpenAiCompatible) return form.probeServerModels();
+    if (selected?.catalogProbe && apiKey.trim().length >= MIN_AUTOSAVE_KEY_LENGTH)
+      return form.testApiKeyConnection();
+    return false;
   }
 
   const keyAutosave = useKeyAutosave({ save: autosaveKey, findModels: refreshAfterKey });
@@ -479,6 +482,7 @@ export function useModelSettings(onClose: () => void, scope: SettingsScope) {
   async function disconnectCredential() {
     if (!selected || !credential) return;
     cancelOAuthAttempt();
+    keyAutosave.cancel();
     setError(null);
     setNotice(null);
     setPending("disconnect");

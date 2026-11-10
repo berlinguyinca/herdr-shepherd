@@ -47,6 +47,7 @@ import {
 } from "@rakazo/db";
 import { getLogger } from "@rakazo/logging";
 import { markExpectedFailure } from "@rakazo/logging/hono";
+import { createActorLimiter } from "../actor-limiter.js";
 import { mayUsePrivateEndpoint } from "../mcp-servers.js";
 import { firstModelConnectAnalytics } from "../model-connect-analytics.js";
 import {
@@ -71,6 +72,8 @@ export function modelsRoutes(ctx: RouterContext) {
     validateRoleChoices,
     authed,
   } = ctx;
+  /** A test sends a real request to a user-chosen address, so each user gets a few a minute. */
+  const allowCompletionTest = createActorLimiter(10, 60_000);
   /** A typed key or headers win; otherwise the saved connection's key and headers are borrowed. */
   async function resolveSavedCompatibleAuth(
     actor: Parameters<typeof findModelCredential>[1],
@@ -312,6 +315,11 @@ export function modelsRoutes(ctx: RouterContext) {
         }
       }),
       testCompletion: authed.models.testCompletion.handler(async ({ context, input }) => {
+        if (!allowCompletionTest(context.actor.userId)) {
+          throw new ORPCError("TOO_MANY_REQUESTS", {
+            message: "Too many model tests. Wait a minute and try again.",
+          });
+        }
         try {
           const catalogProvider =
             input.provider && input.provider !== OPENAI_COMPATIBLE_PROVIDER_ID && !input.baseUrl;

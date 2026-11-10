@@ -2,7 +2,7 @@ import type { IncomingMessage } from "node:http";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
-import { testModelCompletion } from "./model-completion-test.js";
+import { providerErrorDetail, testModelCompletion } from "./model-completion-test.js";
 
 const OWNER = { allowPrivate: true };
 
@@ -114,9 +114,46 @@ describe("testModelCompletion", () => {
       () => null,
       (error: Error) => error,
     );
-    expect(failure?.message).toMatch(/401/);
-    expect(failure?.message).toMatch(/Incorrect API key/);
+    expect(failure?.message).toBe("Model server returned 401");
     expect(failure?.message).not.toContain(key);
+  });
+
+  it("returns only the status code for a private host, even for a non-JSON body", async () => {
+    const server = createServer((_request, response) => {
+      response.writeHead(500, { "content-type": "text/plain" });
+      response.end("internal admin panel: secret-token-xyz");
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    servers.push(server);
+    const { port } = server.address() as AddressInfo;
+    const failure = await testModelCompletion(
+      { baseUrl: `http://127.0.0.1:${port}/v1`, modelId: "m" },
+      undefined,
+      undefined,
+      OWNER,
+    ).then(
+      () => null,
+      (error: Error) => error,
+    );
+    expect(failure?.message).toBe("Model server returned 500");
+  });
+
+  it("rejects a response larger than 64 KB", async () => {
+    const { baseUrl } = await startServer(() => ({
+      status: 200,
+      json: { choices: [{ message: { content: "x".repeat(70 * 1024) } }] },
+    }));
+    await expect(
+      testModelCompletion({ baseUrl, modelId: "m" }, undefined, undefined, OWNER),
+    ).rejects.toThrow(/too large/);
+  });
+
+  it("echoes provider detail only from JSON error.message or message", () => {
+    expect(providerErrorDetail('{"error":{"message":"bad key"}}')).toBe("bad key");
+    expect(providerErrorDetail('{"message":"nope"}')).toBe("nope");
+    expect(providerErrorDetail("<html>secret admin page</html>")).toBe("");
+    expect(providerErrorDetail('{"data":"secret"}')).toBe("");
+    expect(providerErrorDetail('{"error":"just a string"}')).toBe("");
   });
 
   it("succeeds with an empty reply when a reasoning model returns no text", async () => {

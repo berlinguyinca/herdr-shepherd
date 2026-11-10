@@ -3,13 +3,14 @@ import type { OpenAiCompatibleUrlPolicy } from "./openai-compatible-url.js";
 import {
   assertAllowedOpenAiCompatibleUrl,
   assertHttpsForKeyedOpenAiCompatibleUrl,
+  isPrivateOpenAiCompatibleHostname,
 } from "./openai-compatible-url.js";
 import { createOpenAiCompatibleFetch } from "./pi-openai-compatible-provider.js";
 
 const TEST_PROMPT = "Reply with OK.";
 const TEST_MAX_TOKENS = 32;
-const TEST_TIMEOUT_MS = 30_000;
-const MAX_RESPONSE_BYTES = 256 * 1024;
+const TEST_TIMEOUT_MS = 15_000;
+const MAX_RESPONSE_BYTES = 64 * 1024;
 const MAX_REPLY_CHARS = 200;
 const ANTHROPIC_MESSAGES_VERSION = "2023-06-01";
 
@@ -112,16 +113,21 @@ async function readBounded(response: Response): Promise<string> {
   return text + decoder.decode();
 }
 
-function providerErrorDetail(raw: string): string {
+/**
+ * The provider's own error message, only when the body is JSON shaped like a provider error
+ * (`error.message` or `message`). Anything else is never echoed, so a probed server cannot
+ * use this route to read arbitrary response text.
+ */
+export function providerErrorDetail(raw: string): string {
   try {
-    const error = asRecord(asRecord(JSON.parse(raw)).error);
-    if (typeof error.message === "string") return error.message;
-    const message = asRecord(JSON.parse(raw)).message;
-    if (typeof message === "string") return message;
+    const root = asRecord(JSON.parse(raw));
+    const nested = asRecord(root.error).message;
+    if (typeof nested === "string") return nested;
+    if (typeof root.message === "string") return root.message;
   } catch {
-    // Not JSON: fall through to the raw text.
+    // Not JSON: nothing to echo.
   }
-  return raw;
+  return "";
 }
 
 /**
@@ -168,7 +174,10 @@ export async function testModelCompletion(
     const text = await readBounded(response);
     const latencyMs = Math.max(1, Math.round(performance.now() - started));
     if (!response.ok) {
-      const detail = redact(providerErrorDetail(text), secrets).trim().slice(0, MAX_REPLY_CHARS);
+      // A private host's body is never echoed; only its status code is.
+      const detail = isPrivateOpenAiCompatibleHostname(baseUrl.hostname)
+        ? ""
+        : redact(providerErrorDetail(text), secrets).trim().slice(0, MAX_REPLY_CHARS);
       throw new Error(`Model server returned ${response.status}${detail ? `: ${detail}` : ""}`);
     }
     let parsed: unknown;
@@ -184,7 +193,7 @@ export async function testModelCompletion(
   } catch (error) {
     if (signal?.aborted) throw error;
     if (error instanceof Error && error.name === "AbortError") {
-      throw new Error("The model did not answer within 30 seconds.");
+      throw new Error("The model did not answer within 15 seconds.");
     }
     throw error;
   } finally {

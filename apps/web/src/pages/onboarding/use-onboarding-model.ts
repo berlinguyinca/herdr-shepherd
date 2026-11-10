@@ -21,13 +21,13 @@ import {
   pickCatalogModelId,
   popularModelProvidersFirst,
 } from "@rakazo/core";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useCopyText } from "../../lib/copy-text";
 import { providerDisplayName } from "../../lib/localized-provider-hint";
 import type { ModelCatalogEntry } from "../../lib/model-auth";
 import { rpc } from "../../lib/rpc";
 import type { KeyAutosaveOutcome } from "../../lib/use-key-autosave";
-import { useKeyAutosave } from "../../lib/use-key-autosave";
+import { MIN_AUTOSAVE_KEY_LENGTH, useKeyAutosave } from "../../lib/use-key-autosave";
 import { useModelOAuthSignIn } from "../../lib/use-model-oauth-signin";
 import { errorText } from "../../lib/user-error";
 import { useModelConnectionForm } from "../model-settings/use-model-connection-form";
@@ -71,6 +71,8 @@ export function useOnboardingModel({
   const [providerAuth, setProviderAuth] = useState<ProviderAuth | undefined>();
   const [credits, setCredits] = useState(false);
   const [manualModelId, setManualModelId] = useState(false);
+  // The connection a first autosave created, so later saves edit it rather than the user's newest.
+  const savedCredentialId = useRef<string | null>(null);
   const form = useModelConnectionForm({
     rpc,
     catalog,
@@ -220,6 +222,8 @@ export function useOnboardingModel({
         : null;
 
   function chooseProvider(value: string) {
+    keyAutosave.cancel();
+    savedCredentialId.current = null;
     if (value === CREDITS_OPTION) {
       cancelOAuthAttempt();
       setProvider("");
@@ -238,6 +242,8 @@ export function useOnboardingModel({
     if (option === providerOptionValue(provider, providerAuth) && !presetBaseUrl && !endpointPreset)
       return;
     const [nextProvider = option, auth] = option.split(":") as [string, ProviderAuth?];
+    keyAutosave.cancel();
+    savedCredentialId.current = null;
     cancelOAuthAttempt();
     setProviderAuth(auth);
     setManualModelId(false);
@@ -302,8 +308,9 @@ export function useOnboardingModel({
         );
         return false;
       }
-      await rpc.models.connect({
+      const saved = await rpc.models.connect({
         provider,
+        credentialId: savedCredentialId.current,
         baseUrl: baseUrl.trim(),
         apiProtocol,
         headers: modelHeadersInput(headerRows),
@@ -317,14 +324,17 @@ export function useOnboardingModel({
         apiKey: apiKey.trim() || undefined,
         label: selected?.providerName ?? provider,
       });
+      savedCredentialId.current = saved?.id ?? savedCredentialId.current;
     } else if (apiKey) {
-      await rpc.models.connect({
+      const saved = await rpc.models.connect({
         provider,
+        credentialId: savedCredentialId.current,
         apiKey,
         ...(needsRouting ? { accountId: accountId.trim(), gatewayId: gatewayId.trim() } : {}),
         modelId,
         label: selected?.providerName ?? provider,
       });
+      savedCredentialId.current = saved?.id ?? savedCredentialId.current;
     }
     return true;
   }
@@ -355,9 +365,11 @@ export function useOnboardingModel({
   }
 
   /** Refreshes what the key unlocks: a custom server's model list, or a catalog provider's check. */
-  async function refreshAfterKey() {
-    if (isOpenAiCompatible) await form.probeServerModels();
-    else if (selected?.catalogProbe) await form.testApiKeyConnection();
+  async function refreshAfterKey(): Promise<boolean> {
+    if (isOpenAiCompatible) return form.probeServerModels();
+    if (selected?.catalogProbe && apiKey.trim().length >= MIN_AUTOSAVE_KEY_LENGTH)
+      return form.testApiKeyConnection();
+    return false;
   }
 
   const keyAutosave = useKeyAutosave({ save: autosaveKey, findModels: refreshAfterKey });
