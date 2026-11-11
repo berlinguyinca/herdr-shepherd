@@ -267,6 +267,9 @@ x-app-environment: &app-environment # Runtime
   MCP_MAX_PAGES:
   MCP_PACKAGES_DIR:
   MCP_ALLOW_PRIVATE_ENDPOINT:
+  # herdr dashboard bridge for the assistant (read-only agent tools; both or neither)
+  RAKAZO_HERDR_URL:
+  RAKAZO_HERDR_TOKEN:
   # Messaging (outbound delivery runs in the worker)
   MESSAGING_OPEN_SIGNUP:
   SENDBLUE_API_KEY_ID:

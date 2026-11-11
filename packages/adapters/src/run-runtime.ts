@@ -21,6 +21,8 @@ import { deploymentModelUsageLookup, resolveDeploymentModel } from "./deployment
 import { createRunExecutor } from "./executor.js";
 import type { ExecutorDeps } from "./executor-deps.js";
 import { ExpoPushProvider } from "./expo-push.js";
+import type { HerdrSettings } from "./herdr-connector.js";
+import { HerdrConnector, herdrSettingsFromEnv } from "./herdr-connector.js";
 import type { RemoteConnectorDependencies } from "./installed-connectors.js";
 import { InstalledConnectorProvider } from "./installed-connectors.js";
 import { IntegrationProviderSettings } from "./integration-provider-settings.js";
@@ -62,6 +64,8 @@ export interface RunRuntimeEnv extends PipedreamEnvironmentValues {
   maxUploadSizeBytes: number;
   /** Only names a bot's address to it; the API receives the mail. */
   inboundEmailDomain: string | undefined;
+  /** The herdr dashboard bridge the bots may read; unset leaves its tools out. */
+  herdr?: HerdrSettings | undefined;
 }
 
 /** The worker's reading of the run runtime settings, values and defaults as the worker has them. */
@@ -90,6 +94,7 @@ export function runRuntimeEnvFromProcess(source: NodeJS.ProcessEnv): RunRuntimeE
     ...phoneCallSettings(source),
     maxUploadSizeBytes: uploadSizeFromEnv(source),
     inboundEmailDomain: source.INBOUND_EMAIL_DOMAIN?.trim().toLowerCase() || undefined,
+    herdr: herdrSettingsFromEnv(source),
   };
 }
 
@@ -148,6 +153,7 @@ export function createConnectorRuntime(
       .providers()
       .filter((provider) => !composio || provider.describe().id !== "composio"),
     mcp,
+    ...(env.herdr ? [new HerdrConnector(env.herdr)] : []),
     ...(overrides.connectors ?? []),
   ]);
   integrationSettings.warmDirectories();

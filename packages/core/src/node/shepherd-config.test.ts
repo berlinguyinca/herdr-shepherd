@@ -250,3 +250,46 @@ describe("applying the config file", () => {
     expect(warnings).toEqual([]);
   });
 });
+
+describe("herdr block", () => {
+  const HERDR = "herdr:\n  url: http://100.64.0.10:8787\n  token: fixture-bridge-token\n";
+
+  it("maps onto the herdr variables", () => {
+    const env = shepherdConfigEnv(parseShepherdConfig(HERDR, "t"));
+    expect(env).toEqual({
+      RAKAZO_HERDR_URL: "http://100.64.0.10:8787",
+      RAKAZO_HERDR_TOKEN: "fixture-bridge-token",
+    });
+  });
+
+  it("lets the environment win and never echoes the token on a bad block", () => {
+    write(HERDR);
+    const env: NodeJS.ProcessEnv = { RAKAZO_HERDR_URL: "http://100.64.0.99:1" };
+    applyShepherdConfig({ env, cwd: dir, warn: () => undefined });
+    expect(env.RAKAZO_HERDR_URL).toBe("http://100.64.0.99:1");
+    expect(env.RAKAZO_HERDR_TOKEN).toBe("fixture-bridge-token");
+    const bad = "herdr:\n  url: http://x.test\n  token: fixture-bridge-token\n  extra: 1\n";
+    let message = "";
+    try {
+      parseShepherdConfig(bad, "t");
+    } catch (error) {
+      message = (error as Error).message;
+    }
+    expect(message).toContain("unknown key");
+    expect(message).not.toContain("fixture-bridge-token");
+  });
+
+  it("requires both url and token", () => {
+    expect(() => parseShepherdConfig("herdr:\n  url: http://x.test\n", "t")).toThrow(
+      ShepherdConfigError,
+    );
+  });
+
+  it("warns about permissions when the file holds the token", () => {
+    write(HERDR, 0o644);
+    const warnings: string[] = [];
+    applyShepherdConfig({ env: {}, cwd: dir, warn: (text) => warnings.push(text) });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).not.toContain("fixture-bridge-token");
+  });
+});
