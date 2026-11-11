@@ -86,6 +86,8 @@
   },
   "dependencies": {
     "@observablehq/plot": "0.6.19",
+    "@orpc/client": "1.16.2",
+    "@orpc/contract": "1.16.2",
     "@rakazo/contracts": "workspace:*",
     "@rakazo/ui-tokens": "workspace:*",
     "@tanstack/query-core": "5.107.1",

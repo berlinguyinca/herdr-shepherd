@@ -226,7 +226,7 @@ your first bot.
 For deployment, provider selection, backups, and upgrades, see the
 [self-hosting guide](./docs/self-host.md), [production deployment](./docs/self-host-production.md),
 [backup and restore](./docs/self-host-backups.md), and [upgrading](./docs/self-host-upgrading.md).
-Settings can also live in `shepherd.yaml` ([example](./shepherd.example.yaml)); `pnpm onboard` sets up your model server and writes it.
+Settings can also live in `shepherd.yaml` ([example](./shepherd.example.yaml)); `pnpm onboard` sets up your model server and writes it. `pnpm tui` is a terminal client for a server or herdr's bridge ([docs](./docs/terminal-client.md)).
 
 Every `RAKAZO_*` environment variable also works as `SHEPHERD_*` (for example `SHEPHERD_CONFIG`) in `.env` or the shell, for the API, worker and CLIs. If both are set, `SHEPHERD_*` wins. Docker Compose still passes the `RAKAZO_*` names through, and the desktop app reads only `RAKAZO_*`.
 

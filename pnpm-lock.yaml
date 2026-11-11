@@ -1142,6 +1142,12 @@ importers:
       '@observablehq/plot':
         specifier: 0.6.19
         version: 0.6.19
+      '@orpc/client':
+        specifier: 1.16.2
+        version: 1.16.2(@opentelemetry/api@1.10.0)
+      '@orpc/contract':
+        specifier: 1.16.2
+        version: 1.16.2(@opentelemetry/api@1.10.0)
       '@rakazo/contracts':
         specifier: workspace:*
         version: link:../contracts
