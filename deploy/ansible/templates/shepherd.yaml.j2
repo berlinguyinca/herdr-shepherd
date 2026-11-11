@@ -1,0 +1,21 @@
+# Local settings (git-ignored). Written by deploy/ansible/shepherd-local.yml.
+access:
+  mode: open-owner # no sign-in; private network only
+owner:
+  email: owner@localhost.invalid
+  name: Owner
+server:
+  api_host: 127.0.0.1
+  api_port: {{ shepherd_api_port }}
+  web_origin: {{ shepherd_web_origin }}
+{% if shepherd_llm_api_key %}
+llm:
+  provider: local
+  base_url: {{ shepherd_llm_base_url }}
+  api_key: {{ shepherd_llm_api_key }}
+  models: [{{ shepherd_llm_models | join(', ') }}]
+  default_model: {{ shepherd_llm_default_model }}
+{% endif %}
+herdr:
+  url: {{ shepherd_herdr_url }}
+  token: {{ shepherd_herdr_token }}

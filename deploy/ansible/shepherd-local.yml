@@ -1,0 +1,84 @@
+---
+# Set up (or repair) the local Shepherd dashboard on this machine.
+#   ansible-playbook deploy/ansible/shepherd-local.yml
+# Starts nothing and installs no login item or launchd job: run `shepherd` by hand.
+# Secrets come from the environment, never from this repo:
+#   SHEPHERD_LLM_API_KEY  key for the LLM gateway (blank: the line is left for `shepherd onboard`)
+#   SHEPHERD_HERDR_TOKEN  herdr bridge token from `shepherd tui login` (blank: a placeholder is written)
+- name: Set up the local Shepherd dashboard
+  hosts: localhost
+  connection: local
+  gather_facts: true
+  vars:
+    shepherd_repo_url: https://github.com/berlinguyinca/herdr-shepherd.git
+    shepherd_branch: herdr/personal-dashboard
+    shepherd_home: "{{ ansible_env.HOME }}/IdeaProjects/herdr-shepherd"
+    shepherd_bin_dir: "{{ ansible_env.HOME }}/.local/bin"
+    shepherd_pnpm_dir: "{{ ansible_env.HOME }}/.local/share/shepherd-dev/bin"
+    shepherd_api_port: 3100
+    shepherd_web_origin: http://127.0.0.1:5173
+    # The herdr control plane runs on bender; its bridge is http://<tailscale ip> (port 80). Tailscale or loopback
+    # only: Shepherd refuses plain http to anything else.
+    shepherd_herdr_url: http://100.104.39.6
+    shepherd_llm_base_url: https://llm.metabolomics.us/v1
+    shepherd_llm_default_model: deepseek_v4-flash-modality-text-quant-mxfp4
+    shepherd_llm_models:
+      - deepseek_v4-flash-modality-text-quant-mxfp4
+      - qwen3.8-27b-modality-vision-quant-q8_k_xl
+      - qwen3.8-flash-modality-vision-quant-iq4_xs
+    shepherd_llm_api_key: "{{ lookup('ansible.builtin.env', 'SHEPHERD_LLM_API_KEY') }}"
+    shepherd_herdr_token: "{{ lookup('ansible.builtin.env', 'SHEPHERD_HERDR_TOKEN') | default('PASTE_TOKEN_HERE', true) }}"
+    # false: an existing shepherd.yaml (your key, your edits) is never overwritten.
+    shepherd_overwrite_config: false
+  tasks:
+    - name: Check Docker is installed (Shepherd needs it running; this play does not start it)
+      ansible.builtin.command: docker --version
+      register: shepherd_docker
+      changed_when: false
+      failed_when: shepherd_docker.rc != 0
+
+    - name: Check pnpm and node are available through the dev PATH
+      ansible.builtin.shell: |
+        export PATH="{{ shepherd_pnpm_dir }}:$PATH"
+        command -v pnpm && command -v node
+      register: shepherd_toolchain
+      changed_when: false
+      failed_when: shepherd_toolchain.rc != 0
+
+    - name: Clone the fork
+      ansible.builtin.git:
+        repo: "{{ shepherd_repo_url }}"
+        dest: "{{ shepherd_home }}"
+        version: "{{ shepherd_branch }}"
+        update: false
+
+    - name: Install the shepherd and shepherd-dev launchers
+      ansible.builtin.copy:
+        src: "files/{{ item }}"
+        dest: "{{ shepherd_bin_dir }}/{{ item }}"
+        mode: "0755"
+      loop: [shepherd, shepherd-dev]
+
+    - name: Write shepherd.yaml (git-ignored, owner-only)
+      ansible.builtin.template:
+        src: shepherd.yaml.j2
+        dest: "{{ shepherd_home }}/shepherd.yaml"
+        mode: "0600"
+        force: "{{ shepherd_overwrite_config }}"
+
+    - name: Install dependencies
+      ansible.builtin.shell: |
+        export PATH="{{ shepherd_pnpm_dir }}:$PATH"
+        export npm_config_manage_package_manager_versions=false
+        pnpm install --frozen-lockfile
+      args:
+        chdir: "{{ shepherd_home }}"
+      register: shepherd_install
+      changed_when: "'Already up to date' not in shepherd_install.stdout"
+
+    - name: Say what is left for a person to do
+      ansible.builtin.debug:
+        msg:
+          - "Start it by hand: shepherd   (Docker must be running)"
+          - "Token: shepherd tui login --url {{ shepherd_herdr_url }} --email <you>, then put it in the herdr: block of shepherd.yaml (or SHEPHERD_HERDR_TOKEN)"
+          - "The bridge itself lives on bender; see deploy/ansible/README.md"

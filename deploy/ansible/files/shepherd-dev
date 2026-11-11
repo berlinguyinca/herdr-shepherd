@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Run the latest development version of the Shepherd fork from the local clone:
+# fast-forward the checked-out branch, install deps, then start `pnpm dev`.
+set -euo pipefail
+REPO="${SHEPHERD_REPO:-$HOME/IdeaProjects/herdr-shepherd}"
+cd "$REPO"
+export npm_config_manage_package_manager_versions=false
+export PATH="$HOME/.local/share/shepherd-dev/bin:$PATH"
+PNPM=pnpm
+
+branch="$(git branch --show-current)"
+if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
+  echo "shepherd-dev: tracked changes on $branch; skipping update, running as-is" >&2
+elif git rev-parse --abbrev-ref '@{u}' >/dev/null 2>&1; then
+  git fetch --quiet origin
+  git merge --ff-only '@{u}' || echo "shepherd-dev: $branch cannot fast-forward; running as-is" >&2
+else
+  echo "shepherd-dev: $branch has no upstream; running as-is" >&2
+fi
+echo "shepherd-dev: running $(git rev-parse --short HEAD) on $branch"
+
+docker info >/dev/null 2>&1 || { echo "shepherd-dev: Docker is not running" >&2; exit 1; }
+"$PNPM" install --frozen-lockfile
+
+# First run (or no model yet): offer guided setup when a person is at the terminal.
+if [ -t 0 ] && ! grep -qs '^llm:' "${RAKAZO_CONFIG:-shepherd.yaml}"; then
+  echo "shepherd-dev: no model configured; starting guided setup (Ctrl-C to skip)"
+  "$PNPM" onboard || echo "shepherd-dev: setup skipped" >&2
+fi
+exec "$PNPM" dev
