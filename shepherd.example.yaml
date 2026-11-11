@@ -21,7 +21,9 @@ llm:
   # vision_models: [example-model] # local only: models that accept images
   # reasoning_models: [example-model] # local only: models that accept reasoning effort
 # Optional: let the assistant read the agents on a herdr dashboard (read tools, plus one approval-gated write tool, herdr_send_input).
-# Override with SHEPHERD_HERDR_URL / SHEPHERD_HERDR_TOKEN. The token expires; keep this file chmod 600.
+# Override with SHEPHERD_HERDR_URL / SHEPHERD_HERDR_TOKEN. The token is optional: with only a url, Shepherd
+# opens its own owner session (POST /api/auth/open with Origin shepherd://, kept in memory, re-opened on a 401);
+# the bridge must list shepherd:// in open_owner_origins. A configured token expires; keep this file chmod 600.
 # EXPOSURE: the token is instance-wide, so every bot can read the operator's agent conversations.
 # It is therefore refused unless access.mode is open-owner (a single-owner deployment).
 # WRITE TOOL: herdr_send_input types text into a LIVE agent terminal (the agent may run commands
@@ -33,4 +35,4 @@ llm:
 # be re-pointed between private hosts, and only the address class is checked, not the name.
 # herdr:
 #   url: http://100.64.0.10:8787
-#   token: replace-with-your-bridge-token
+#   token: replace-with-your-bridge-token   # optional, see above

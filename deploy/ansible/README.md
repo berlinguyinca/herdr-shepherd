@@ -2,7 +2,7 @@
 
 ```
 export SHEPHERD_LLM_API_KEY=...      # optional; omit and run `shepherd onboard` instead
-export SHEPHERD_HERDR_TOKEN=...      # optional; a placeholder is written otherwise
+export SHEPHERD_HERDR_TOKEN=...      # optional; blank: no token written, Shepherd opens its own owner session
 ansible-playbook deploy/ansible/shepherd-local.yml
 shepherd                             # start by hand; nothing autostarts
 ```
@@ -19,8 +19,10 @@ The assistant reads and types into herdr agents through the herdr control plane'
 `~/.config/herdr-engineering/fleet-config.yaml` under `control_plane.rakazo_bridge` (`enabled: true`, `open_owner: true`,
 an operator account whose `password_scrypt` comes from `herdr-eng bridge hash-password`). That file lives on bender, not in a repo.
 
-The bearer token is not static. Sign in once with `shepherd tui login --url http://100.104.39.6 --email <you>` (asks for the
-password) and put the token in `shepherd.yaml` or `SHEPHERD_HERDR_TOKEN`. It expires (`token_ttl_days`, 30 by default).
-The passwordless `/api/auth/open` route only answers the iPhone app's origin, so it is not an option here.
+With no token configured, Shepherd opens an owner session itself: `POST /api/auth/open` with `Origin: shepherd://`, keeping the
+token in memory and re-opening once on a 401. The bridge must list `shepherd://` in `open_owner_origins`, and allows one open per 30 s
+per address (Shepherd fails the tool call on a 429 instead of waiting). Alternatively sign in with
+`shepherd tui login --url http://100.104.39.6 --email <you>` and put the token in `shepherd.yaml` or `SHEPHERD_HERDR_TOKEN`
+(it expires, `token_ttl_days`, 30 by default); a configured token is used as is and no open call is made.
 
 Shepherd accepts the `herdr:` block only with `access.mode: open-owner`, and only for http to loopback or Tailscale.

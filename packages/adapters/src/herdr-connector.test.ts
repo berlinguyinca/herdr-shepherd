@@ -21,6 +21,7 @@ interface Seen {
   url: string;
   authorization: string | undefined;
   contentType: string | undefined;
+  origin: string | undefined;
   body: unknown;
 }
 
@@ -44,6 +45,7 @@ class FakeBridge {
           url: req.url ?? "",
           authorization: req.headers.authorization,
           contentType: req.headers["content-type"],
+          origin: req.headers.origin,
           body: raw ? JSON.parse(raw) : undefined,
         };
         this.seen.push(seen);
@@ -518,12 +520,10 @@ describe("settings", () => {
   it("is off without settings and requires both values", () => {
     expect(herdrSettingsFromEnv({})).toBeUndefined();
     expect(herdrSettingsFromEnv({ RAKAZO_HERDR_URL: " ", RAKAZO_HERDR_TOKEN: "" })).toBeUndefined();
-    expect(() =>
-      herdrSettingsFromEnv({ ...OWNER, RAKAZO_HERDR_URL: "http://100.64.0.1:1" }),
-    ).toThrow(/set together/);
-    expect(() => herdrSettingsFromEnv({ ...OWNER, RAKAZO_HERDR_TOKEN: TOKEN })).toThrow(
-      /set together/,
-    );
+    expect(herdrSettingsFromEnv({ ...OWNER, RAKAZO_HERDR_URL: "http://100.64.0.1:1/" })).toEqual({
+      url: "http://100.64.0.1:1",
+    });
+    expect(() => herdrSettingsFromEnv({ ...OWNER, RAKAZO_HERDR_TOKEN: TOKEN })).toThrow(/needs/);
     expect(
       herdrSettingsFromEnv({
         ...OWNER,
@@ -794,5 +794,110 @@ describe("herdr_send_input", () => {
     expect(
       resultOf(await run(connector, "herdr_send_input", { agentId: "a1", text: "ok" })).sent,
     ).toBe(true);
+  });
+});
+
+describe("owner session without a configured token", () => {
+  const MINTED = "minted-session-token-not-real";
+  const MINTED_2 = "second-minted-token-not-real";
+  const opens = () => bridge.seen.filter((s) => s.url === "/api/auth/open");
+  const rpcs = () => bridge.seen.filter((s) => s.url.startsWith("/rpc/"));
+  let tokens: string[];
+  let sessionConnector: HerdrConnector;
+
+  beforeEach(() => {
+    tokens = [MINTED, MINTED_2];
+    bridge.handler = (_req, res, seen) => {
+      if (seen.url === "/api/auth/open") {
+        const token = tokens.shift() ?? "exhausted";
+        res.writeHead(200, { "content-type": "application/json", "set-auth-token": token });
+        res.end(JSON.stringify({ token, user: { id: "owner" } }));
+        return;
+      }
+      json(res, 200, { json: { agents: [row("a1")], hiddenCount: 0, cursor: 0 } });
+    };
+    sessionConnector = new HerdrConnector({ url: bridge.url });
+  });
+
+  it("mints a session on the first call, then calls /rpc with it", async () => {
+    resultOf(await run(sessionConnector, "herdr_list_agents"));
+    expect(opens()).toHaveLength(1);
+    const open = opens()[0] as Seen;
+    expect(open.method).toBe("POST");
+    expect(open.origin).toBe("shepherd://");
+    expect(open.contentType).toBe("application/json");
+    expect(open.body).toEqual({});
+    expect(bridge.seen[0]).toBe(open);
+    expect(rpcs()[0]?.authorization).toBe(`Bearer ${MINTED}`);
+  });
+
+  it("reuses the token for later calls", async () => {
+    await run(sessionConnector, "herdr_list_agents");
+    await run(sessionConnector, "herdr_list_agents");
+    expect(opens()).toHaveLength(1);
+    expect(rpcs()).toHaveLength(2);
+    expect(rpcs()[1]?.authorization).toBe(`Bearer ${MINTED}`);
+  });
+
+  it("re-mints once after a 401 and retries that call once", async () => {
+    const inner = bridge.handler;
+    let first = true;
+    bridge.handler = (req, res, seen) => {
+      if (seen.url.startsWith("/rpc/") && first) {
+        first = false;
+        json(res, 401, { error: "expired" });
+        return;
+      }
+      inner(req, res, seen);
+    };
+    resultOf(await run(sessionConnector, "herdr_list_agents"));
+    expect(opens()).toHaveLength(2);
+    expect(rpcs().map((r) => r.authorization)).toEqual([`Bearer ${MINTED}`, `Bearer ${MINTED_2}`]);
+  });
+
+  it("retries a 401 only once", async () => {
+    bridge.handler = (_req, res, seen) => {
+      if (seen.url === "/api/auth/open") {
+        json(res, 200, { token: tokens.shift() ?? "x" });
+        return;
+      }
+      json(res, 401, {});
+    };
+    const message = errorOf(await run(sessionConnector, "herdr_list_agents"));
+    expect(rpcs()).toHaveLength(2);
+    expect(opens()).toHaveLength(2);
+    expect(message).not.toContain(MINTED);
+    expect(message).not.toContain(MINTED_2);
+  });
+
+  it("fails with a clear error on 429 and leaks nothing", async () => {
+    bridge.handler = (_req, res) => {
+      res.writeHead(429, { "retry-after": "30", "content-type": "application/json" });
+      res.end(JSON.stringify({ token: MINTED, error: "slow down" }));
+    };
+    const message = errorOf(await run(sessionConnector, "herdr_list_agents"));
+    expect(message).toMatch(/30/);
+    expect(message).not.toContain(MINTED);
+    expect(rpcs()).toHaveLength(0);
+  });
+
+  it("never puts the minted token in results or errors", async () => {
+    const result = await run(sessionConnector, "herdr_list_agents");
+    expect(JSON.stringify(result)).not.toContain(MINTED);
+    bridge.handler = (_req, res, seen) => {
+      if (seen.url === "/api/auth/open") json(res, 200, { token: MINTED });
+      else json(res, 500, { echo: MINTED });
+    };
+    const fresh = new HerdrConnector({ url: bridge.url });
+    expect(JSON.stringify(await run(fresh, "herdr_list_agents"))).not.toContain(MINTED);
+    bridge.handler = (_req, res) => json(res, 200, { nope: true });
+    const bad = new HerdrConnector({ url: bridge.url });
+    expect(errorOf(await run(bad, "herdr_list_agents"))).not.toContain('token":');
+  });
+
+  it("skips the open call when a token is configured", async () => {
+    await run(connector, "herdr_list_agents");
+    expect(opens()).toHaveLength(0);
+    expect(rpcs()[0]?.authorization).toBe(`Bearer ${TOKEN}`);
   });
 });

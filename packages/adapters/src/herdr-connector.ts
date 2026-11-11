@@ -40,16 +40,19 @@ export const HERDR_TOKEN_ENV = "RAKAZO_HERDR_TOKEN";
 
 export interface HerdrSettings {
   url: string;
-  token: string;
+  /** Unset: the connector opens its own owner session on the bridge (see `openSession`). */
+  token?: string;
 }
 
-/** Both or neither: a half-configured bridge is an operator mistake worth failing loudly on. */
+/** The Origin the bridge must list in `open_owner_origins` for a token-less connector. */
+export const HERDR_OPEN_ORIGIN = "shepherd://";
+
+/** A url alone is valid (the connector opens an owner session); a token without a url is not. */
 export function herdrSettingsFromEnv(source: NodeJS.ProcessEnv): HerdrSettings | undefined {
   const url = source[HERDR_URL_ENV]?.trim();
   const token = source[HERDR_TOKEN_ENV]?.trim();
   if (!url && !token) return undefined;
-  if (!url || !token)
-    throw new Error(`${HERDR_URL_ENV} and ${HERDR_TOKEN_ENV} must be set together`);
+  if (!url) throw new Error(`${HERDR_TOKEN_ENV} needs ${HERDR_URL_ENV} to be set`);
   // The bridge token reaches the operator's own agents and is not tied to a user, so only a
   // single-owner deployment may hand it to bots; on a multi-user instance any user's bot could
   // read the operator's agent conversations.
@@ -59,7 +62,7 @@ export function herdrSettingsFromEnv(source: NodeJS.ProcessEnv): HerdrSettings |
         "so it is only offered on a single-owner deployment",
     );
   }
-  return { url: normalizeHerdrUrl(url), token };
+  return { url: normalizeHerdrUrl(url), ...(token ? { token } : {}) };
 }
 
 function isTailnetName(host: string): boolean {
@@ -403,6 +406,8 @@ export class HerdrConnector implements ConnectorProvider {
   private readonly allowSend: (key: string) => boolean;
   private readonly timeoutMs: number;
   private readonly closeTimeoutMs: number;
+  /** Minted owner-session token, in memory only; never logged or returned. */
+  private session: Promise<string> | undefined;
 
   constructor(
     private readonly settings: HerdrSettings,
@@ -556,20 +561,111 @@ export class HerdrConnector implements ConnectorProvider {
       detachedTimeoutMs === undefined
         ? runContext
         : { ...runContext, signal: new AbortController().signal };
-    const signal = AbortSignal.any([
-      context.signal,
-      AbortSignal.timeout(detachedTimeoutMs ?? this.timeoutMs),
-    ]);
+    const timeoutMs = detachedTimeoutMs ?? this.timeoutMs;
+    const send = (token: string) =>
+      this.post(
+        `/rpc/${procedure}`,
+        { authorization: `Bearer ${token}` },
+        JSON.stringify({ json: input }),
+        context,
+        timeoutMs,
+      );
+    const configured = this.settings.token;
+    const minted = configured === undefined ? this.sessionToken(context, timeoutMs) : undefined;
+    let reply = await send(configured ?? (await minted) ?? "");
+    if (minted && reply.status === 401) {
+      // The minted session expired or was revoked: mint a new one and retry this call once.
+      if (this.session === minted) this.session = undefined;
+      reply = await send(await this.sessionToken(context, timeoutMs));
+    }
+    if (reply.status === 401 || reply.status === 403) {
+      throw new HerdrToolError(
+        configured === undefined
+          ? "herdr rejected the owner session it opened. Check that the bridge accepts the shepherd:// origin."
+          : "herdr rejected the access token (expired or revoked). The operator must sign in to herdr again and update the herdr token setting.",
+      );
+    }
+    if (reply.status === 404) {
+      throw new HerdrToolError("herdr does not serve the agents API at this address.");
+    }
+    if (reply.status < 200 || reply.status > 299) {
+      throw new HerdrToolError(`herdr answered with status ${reply.status}.`);
+    }
+    try {
+      const body: unknown = JSON.parse(reply.text);
+      if (typeof body === "object" && body !== null && "json" in body) return body.json;
+    } catch {
+      // fall through
+    }
+    throw badShape();
+  }
+
+  /** One session per connector; concurrent calls share the one open (the bridge limits opens). */
+  private sessionToken(context: AdapterContext, timeoutMs: number): Promise<string> {
+    if (!this.session) {
+      const opened = this.openSession(context, timeoutMs);
+      this.session = opened;
+      opened.catch(() => {
+        if (this.session === opened) this.session = undefined;
+      });
+    }
+    return this.session;
+  }
+
+  /** Ask the bridge for an owner session. Never logs, echoes or returns the token to the model. */
+  private async openSession(context: AdapterContext, timeoutMs: number): Promise<string> {
+    const reply = await this.post(
+      "/api/auth/open",
+      { origin: HERDR_OPEN_ORIGIN },
+      "{}",
+      context,
+      timeoutMs,
+    );
+    if (reply.status === 429) {
+      const seconds = Number(reply.headers.get("retry-after"));
+      const wait = Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : 30;
+      throw new HerdrToolError(
+        `herdr limits how often a session can be opened. Try again in about ${wait} seconds.`,
+      );
+    }
+    if (reply.status === 401 || reply.status === 403) {
+      throw new HerdrToolError(
+        "herdr refused to open an owner session. Check that the bridge lists the shepherd:// origin in open_owner_origins, or set a herdr token.",
+      );
+    }
+    if (reply.status < 200 || reply.status > 299) {
+      throw new HerdrToolError(`herdr answered with status ${reply.status} to the session open.`);
+    }
+    try {
+      const body: unknown = JSON.parse(reply.text);
+      if (typeof body === "object" && body !== null && "token" in body) {
+        const token = body.token;
+        if (typeof token === "string" && token.length > 0) return token;
+      }
+    } catch {
+      // fall through
+    }
+    throw badShape();
+  }
+
+  private async post(
+    path: string,
+    extraHeaders: Record<string, string>,
+    body: string,
+    context: AdapterContext,
+    timeoutMs: number,
+  ): Promise<{ status: number; headers: Headers; text: string }> {
+    const signal = AbortSignal.any([context.signal, AbortSignal.timeout(timeoutMs)]);
     let response: Response;
     try {
-      response = await this.fetchBridge(`${this.base}/rpc/${procedure}`, {
+      response = await this.fetchBridge(`${this.base}${path}`, {
         method: "POST",
         headers: {
           accept: "application/json",
           "content-type": "application/json",
-          authorization: `Bearer ${this.settings.token}`,
+          ...extraHeaders,
         },
-        body: JSON.stringify({ json: input }),
+        body,
         signal,
       });
     } catch (error) {
@@ -589,22 +685,7 @@ export class HerdrConnector implements ConnectorProvider {
         signal.aborted ? "herdr did not answer in time." : "herdr's response could not be read.",
       );
     }
-    if (response.status === 401 || response.status === 403) {
-      throw new HerdrToolError(
-        "herdr rejected the access token (expired or revoked). The operator must sign in to herdr again and update the herdr token setting.",
-      );
-    }
-    if (response.status === 404) {
-      throw new HerdrToolError("herdr does not serve the agents API at this address.");
-    }
-    if (!response.ok) throw new HerdrToolError(`herdr answered with status ${response.status}.`);
-    try {
-      const body: unknown = JSON.parse(text);
-      if (typeof body === "object" && body !== null && "json" in body) return body.json;
-    } catch {
-      // fall through
-    }
-    throw badShape();
+    return { status: response.status, headers: response.headers, text };
   }
 }
 

@@ -18,4 +18,6 @@ llm:
 {% endif %}
 herdr:
   url: {{ shepherd_herdr_url }}
+{% if shepherd_herdr_token %}
   token: {{ shepherd_herdr_token }}
+{% endif %}
