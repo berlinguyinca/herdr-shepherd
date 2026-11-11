@@ -138,6 +138,15 @@ describe("ComposerModelChip", () => {
     expect(container.textContent).not.toContain("default");
   });
 
+  it("draws exactly one check on the selected row", async () => {
+    const rerender = await render({ credentials: [anthropic] });
+    await rerender(1);
+    const selected = document.body.querySelectorAll('[cmdk-item][data-checked="true"]');
+    expect(selected).toHaveLength(1);
+    expect(selected[0]?.textContent).toContain("Default");
+    expect(selected[0]?.querySelectorAll("svg.lucide-check")).toHaveLength(1);
+  });
+
   it("rolls back and shows an error when the save fails", async () => {
     const rerender = await render({
       credentials: [anthropic],

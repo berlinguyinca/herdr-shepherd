@@ -123,11 +123,28 @@ describe("connected backup model choices", () => {
         provider: "openai-compatible",
         modelId: "custom-model",
         label: "custom-model",
-        providerName: "openai-compatible",
+        providerName: "OpenAI-compatible",
         credentialId: "cred-openai-compatible",
-        connectionName: "openai-compatible (Local server)",
+        connectionName: "OpenAI-compatible (Local server)",
       },
     ]);
+  });
+
+  it("names a default-labelled InferWeave connection by its endpoint, not the raw provider id", () => {
+    const named = connectedBackupOptions(catalog, [
+      {
+        id: "cred-inferweave",
+        provider: "openai-compatible",
+        label: "OpenAI-compatible",
+        endpointName: "InferWeave",
+        hasKey: true,
+        isDefault: true,
+        modelId: "deepseek",
+      },
+    ]);
+    expect(
+      named.map(({ providerName, connectionName }) => ({ providerName, connectionName })),
+    ).toEqual([{ providerName: "OpenAI-compatible", connectionName: "InferWeave" }]);
   });
 
   it("keeps an unnamed compatible model and skips disconnected catalog rows", () => {
@@ -204,7 +221,7 @@ describe("connected backup model choices", () => {
         provider: "openai-compatible",
         modelId: "custom-model",
         label: "custom-model",
-        providerName: "openai-compatible",
+        providerName: "OpenAI-compatible",
       },
       {
         provider: "openai-compatible",

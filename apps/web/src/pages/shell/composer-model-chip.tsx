@@ -13,7 +13,7 @@ import {
   PopoverTrigger,
 } from "@rakazo/ui-web";
 import { useQuery } from "@tanstack/react-query";
-import { CheckIcon, ChevronDownIcon, PlugIcon } from "lucide-react";
+import { ChevronDownIcon, PlugIcon } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { TextOnlyMark } from "../../components/TextOnlyMark";
 import { useSpaceQueries } from "../../lib/query";
@@ -186,9 +186,6 @@ export function ComposerModelChip({
                           <span className="shrink-0 text-muted-foreground">
                             <TextOnlyMark />
                           </span>
-                        ) : null}
-                        {choice.key === state.selectedKey ? (
-                          <CheckIcon className="size-4 shrink-0" aria-hidden="true" />
                         ) : null}
                       </CommandItem>
                     ))}
