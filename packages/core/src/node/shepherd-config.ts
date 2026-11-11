@@ -88,7 +88,7 @@ export const shepherdConfigSchema = z.strictObject({
     .optional(),
   llm: llmSchema.optional(),
   /** A herdr dashboard's bridge, which lets the assistant read its agents (read-only tools). */
-  herdr: z.strictObject({ url: z.url(), token: z.string().min(1) }).optional(),
+  herdr: z.strictObject({ url: z.url(), token: z.string().min(1).optional() }).optional(),
 });
 export type ShepherdConfig = z.infer<typeof shepherdConfigSchema>;
 

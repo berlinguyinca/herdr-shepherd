@@ -4,7 +4,7 @@
 # Starts nothing and installs no login item or launchd job: run `shepherd` by hand.
 # Secrets come from the environment, never from this repo:
 #   SHEPHERD_LLM_API_KEY  key for the LLM gateway (blank: the line is left for `shepherd onboard`)
-#   SHEPHERD_HERDR_TOKEN  herdr bridge token from `shepherd tui login` (blank: a placeholder is written)
+#   SHEPHERD_HERDR_TOKEN  herdr bridge token from `shepherd tui login` (blank: no token is written; Shepherd opens an owner session itself)
 - name: Set up the local Shepherd dashboard
   hosts: localhost
   connection: local
@@ -27,7 +27,7 @@
       - qwen3.8-27b-modality-vision-quant-q8_k_xl
       - qwen3.8-flash-modality-vision-quant-iq4_xs
     shepherd_llm_api_key: "{{ lookup('ansible.builtin.env', 'SHEPHERD_LLM_API_KEY') }}"
-    shepherd_herdr_token: "{{ lookup('ansible.builtin.env', 'SHEPHERD_HERDR_TOKEN') | default('PASTE_TOKEN_HERE', true) }}"
+    shepherd_herdr_token: "{{ lookup('ansible.builtin.env', 'SHEPHERD_HERDR_TOKEN') }}"
     # false: an existing shepherd.yaml (your key, your edits) is never overwritten.
     shepherd_overwrite_config: false
   tasks:
@@ -80,5 +80,5 @@
       ansible.builtin.debug:
         msg:
           - "Start it by hand: shepherd   (Docker must be running)"
-          - "Token: shepherd tui login --url {{ shepherd_herdr_url }} --email <you>, then put it in the herdr: block of shepherd.yaml (or SHEPHERD_HERDR_TOKEN)"
+          - "Token is optional: Shepherd opens its own owner session. The bridge needs shepherd:// in open_owner_origins; or put a token from `shepherd tui login --url {{ shepherd_herdr_url }} --email <you>` in the herdr: block of shepherd.yaml (or SHEPHERD_HERDR_TOKEN)"
           - "The bridge itself lives on bender; see deploy/ansible/README.md"

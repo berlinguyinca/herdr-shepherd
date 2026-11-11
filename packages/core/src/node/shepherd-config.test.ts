@@ -262,6 +262,13 @@ describe("herdr block", () => {
     });
   });
 
+  it("accepts a url alone (the connector opens an owner session)", () => {
+    const env = shepherdConfigEnv(
+      parseShepherdConfig("herdr:\n  url: http://100.64.0.10:8787\n", "t"),
+    );
+    expect(env).toEqual({ RAKAZO_HERDR_URL: "http://100.64.0.10:8787" });
+  });
+
   it("lets the environment win and never echoes the token on a bad block", () => {
     write(HERDR);
     const env: NodeJS.ProcessEnv = { RAKAZO_HERDR_URL: "http://100.64.0.99:1" };
@@ -279,8 +286,8 @@ describe("herdr block", () => {
     expect(message).not.toContain("fixture-bridge-token");
   });
 
-  it("requires both url and token", () => {
-    expect(() => parseShepherdConfig("herdr:\n  url: http://x.test\n", "t")).toThrow(
+  it("requires a url (a token alone is refused)", () => {
+    expect(() => parseShepherdConfig("herdr:\n  token: fixture-bridge-token\n", "t")).toThrow(
       ShepherdConfigError,
     );
   });
