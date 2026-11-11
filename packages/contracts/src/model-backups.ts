@@ -109,6 +109,11 @@ export function connectedBackupOptions(
           .map((entry) => option(entry, connection)),
       );
   }
+  // The compatible provider's display name, even when no catalog entry carries this model id;
+  // the raw provider id would make a default-labelled connection read "openai-compatible".
+  const compatibleProviderName =
+    catalog.find((entry) => entry.provider === OPENAI_COMPATIBLE_PROVIDER_ID && entry.providerName)
+      ?.providerName ?? OPENAI_COMPATIBLE_PROVIDER_ID;
   for (const credential of credentials) {
     if (credential.provider !== OPENAI_COMPATIBLE_PROVIDER_ID) continue;
     const seen = new Set<string>();
@@ -121,7 +126,7 @@ export function connectedBackupOptions(
         (candidate) =>
           candidate.provider === OPENAI_COMPATIBLE_PROVIDER_ID && candidate.id === modelId,
       );
-      const providerName = entry?.providerName ?? OPENAI_COMPATIBLE_PROVIDER_ID;
+      const providerName = entry?.providerName ?? compatibleProviderName;
       options.push({
         provider: OPENAI_COMPATIBLE_PROVIDER_ID,
         modelId,
