@@ -1,0 +1,40 @@
+# Port of ci.yml `build`: production builds, then the Electron smoke under xvfb.
+when:
+  - event: pull_request
+  - event: push
+    branch: herdr/personal-dashboard
+
+steps:
+  - name: install
+    image: node:24-bookworm
+    commands:
+      - corepack enable
+      - mkdir -p /tmp/electron-cache
+      - pnpm install --frozen-lockfile
+      - pnpm db:generate
+    environment:
+      electron_config_cache: /tmp/electron-cache
+      DATABASE_URL: postgres://rakazo:rakazo@127.0.0.1:5433/rakazo
+
+  - name: build
+    image: node:24-bookworm
+    depends_on: [install]
+    commands:
+      - corepack enable
+      - pnpm build
+    environment:
+      DATABASE_URL: postgres://rakazo:rakazo@127.0.0.1:5433/rakazo
+      BETTER_AUTH_SECRET: ci-build-auth-secret-at-least-32-characters
+      ENCRYPTION_KEY: ci-build-encryption-key-at-least-32-characters
+      electron_config_cache: /tmp/electron-cache
+
+  - name: electron-smoke
+    image: node:24-bookworm
+    depends_on: [build]
+    commands:
+      - apt-get update -qq
+      - apt-get install -y --no-install-recommends xvfb libgtk-3-0 libnss3 libasound2 libgbm1 libxss1 libxtst6 libatk-bridge2.0-0 libdrm2
+      - corepack enable
+      - xvfb-run --auto-servernum pnpm --filter @rakazo/desktop exec playwright test --config e2e/playwright.config.ts
+    environment:
+      electron_config_cache: /tmp/electron-cache

@@ -1,0 +1,38 @@
+# Port of ci.yml `unit-tests-shard`: six vitest shards, one Woodpecker workflow per shard.
+when:
+  - event: pull_request
+  - event: push
+    branch: herdr/personal-dashboard
+
+matrix:
+  SHARD:
+    - "1"
+    - "2"
+    - "3"
+    - "4"
+    - "5"
+    - "6"
+
+steps:
+  - name: install
+    image: node:24-bookworm
+    commands:
+      - corepack enable
+      - pnpm install --frozen-lockfile
+      - pnpm db:generate
+    environment:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      pnpm_config_prefer_offline: "true"
+      DATABASE_URL: postgres://rakazo:rakazo@127.0.0.1:5433/rakazo
+
+  - name: unit-tests
+    image: node:24-bookworm
+    depends_on: [install]
+    commands:
+      # age is needed by the encrypted backup round-trip test (same pinned release and checksum as GitHub CI).
+      - curl -fsSL -o /tmp/age.tar.gz https://github.com/FiloSottile/age/releases/download/v1.3.2/age-v1.3.2-linux-amd64.tar.gz
+      - echo "cbe24006683f8eb669266162894b9a522a1af52f2665fbc63a4bb032ed26ac10  /tmp/age.tar.gz" | sha256sum -c -
+      - tar -xzf /tmp/age.tar.gz -C /tmp age/age age/age-keygen
+      - install -m 755 /tmp/age/age /tmp/age/age-keygen /usr/local/bin/
+      - corepack enable
+      - pnpm run test --shard=${SHARD}/6
