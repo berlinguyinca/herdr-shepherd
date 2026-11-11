@@ -256,6 +256,7 @@ x-app-environment: &app-environment # Runtime
   MCP_MAX_PAGES:
   MCP_PACKAGES_DIR:
   MCP_ALLOW_PRIVATE_ENDPOINT:
+  RAKAZO_ACCESS_MODE:
   # herdr dashboard bridge for the assistant (read-only agent tools; both or neither)
   RAKAZO_HERDR_URL:
   RAKAZO_HERDR_TOKEN:
@@ -450,7 +451,6 @@ services:
       SCIM_BEARER_TOKEN: ${SCIM_BEARER_TOKEN:-}
       SIGNUPS_ENABLED:
       SIGNUP_ALLOWLIST:
-      RAKAZO_ACCESS_MODE:
       RAKAZO_OWNER_EMAIL:
       RAKAZO_OWNER_NAME:
       SCREEN_PROXY_SECRET: ${SCREEN_PROXY_SECRET:?Set SCREEN_PROXY_SECRET in .env}
