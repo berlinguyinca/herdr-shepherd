@@ -4,6 +4,7 @@ import type { ConnectionFlags, TuiCommand } from "./args.js";
 import { parseTuiArgs, TUI_USAGE } from "./args.js";
 import type { ClientFile, Connection } from "./config.js";
 import {
+  assertPasswordTransport,
   clientFilePath,
   insecureUrlWarning,
   normalizeServerUrl,
@@ -20,6 +21,7 @@ import {
   formatAgentEvent,
   formatAgentRow,
   formatAgentTable,
+  oneLine,
 } from "./render.js";
 import type { FetchFn, TuiClient } from "./rpc.js";
 import {
@@ -30,7 +32,13 @@ import {
   openOwnerSession,
   signInWithPassword,
 } from "./rpc.js";
-import { createDetachFilter, createInputSequencer, interpretFrame } from "./terminal-io.js";
+import {
+  createDetachFilter,
+  createInputSequencer,
+  filterTerminalInput,
+  interpretFrame,
+  TERMINAL_RESTORE,
+} from "./terminal-io.js";
 
 export type TuiRunOptions = {
   argv: string[];
@@ -65,6 +73,19 @@ export async function runTui(options: TuiRunOptions): Promise<void> {
     file: clientFilePath(options.env),
   };
   if (command.kind === "help") return context.say(TUI_USAGE);
+  if (flags.token) {
+    context.warn(
+      "Note: --token is visible in the process list; prefer --token-stdin or SHEPHERD_TOKEN.",
+    );
+  }
+  if (flags.tokenStdin) {
+    if (command.kind === "attach" || command.kind === "chat") {
+      throw new TuiError(
+        "--token-stdin cannot be combined with a command that reads the keyboard.",
+      );
+    }
+    flags.token = await readToken(options.input);
+  }
   if (command.kind === "login") return login(context, flags);
   const connection = await authenticate(context, flags);
   const client = createTuiClient(connection, context.fetchImpl);
@@ -80,31 +101,51 @@ export async function runTui(options: TuiRunOptions): Promise<void> {
   }
 }
 
+/** The first line of stdin, as a token. */
+async function readToken(input: NodeJS.ReadableStream): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of input) chunks.push(Buffer.from(chunk as Buffer));
+  const token = Buffer.concat(chunks).toString("utf8").split(/\r?\n/, 1)[0]?.trim() ?? "";
+  if (!token) throw new TuiError("--token-stdin: stdin held no token.");
+  return token;
+}
+
 /** Server URL plus a token from flag, env, saved file, or an open-owner/password sign-in. */
 async function authenticate(context: Context, flags: ConnectionFlags): Promise<Connection> {
   const base = resolveConnection(flags, context.env, readClientFile(context.file));
   const warning = insecureUrlWarning(base.url);
   if (warning) context.warn(warning);
   if (base.token) return base;
-  const token = await obtainToken(context, base.url, flags.email);
+  const token = await obtainToken(context, base.url, flags.email, flags.insecure === true);
   return { ...base, token };
 }
 
-async function obtainToken(context: Context, url: string, email?: string): Promise<string> {
-  if (email) return signInPrompt(context, url, email);
+async function obtainToken(
+  context: Context,
+  url: string,
+  email: string | undefined,
+  insecure: boolean,
+): Promise<string> {
+  if (email) return signInPrompt(context, url, email, insecure);
   const capabilities = await fetchCapabilities(url, context.fetchImpl);
   if (capabilities?.openOwner) return openOwnerSession(url, context.fetchImpl);
   if (capabilities === null) {
-    // No auth routes: a bridge that accepts no token, or one needing --token. Try without.
+    // No auth routes at all (herdr's bridge): a token is the only way in.
     throw new TuiError("No token. Pass --token, set SHEPHERD_TOKEN, or run `pnpm tui login`.");
   }
   throw new TuiError("Not signed in. Run `pnpm tui login` or pass --email or --token.");
 }
 
-async function signInPrompt(context: Context, url: string, email: string): Promise<string> {
+async function signInPrompt(
+  context: Context,
+  url: string,
+  email: string,
+  insecure: boolean,
+): Promise<string> {
   if (!context.interactive) {
     throw new TuiError("Password sign-in needs a terminal; use --token or SHEPHERD_TOKEN instead.");
   }
+  assertPasswordTransport(url, insecure);
   const prompter = createPrompter(context.input, context.output, true);
   try {
     const password = await prompter.askSecret(`Password for ${email}`);
@@ -132,7 +173,7 @@ async function login(context: Context, flags: ConnectionFlags): Promise<void> {
     const token =
       flags.token ||
       context.env.SHEPHERD_TOKEN ||
-      (await loginToken(context, prompter, url, flags.email));
+      (await loginToken(context, prompter, url, flags.email, flags.insecure === true));
     const next: ClientFile = { url, token, ...(flags.space ? { space: flags.space } : {}) };
     writeClientFile(context.file, next);
     context.say(`Saved ${url} and a token to ${context.file} (owner-only).`);
@@ -146,12 +187,14 @@ async function loginToken(
   prompter: Prompter | undefined,
   url: string,
   email: string | undefined,
+  insecure: boolean,
 ): Promise<string> {
   const capabilities = await fetchCapabilities(url, context.fetchImpl);
   if (!email && capabilities?.openOwner) return openOwnerSession(url, context.fetchImpl);
   if (!prompter) {
     throw new TuiError("Nothing to sign in with. Pass --token, or run login in a terminal.");
   }
+  assertPasswordTransport(url, insecure);
   const address = email || (await prompter.ask("Email"));
   const password = await prompter.askSecret(`Password for ${address}`);
   return signInWithPassword(url, address, password, context.fetchImpl);
@@ -238,7 +281,7 @@ async function attach(context: Context, client: TuiClient, id: string): Promise<
   let inputFailed = false;
   const onData = (chunk: Buffer | string) => {
     const bytes = typeof chunk === "string" ? Buffer.from(chunk) : chunk;
-    const { forward, detach: leave } = detach.feed(bytes);
+    const { forward, detach: leave } = detach.feed(filterTerminalInput(bytes));
     if (forward.length > 0) {
       for (const call of sequencer.next(forward)) {
         typing = typing.then(() =>
@@ -287,6 +330,10 @@ async function attach(context: Context, client: TuiClient, id: string): Promise<
   } finally {
     input.off("data", onData);
     out.off?.("resize", onResize);
+    // Undo anything the remote screen switched on, then swallow what the terminal still sends
+    // (mouse reports, replies) so none of it lands in the shell's prompt.
+    output.write(TERMINAL_RESTORE);
+    if (raw) await swallow(input, 60);
     if (raw) input.setRawMode(false);
     if ("pause" in input) input.pause();
     context.signal?.removeEventListener("abort", stop);
@@ -295,6 +342,14 @@ async function attach(context: Context, client: TuiClient, id: string): Promise<
     await client.terminal.close({ terminalId }).catch(() => undefined);
   }
   context.say(`\n[${endMessage}]`);
+}
+
+/** Reads and discards input for `ms`, so late terminal reports do not reach the shell. */
+async function swallow(input: NodeJS.ReadableStream, ms: number): Promise<void> {
+  const drop = () => undefined;
+  input.on("data", drop);
+  await new Promise((resolve) => setTimeout(resolve, ms));
+  input.off("data", drop);
 }
 
 async function chat(
@@ -356,7 +411,7 @@ async function pickBot(context: Context, client: TuiClient, prompter: Prompter):
     throw new TuiError("Pass --bot <id> when there is no terminal to pick from.");
   }
   bots.forEach((bot, index) => {
-    context.say(`${index + 1}. ${bot.name}  (${bot.id})`);
+    context.say(`${index + 1}. ${oneLine(bot.name, 60)}  (${oneLine(bot.id, 64)})`);
   });
   const answer = await prompter.ask("Chat with number");
   const bot = bots[Number(answer) - 1];

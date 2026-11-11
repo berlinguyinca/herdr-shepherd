@@ -22,11 +22,33 @@ With no token the client signs in for you where it can:
 
 ## What each server serves
 
-| Command | Shepherd `apps/api` | herdr bridge |
-| --- | --- | --- |
-| `agents`, `agent`, `attach` | not served (the client says so) | yes |
-| `chat` | yes (`bots/list`, `threads/*`) | if the bridge serves threads |
+| Command                     | Shepherd `apps/api`             | herdr bridge                 |
+| --------------------------- | ------------------------------- | ---------------------------- |
+| `agents`, `agent`, `attach` | not served (the client says so) | yes                          |
+| `chat`                      | yes (`bots/list`, `threads/*`)  | if the bridge serves threads |
 
 `attach` sends keystrokes as numbered base64 calls (`n` from 1, in order, at most 32 KB each) and repaints every frame as a whole screen after a clear.
 
 Not yet: reconnect after a dropped stream, copy mode or scrollback in `attach`, attachments and mentions in `chat`.
+
+## Security notes
+
+- **Saved credentials are per server.** The token and space in the client file are used only when the
+  resolved server URL equals the URL they were saved for. A `--url`/`SHEPHERD_URL` pointing elsewhere
+  never receives them; a `--token` flag or `SHEPHERD_TOKEN` env token is always honored.
+- **Tokens.** Prefer `SHEPHERD_TOKEN` or `--token-stdin` (reads the first line of stdin; not valid for
+  `attach`/`chat`, which need stdin). `--token <value>` works but prints a warning because the value
+  is visible in the process list.
+- **Passwords over plain http** are refused unless the host is loopback, or `--insecure` is passed.
+  Tailnet hosts (`*.ts.net`, `100.64.0.0/10`, `fd7a:115c:a1e0::/48`) get no "unencrypted" warning
+  because WireGuard encrypts the path, but a password is still refused over plain http to them: the
+  100.64/10 block is the shared CGNAT range and is not necessarily a tailnet, so `--insecure` is the
+  explicit opt-in.
+- **Redirects are never followed** on sign-in, open-owner and capability requests.
+- **Remote text is sanitized** (escape sequences, control, bidi and zero-width characters), and
+  single-line fields are flattened.
+- **`attach` filters terminal output**: all OSC (clipboard, titles, 1337, 7), DCS/APC/PM/SOS, 8-bit C1
+  controls and terminal queries (DSR, DA, DECRQM, XTVERSION, window reports) are dropped; replies are
+  never forwarded as input. On exit the terminal modes are reset and pending stdin is discarded.
+- **Client file**: written with a random temp name (`wx`, mode 0600), its directory tightened to 0700,
+  and a symlinked client file is refused.

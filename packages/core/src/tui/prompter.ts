@@ -48,22 +48,23 @@ export function createPrompter(
       waiting = resolve;
     });
   };
-  const required = async (): Promise<string> => {
+  const required = async (trim: boolean): Promise<string> => {
     const line = await nextLine();
     if (line === undefined) throw new TuiError("Input ended before the questions were answered.");
-    return line.trim();
+    // Passwords may start or end with spaces; only the line ending goes.
+    return trim ? line.trim() : line.replace(/\r$/, "");
   };
   return {
     nextLine,
     async ask(question) {
       output.write(`${question}: `);
-      return required();
+      return required(true);
     },
     async askSecret(question) {
       output.write(`${question}: `);
       muted = true;
       try {
-        return await required();
+        return await required(false);
       } finally {
         muted = false;
         output.write("\n");

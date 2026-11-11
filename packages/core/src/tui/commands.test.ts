@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import type { TuiRunOptions } from "./commands.js";
 import { runTui } from "./commands.js";
 import { TuiError } from "./errors.js";
-import { toBase64 } from "./terminal-io.js";
+import { TERMINAL_RESTORE, toBase64 } from "./terminal-io.js";
 
 const TOKEN = "tok-fixture-not-real";
 const PASSWORD = "pw-fixture-not-real";
@@ -396,3 +396,155 @@ async function waitFor(condition: () => boolean, ms = 5_000): Promise<void> {
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
 }
+
+describe("security", () => {
+  it("does not send the saved token to a different server", async () => {
+    fixture.json.set("health", () => ({ ok: true }));
+    await run(["login", ...withServer()]).done;
+    const other = new FixtureServer();
+    await other.start();
+    try {
+      other.json.set("agents/list", () => ({ agents: [], hiddenCount: 0, cursor: 0 }));
+      const { done } = run(["agents", "--once", "--url", other.origin]);
+      await expect(done).rejects.toThrow(TuiError);
+      for (const seen of other.seen) expect(seen.headers.authorization).toBeUndefined();
+      const viaEnv = run(["agents", "--once"], {
+        env: {
+          SHEPHERD_CLIENT_FILE: path.join(dir, "client.json"),
+          SHEPHERD_URL: other.origin,
+        },
+      });
+      await expect(viaEnv.done).rejects.toThrow(TuiError);
+      for (const seen of other.seen) expect(seen.headers.authorization).toBeUndefined();
+    } finally {
+      await other.stop();
+    }
+  });
+
+  it("filters dangerous sequences from attach output and restores the terminal on detach", async () => {
+    fixture.json.set("terminal/open", () => ({ terminalId: "t", seq: 1, rows: 24, cols: 80 }));
+    fixture.json.set("terminal/close", () => ({ ok: true }));
+    fixture.onStream.set("terminal/subscribe", () => {
+      fixture.emit("terminal/subscribe", {
+        seq: 1,
+        data: toBase64(Buffer.from("\u001b]52;c;ZXZpbA==\u0007ok\u001b[31m\u001b[6n")),
+      });
+    });
+    const { done, input, stdout } = run(["attach", "a1", ...withServer()]);
+    await waitFor(() => stdout().includes("ok"));
+    input.write(Buffer.from([0x1d, 0x71]));
+    await done;
+    const text = stdout();
+    expect(text).toContain("ok\u001b[31m");
+    expect(text).not.toContain("52;c");
+    expect(text).not.toContain("[6n");
+    expect(text).toContain(TERMINAL_RESTORE);
+    expect(fixture.seen.some((s) => s.url === "/rpc/terminal/input")).toBe(false);
+  });
+
+  it("sanitizes a hostile end reason and a hostile server error message", async () => {
+    fixture.json.set("terminal/open", () => ({ terminalId: "t", seq: 1, rows: 24, cols: 80 }));
+    fixture.json.set("terminal/close", () => ({ ok: true }));
+    fixture.onStream.set("terminal/subscribe", () => {
+      fixture.emit("terminal/subscribe", {
+        seq: 1,
+        ended: true,
+        reason: "x\u001b]52;c;AAAA\u0007y",
+      });
+    });
+    const attached = run(["attach", "a1", ...withServer()]);
+    await attached.done;
+    expect(attached.stdout()).toContain("(xy)");
+    expect(attached.stdout()).not.toContain("52;c");
+
+    fixture.json.set(
+      "agents/list",
+      () =>
+        new Response(
+          JSON.stringify({
+            json: {
+              defined: false,
+              code: "X",
+              status: 500,
+              message: "bad\u001b]52;c;AAAA\u0007\nnews",
+              data: {},
+            },
+          }),
+          { status: 500, headers: { "content-type": "application/json" } },
+        ),
+    );
+    const failed = run(["agents", "--once", ...withServer()]);
+    const error = await failed.done.then(
+      () => undefined,
+      (e: unknown) => e as Error,
+    );
+    expect(error?.message).toContain("bad");
+    expect(error?.message.includes(String.fromCharCode(27)) || error?.message.includes("\n")).toBe(
+      false,
+    );
+  });
+
+  it("does not follow a redirect with the password", async () => {
+    const other = new FixtureServer();
+    await other.start();
+    try {
+      other.json.set("/api/auth/sign-in/email", () => ({ token: "stolen" }));
+      fixture.json.set(
+        "/api/auth/sign-in/email",
+        () =>
+          new Response(null, {
+            status: 307,
+            headers: { location: `${other.origin}/api/auth/sign-in/email` },
+          }),
+      );
+      const { done, input, stdout } = run(
+        ["agents", "--once", "--url", fixture.origin, "--email", "me@example.com"],
+        { interactive: true },
+      );
+      await waitFor(() => stdout().includes("Password for"));
+      input.write(`${PASSWORD}\n`);
+      await expect(done).rejects.toThrow(/redirects are refused/);
+      expect(other.seen).toHaveLength(0);
+    } finally {
+      await other.stop();
+    }
+  });
+
+  it("refuses a password over plain http to a non-loopback host before any request", async () => {
+    const { done } = run(
+      ["agents", "--once", "--url", "http://192.0.2.1:9", "--email", "me@example.com"],
+      { interactive: true },
+    );
+    await expect(done).rejects.toThrow(/plain http.*--insecure/);
+  });
+
+  it("reads the token from stdin, and warns that --token is visible in the process list", async () => {
+    fixture.json.set("agents/list", () => ({ agents: [], hiddenCount: 0, cursor: 0 }));
+    const viaStdin = run(["agents", "--once", "--url", fixture.origin, "--token-stdin"]);
+    viaStdin.input.end(`${TOKEN}\n`);
+    await viaStdin.done;
+    expect(fixture.seen.at(-1)?.headers.authorization).toBe(`Bearer ${TOKEN}`);
+    expect(viaStdin.stderr()).not.toContain("process list");
+
+    const viaFlag = run(["agents", "--once", ...withServer()]);
+    await viaFlag.done;
+    expect(viaFlag.stderr()).toMatch(/process list/);
+    expect(viaFlag.stderr()).not.toContain(TOKEN);
+  });
+
+  it("sends the password exactly as typed, spaces included", async () => {
+    fixture.json.set("/api/auth/sign-in/email", () => ({ token: "session-token" }));
+    fixture.json.set("agents/list", () => ({ agents: [], hiddenCount: 0, cursor: 0 }));
+    const { done, input, stdout } = run(
+      ["agents", "--once", "--url", fixture.origin, "--email", "me@example.com"],
+      { interactive: true },
+    );
+    await waitFor(() => stdout().includes("Password for"));
+    input.write("  spaced pw  \n");
+    await done;
+    expect(fixture.seen.find((s) => s.url === "/api/auth/sign-in/email")?.body).toEqual({
+      email: "me@example.com",
+      password: "  spaced pw  ",
+    });
+  });
+});

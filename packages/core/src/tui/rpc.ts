@@ -4,6 +4,7 @@ import type { ContractRouterClient } from "@orpc/contract";
 import type { AppContract } from "@rakazo/contracts";
 import type { Connection } from "./config.js";
 import { TuiError } from "./errors.js";
+import { oneLine } from "./render.js";
 
 export type TuiClient = ContractRouterClient<AppContract>;
 export type FetchFn = typeof fetch;
@@ -54,7 +55,18 @@ export function explainRpcError(error: unknown, procedure: string): TuiError {
     );
   }
   const message = error instanceof Error ? error.message : String(error);
-  return new TuiError(`${procedure} failed: ${message}`);
+  return new TuiError(`${procedure} failed: ${oneLine(message, 200)}`);
+}
+
+/** A credential request: a redirect or network failure is an error, never a second request. */
+async function send(fetchImpl: FetchFn, url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetchImpl(url, init);
+  } catch {
+    throw new TuiError(
+      `Could not complete the request to ${new URL(url).host} (redirects are refused).`,
+    );
+  }
 }
 
 export type AuthCapabilities = { openOwner: boolean; passwordAuth: boolean } | null;
@@ -67,6 +79,7 @@ export async function fetchCapabilities(
   try {
     const response = await fetchImpl(`${url}/api/auth/capabilities`, {
       headers: { accept: "application/json" },
+      redirect: "error",
     });
     if (!response.ok) return null;
     const body = (await response.json()) as { openOwner?: unknown; passwordAuth?: unknown };
@@ -94,8 +107,9 @@ export async function signInWithPassword(
   password: string,
   fetchImpl: FetchFn = fetch,
 ): Promise<string> {
-  const response = await fetchImpl(`${url}/api/auth/sign-in/email`, {
+  const response = await send(fetchImpl, `${url}/api/auth/sign-in/email`, {
     method: "POST",
+    redirect: "error",
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify({ email, password }),
   });
@@ -117,8 +131,9 @@ export async function signInWithPassword(
  * the mobile app's.
  */
 export async function openOwnerSession(url: string, fetchImpl: FetchFn = fetch): Promise<string> {
-  const response = await fetchImpl(`${url}/api/auth/open`, {
+  const response = await send(fetchImpl, `${url}/api/auth/open`, {
     method: "POST",
+    redirect: "error",
     headers: { origin: new URL(url).origin, accept: "application/json" },
   });
   if (response.status === 403) {
@@ -135,7 +150,7 @@ export async function openOwnerSession(url: string, fetchImpl: FetchFn = fetch):
 /** `GET /rpc/health` (no auth); false when unreachable. A server without the route counts as up. */
 export async function checkHealth(url: string, fetchImpl: FetchFn = fetch): Promise<boolean> {
   try {
-    const response = await fetchImpl(`${url}/rpc/health`);
+    const response = await fetchImpl(`${url}/rpc/health`, { redirect: "error" });
     return response.status < 500;
   } catch {
     return false;

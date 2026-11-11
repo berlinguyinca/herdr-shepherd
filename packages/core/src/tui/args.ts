@@ -9,7 +9,9 @@ export const TUI_USAGE = `Usage: pnpm tui <command> [options]
   chat [--bot <id>]           talk to a bot (pick from a list when --bot is omitted)
 Options:
   --url <base-url>            server base URL (env SHEPHERD_URL)
-  --token <token>             bearer token (env SHEPHERD_TOKEN); never saved unless you run login
+  --token <token>             bearer token (env SHEPHERD_TOKEN); visible in the process list
+  --token-stdin               read the token from stdin (safer than --token)
+  --insecure                  allow a password over plain http to a non-loopback host
   --email <address>           sign in with email + password (password is prompted, not echoed)
   --space <id>                space id sent as x-rakazo-space-id (env SHEPHERD_SPACE)
 Agents and terminal are served by herdr's bridge; a Shepherd server answers "not found" for them.`;
@@ -17,6 +19,10 @@ Agents and terminal are served by herdr's bridge; a Shepherd server answers "not
 export type ConnectionFlags = {
   url?: string;
   token?: string;
+  /** Read the token from the first line of stdin instead of the command line. */
+  tokenStdin?: boolean;
+  /** Allow a password over plain http to a non-loopback host. */
+  insecure?: boolean;
   email?: string;
   space?: string;
 };
@@ -43,9 +49,14 @@ export function parseTuiArgs(argv: readonly string[]): ParsedTuiArgs {
   const flags: ConnectionFlags = {};
   if (values.url) flags.url = values.url;
   if (values.token) flags.token = values.token;
+  if (values.insecure) flags.insecure = true;
+  if (values["token-stdin"]) flags.tokenStdin = true;
   if (values.email) flags.email = values.email;
   if (values.space) flags.space = values.space;
   const [name, id, ...rest] = positionals;
+  if (values.token && values["token-stdin"]) {
+    throw new TuiError(`Use either --token or --token-stdin, not both.\n${TUI_USAGE}`);
+  }
   if (values.help || name === undefined || name === "help") {
     return { command: { kind: "help" }, flags };
   }
@@ -83,6 +94,8 @@ function parse(argv: readonly string[]) {
     options: {
       url: { type: "string" },
       token: { type: "string" },
+      "token-stdin": { type: "boolean" },
+      insecure: { type: "boolean" },
       email: { type: "string" },
       space: { type: "string" },
       bot: { type: "string" },
