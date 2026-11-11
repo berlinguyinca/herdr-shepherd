@@ -603,7 +603,9 @@ export class HerdrConnector implements ConnectorProvider {
   /** One session per connector; concurrent calls share the one open (the bridge limits opens). */
   private sessionToken(context: AdapterContext, timeoutMs: number): Promise<string> {
     if (!this.session) {
-      const opened = this.openSession(context, timeoutMs);
+      // Shared by every waiting call, so it runs under its own limit, not one caller's signal.
+      const owned = { ...context, signal: new AbortController().signal };
+      const opened = this.openSession(owned, timeoutMs);
       this.session = opened;
       opened.catch(() => {
         if (this.session === opened) this.session = undefined;

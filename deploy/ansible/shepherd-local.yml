@@ -80,5 +80,5 @@
       ansible.builtin.debug:
         msg:
           - "Start it by hand: shepherd   (Docker must be running)"
-          - "Token: shepherd tui login --url {{ shepherd_herdr_url }} --email <you>, then put it in the herdr: block of shepherd.yaml (or SHEPHERD_HERDR_TOKEN)"
+          - "Token is optional: Shepherd opens its own owner session. The bridge needs shepherd:// in open_owner_origins; or put a token from `shepherd tui login --url {{ shepherd_herdr_url }} --email <you>` in the herdr: block of shepherd.yaml (or SHEPHERD_HERDR_TOKEN)"
           - "The bridge itself lives on bender; see deploy/ansible/README.md"

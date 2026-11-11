@@ -895,6 +895,27 @@ describe("owner session without a configured token", () => {
     expect(errorOf(await run(bad, "herdr_list_agents"))).not.toContain('token":');
   });
 
+  it("does not fail a concurrent call when the first caller aborts the shared open", async () => {
+    const inner = bridge.handler;
+    bridge.handler = (req, res, seen) => {
+      if (seen.url === "/api/auth/open") setTimeout(() => inner(req, res, seen), 150);
+      else inner(req, res, seen);
+    };
+    const abortA = new AbortController();
+    const a = run(
+      sessionConnector,
+      "herdr_list_agents",
+      {},
+      context("user-1", abortA.signal),
+    ).catch((e: unknown) => e);
+    await new Promise((r) => setTimeout(r, 30));
+    const b = run(sessionConnector, "herdr_list_agents", {}, context("user-2"));
+    abortA.abort();
+    resultOf(await b);
+    await a;
+    expect(opens().length).toBeLessThanOrEqual(2);
+  });
+
   it("skips the open call when a token is configured", async () => {
     await run(connector, "herdr_list_agents");
     expect(opens()).toHaveLength(0);
