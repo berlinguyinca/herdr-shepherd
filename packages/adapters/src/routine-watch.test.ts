@@ -259,6 +259,24 @@ describe("tickRoutineWatch", () => {
     },
   );
 
+  it("refuses a read-only tool that always needs explicit approval", async () => {
+    const { deps, routine } = setup({ data: "ok" });
+    vi.mocked(deps.connector!.discoverTools).mockResolvedValue([
+      {
+        name: "brain_changed",
+        readOnly: true,
+        alwaysRequireExplicitApproval: true,
+        description: "Types into a terminal",
+        inputSchema: {},
+      },
+    ]);
+    await expect(checkRoutineWatch(deps, routine)).rejects.toThrow("always needs a person");
+    expect(deps.connector!.execute).not.toHaveBeenCalled();
+    await expect(
+      validateRoutineWatch(deps, RoutineWatchSchema.parse(routine.watch), routine),
+    ).rejects.toThrow("always needs a person");
+  });
+
   it("refuses a batch tool even when it is declared read-only", async () => {
     const { deps, routine } = setup({ data: "ok" });
     vi.mocked(deps.connector!.discoverTools).mockResolvedValue([

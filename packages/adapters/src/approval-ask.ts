@@ -63,10 +63,13 @@ export function buildApprovalAskBlock(
     onceOnly?: boolean;
     /** A tool that declared alwaysRequireExplicitApproval: the card shows every argument. */
     explicitApproval?: boolean;
+    /** The tool's input schema, so the explicit card also shows defaults the call left out. */
+    inputSchema?: Record<string, unknown>;
   },
 ): MessageBlock {
   const onceOnly = toolRequiresExplicitApproval(toolName) || Boolean(options?.onceOnly);
-  if (options?.explicitApproval) return explicitApprovalBlock(effectId, toolName, args, secrets);
+  if (options?.explicitApproval)
+    return explicitApprovalBlock(effectId, toolName, args, options.inputSchema, secrets);
   if (options?.summary) {
     // Built from what was resolved before the effect was recorded, not from what the model typed.
     return {
@@ -229,57 +232,85 @@ export function buildApprovalAskBlock(
   };
 }
 
-/** Room for one argument on an explicit card: above any text a tool is expected to accept. */
-export const MAX_EXPLICIT_VALUE_LENGTH = 4_500;
-/** The card as a whole; room for every value plus the keys, so nothing is cut by the total. */
-export const MAX_EXPLICIT_DETAIL_LENGTH = 6_000;
+/** The card as a whole. Sized so any call a tool accepts fits with every character escaped. */
+export const MAX_EXPLICIT_DETAIL_LENGTH = 12_000;
 
-const DISPLAY_UNSAFE =
-  // biome-ignore lint/suspicious/noControlCharactersInRegex: showing control characters safely is the point
-  /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g;
+type ExplicitCard = { ok: true; detail: string } | { ok: false; error: string };
 
-/** A value as the card shows it: unseen and terminal control characters become visible escapes. */
-function displayValue(value: string): string {
-  return value.replace(
-    DISPLAY_UNSAFE,
-    (char) => `\\u{${char.codePointAt(0)?.toString(16).padStart(4, "0")}}`,
-  );
+/** Shows a code point as pure ASCII, so nothing invisible or bidi-reordering can be on the card. */
+function asciiEscape(json: string): string {
+  return json.replace(/[^\u0020-\u007e]/gu, (char) => {
+    const code = char.codePointAt(0) ?? 0;
+    const hex = code.toString(16).padStart(4, "0");
+    return code > 0xffff ? `\\u{${hex}}` : `\\u${hex}`;
+  });
+}
+
+function jsonText(value: unknown): string {
+  return asciiEscape(JSON.stringify(value) ?? "null");
+}
+
+/** Arguments the model left out, as the tool's schema would fill them (`default`). */
+function withSchemaDefaults(
+  args: Record<string, unknown>,
+  inputSchema: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  const properties = inputSchema?.properties;
+  if (typeof properties !== "object" || properties === null) return args;
+  const filled: Record<string, unknown> = { ...args };
+  for (const [key, schema] of Object.entries(properties)) {
+    if (key in filled || typeof schema !== "object" || schema === null) continue;
+    if ("default" in schema) filled[key] = schema.default;
+  }
+  return filled;
 }
 
 /**
- * The card for a tool that always needs a person. It lists every argument with its key, in the
- * order the call has them, so a target id and the exact text are both there to read. A value
- * longer than the card holds is cut with a visible marker saying how much is hidden; the call is
- * approved by effect, which is keyed on the exact arguments, so only what was shown is ever run.
+ * The card body for a tool that always needs a person: every argument, defaults included, as
+ * `key: JSON value` on its own line. JSON keeps a newline in a value from forging a line, and
+ * every non-ASCII character is shown as an escape, so the card reads the same in any direction.
+ * It is never cut: a call that does not fit is refused instead of shown partly.
  */
+export function explicitApprovalCard(
+  toolName: string,
+  args: Record<string, unknown>,
+  inputSchema: Record<string, unknown> | undefined,
+  secrets: string[],
+): ExplicitCard {
+  const shown = redactLeaves(withSchemaDefaults(args, inputSchema), secrets) as Record<
+    string,
+    unknown
+  >;
+  const detail = Object.entries(shown)
+    .map(([key, value]) => `${jsonText(key)}: ${jsonText(value)}`)
+    .join("\n");
+  if (detail.length > MAX_EXPLICIT_DETAIL_LENGTH) {
+    return {
+      ok: false,
+      error: `${toolName} was not run: the approval card cannot show this whole call (${detail.length} characters, at most ${MAX_EXPLICIT_DETAIL_LENGTH}), and a call is only approved when it can be read in full. Send less text.`,
+    };
+  }
+  return { ok: true, detail };
+}
+
+/** The card for a tool that always needs a person; see {@link explicitApprovalCard}. */
 function explicitApprovalBlock(
   effectId: string,
   toolName: string,
   args: Record<string, unknown>,
+  inputSchema: Record<string, unknown> | undefined,
   secrets: string[],
 ): MessageBlock {
-  const lines = Object.entries(redactLeaves(args, secrets) as Record<string, unknown>).map(
-    ([key, value]) => {
-      const text = displayValue(argumentText(value));
-      const shown =
-        text.length > MAX_EXPLICIT_VALUE_LENGTH
-          ? `${text.slice(0, MAX_EXPLICIT_VALUE_LENGTH)} [TRUNCATED: ${text.length - MAX_EXPLICIT_VALUE_LENGTH} more characters are not shown]`
-          : text;
-      return `${displayValue(key)}: ${shown}`;
-    },
-  );
-  const detail = lines.join("\n");
+  const card = explicitApprovalCard(toolName, args, inputSchema, secrets);
+  if (!card.ok) throw new Error(card.error);
   return {
     kind: "ask",
     approvalEffectId: effectId,
     text: truncate(
-      redactSecrets(`Approve this exact call to ${displayValue(toolName)}?`, secrets),
+      redactSecrets(`Approve this exact call to ${asciiEscape(toolName)}?`, secrets),
       MAX_APPROVAL_SUMMARY_LENGTH,
     ),
-    detail:
-      detail.length > MAX_EXPLICIT_DETAIL_LENGTH
-        ? `${detail.slice(0, MAX_EXPLICIT_DETAIL_LENGTH)} [TRUNCATED: ${detail.length - MAX_EXPLICIT_DETAIL_LENGTH} more characters are not shown]`
-        : detail,
+    detail: card.detail,
     detailFormat: "code",
     status: "pending",
     actions: [

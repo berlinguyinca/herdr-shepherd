@@ -907,6 +907,25 @@ describe("watchToolRefusal", () => {
     },
   );
 
+  it("refuses a tool that always needs approval even when it is declared read-only", () => {
+    expect(
+      watchToolRefusal({
+        toolName: "herdr_send_input",
+        readOnly: true,
+        alwaysRequireExplicitApproval: true,
+        rules: [rule("tool", "herdr_send_input", "always_allow")],
+      }),
+    ).toMatch(/always needs a person/);
+    expect(
+      watchToolRefusal({
+        toolName: "drive_files",
+        readOnly: true,
+        alwaysRequireExplicitApproval: false,
+        rules: [],
+      }),
+    ).toBeNull();
+  });
+
   it("refuses a read the space's rules would ask about", () => {
     expect(
       watchToolRefusal({

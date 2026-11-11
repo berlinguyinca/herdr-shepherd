@@ -27,7 +27,7 @@ llm:
 # WRITE TOOL: herdr_send_input types text into a LIVE agent terminal (the agent may run commands
 # on it). Every call needs a person to approve that exact agent id and text; Always allow, Auto
 # Review and Never ask do not pass it, and webhook runs refuse it. Limited to 6 sends a minute
-# per user. Opening the terminal can displace a dashboard terminal open on that agent.
+# per user per process (the count is in memory, so each API or worker process has its own). Opening the terminal can displace a dashboard terminal open on that agent.
 # http is accepted only for loopback or Tailscale (100.64.0.0/10, fd7a:115c:a1e0::/48, *.ts.net);
 # anything else must be https. Prefer an IP literal or a *.ts.net name: an ordinary DNS name can
 # be re-pointed between private hosts, and only the address class is checked, not the name.

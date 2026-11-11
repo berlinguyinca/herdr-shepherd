@@ -138,10 +138,15 @@ export function watchToolRefusal(input: {
   toolName: string;
   toolAliases?: readonly string[];
   readOnly?: boolean;
+  /** The tool declared that every call needs a person, so no unattended check may run it. */
+  alwaysRequireExplicitApproval?: boolean;
   connectorKind?: string;
   rules: ActionApprovalRule[];
 }): string | null {
   const { toolName, readOnly } = input;
+  if (input.alwaysRequireExplicitApproval === true) {
+    return `${toolName} always needs a person to approve each call, so a change trigger can't run it. Pick a read-only tool.`;
+  }
   if (readOnly !== true) {
     return `${toolName} can change data, so a change trigger can't run it. Pick a read-only tool.`;
   }

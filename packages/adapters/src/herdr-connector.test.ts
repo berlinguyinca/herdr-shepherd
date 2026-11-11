@@ -3,7 +3,7 @@ import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { AdapterContext, ConnectorEvent } from "@rakazo/adapter-kit";
 import { connectorToolRequiresApproval } from "@rakazo/core";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createHerdrFetch,
   HERDR_LIMITS,
@@ -673,6 +673,22 @@ describe("herdr_send_input", () => {
       { agentId: "a1", text: "a\u007fb" },
       { agentId: "a1", text: "a\u009bb" },
       { agentId: "a1", text: "a\u202eb" },
+      { agentId: "a1", text: "a\u{e0041}b" },
+      { agentId: "a1", text: "a\u00adb" },
+      { agentId: "a1", text: "a\u034fb" },
+      { agentId: "a1", text: "a\u061cb" },
+      { agentId: "a1", text: "a\ufe0fb" },
+      { agentId: "a1", text: "a\u3164b" },
+      { agentId: "a1", text: "a\u115fb" },
+      { agentId: "a1", text: "a\u200bb" },
+      { agentId: "a1", text: "a\ue000b" },
+      { agentId: "a1", text: "a\u0378b" },
+      { agentId: "a1", text: "a\u2028b" },
+      { agentId: "a1", text: "a\u1160b" },
+      { agentId: "a1", text: "a\u2800b" },
+      { agentId: "a1", text: "a\uffa0b" },
+      { agentId: "a1", text: "go\n" },
+      { agentId: "a1", text: "go\n", submit: false },
       { agentId: "a1", text: "" },
       { agentId: "a1", text: "x".repeat(HERDR_LIMITS.maxSendChars + 1) },
       { agentId: "", text: "x" },
@@ -685,6 +701,64 @@ describe("herdr_send_input", () => {
       expect(errorOf(await run(connector, "herdr_send_input", args))).toMatch(/Invalid arguments/);
     }
     expect(bridge.seen).toHaveLength(0);
+  });
+
+  it("allows a trailing newline only when submit is true, and ordinary non-ASCII text", async () => {
+    bridge.handler = bridgeOk;
+    const out = resultOf(
+      await run(connector, "herdr_send_input", { agentId: "a1", text: "ls\n", submit: true }),
+    );
+    expect(out.sent).toBe(true);
+    bridge.seen.length = 0;
+    resultOf(
+      await run(connector, "herdr_send_input", {
+        agentId: "a1",
+        text: "héllo \u4f60\u597d \u{1f600}",
+      }),
+    );
+    expect(calls()).toHaveLength(3);
+  });
+
+  it("declares submit false as the default so the card always shows it", async () => {
+    const tool = (await connector.discoverTools()).find((t) => t.name === "herdr_send_input");
+    expect(tool?.inputSchema).toMatchObject({
+      properties: { submit: { type: "boolean", default: false } },
+    });
+  });
+
+  it("still closes the terminal when the run is aborted while the text is being sent", async () => {
+    const controller = new AbortController();
+    bridge.handler = (req, res) => {
+      if (req.url === "/rpc/terminal/open") bridgeOk(req, res, {} as Seen);
+      else if (req.url === "/rpc/terminal/input") {
+        // Never answers: the run is cancelled while this request is in flight.
+        setTimeout(() => controller.abort(), 20);
+      } else json(res, 200, { json: { ok: true } });
+    };
+    const pending = run(
+      connector,
+      "herdr_send_input",
+      { agentId: "a1", text: "x" },
+      context("u-abort", controller.signal),
+    );
+    await pending.then(
+      () => undefined,
+      () => undefined,
+    );
+    await vi.waitFor(() => expect(calls().at(-1)).toBe("/rpc/terminal/close"));
+    expect(calls()).toEqual(["/rpc/terminal/open", "/rpc/terminal/input", "/rpc/terminal/close"]);
+  });
+
+  it("gives up on a close that never answers after its own limit", async () => {
+    const quick = new HerdrConnector({ url: bridge.url, token: TOKEN }, { closeTimeoutMs: 100 });
+    bridge.handler = (req, res) => {
+      if (req.url === "/rpc/terminal/close") return;
+      bridgeOk(req, res, {} as Seen);
+    };
+    const started = Date.now();
+    const out = resultOf(await run(quick, "herdr_send_input", { agentId: "a1", text: "x" }));
+    expect(out.sent).toBe(true);
+    expect(Date.now() - started).toBeLessThan(2_000);
   });
 
   it("allows newline and tab and text of exactly the limit", async () => {

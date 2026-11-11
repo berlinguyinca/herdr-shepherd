@@ -32,7 +32,11 @@ import { approvalEffectKey, toolEffectIdempotencyKey } from "@rakazo/core/node/a
 import type { AuditEventInput } from "@rakazo/db";
 import { recordAuditEvent, runSecretKind } from "@rakazo/db";
 import type { FleetCardSummary } from "./approval-ask.js";
-import { buildApprovalAskBlock, MAX_FETCH_URL_LENGTH } from "./approval-ask.js";
+import {
+  buildApprovalAskBlock,
+  explicitApprovalCard,
+  MAX_FETCH_URL_LENGTH,
+} from "./approval-ask.js";
 import {
   boundDirectApprovalDetails,
   DENIED_ACTION_ERROR,
@@ -94,6 +98,7 @@ type ApprovalCard = {
   onceOnly: boolean;
   /** The card shows the exact arguments of this call and never offers Always allow. */
   explicitApproval?: boolean;
+  inputSchema?: Record<string, unknown>;
 };
 
 /** A tool call that passed its approval gate, as tool handlers receive it. */
@@ -395,6 +400,14 @@ export async function gateToolCall(
       },
     };
   }
+  // A call the card cannot show in full is never approved; refuse it before anything is recorded.
+  if (explicitApproval && plan !== "deny") {
+    const shown = explicitApprovalCard(name, args, connectorTool?.inputSchema, ctx.secrets);
+    if (!shown.ok) {
+      await auditToolCall(ctx, name, "denied", { reason: "explicit_approval_card_too_long" });
+      return { result: { error: shown.error } };
+    }
+  }
   // Nobody is there to approve a purchase a webhook run reaches.
   if (paying && run.trigger === "webhook" && plan !== "deny") {
     await auditToolCall(ctx, name, "denied", { reason: "purchase_unattended" });
@@ -620,6 +633,7 @@ export async function gateToolCall(
     batch: connectorTool?.batch,
     onceOnly: asksEveryTime || webhookForcedAsk || explicitApproval,
     explicitApproval,
+    inputSchema: connectorTool?.inputSchema,
   };
 
   if (applied?.duplicate) {

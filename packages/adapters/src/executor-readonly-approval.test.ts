@@ -1533,7 +1533,7 @@ describe("alwaysRequireExplicitApproval", () => {
       expect(f.pauseRunForInput).toHaveBeenCalledOnce();
       expect(reviewMock).not.toHaveBeenCalled();
       expect(pausedActionIds(f)).toEqual(["allow", "deny"]);
-      expect(askDetail(f)).toContain("id: agent-7");
+      expect(askDetail(f)).toContain('"id": "agent-7"');
     },
   );
 
@@ -1562,6 +1562,20 @@ describe("alwaysRequireExplicitApproval", () => {
     expect(f.execute).not.toHaveBeenCalled();
     expect(f.pauseRunForInput).not.toHaveBeenCalled();
     expect(JSON.stringify(f.results[0])).toContain("blocked");
+  });
+
+  it("refuses a call the card could not show in full, before any card or effect", async () => {
+    const f = fixture({
+      name: "demo_send_input",
+      readOnly: false,
+      alwaysRequireExplicitApproval: true,
+    });
+    f.setCalls([{ args: { id: "agent-7", text: "y".repeat(13_000) }, executionId: "call-1" }]);
+    await f.run();
+    expect(f.execute).not.toHaveBeenCalled();
+    expect(f.pauseRunForInput).not.toHaveBeenCalled();
+    expect(f.effects).toHaveLength(0);
+    expect(JSON.stringify(f.results[0])).toContain("cannot show this whole call");
   });
 
   it("refuses a webhook run outright, since nobody can approve there", async () => {
