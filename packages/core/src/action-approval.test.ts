@@ -521,6 +521,31 @@ describe("planActionGate", () => {
     }
   });
 
+  it("asks for an explicit-approval tool in every mode, past allow rules, and still refuses a block", () => {
+    for (const mode of ["never", "auto", "ask"] as const) {
+      expect(gate(mode, { explicitApproval: true, consequential: false })).toBe("ask");
+      expect(gate(mode, { explicitApproval: true, resolved: allowed })).toBe("ask");
+      expect(gate(mode, { explicitApproval: true, checkerConfigured: true })).toBe("ask");
+      expect(gate(mode, { explicitApproval: true, mandatory: true, steerable: false })).toBe("ask");
+      expect(gate(mode, { explicitApproval: true, resolved: blocked })).toBe("deny");
+    }
+  });
+
+  it("leaves the gate unchanged when the flag is absent or false", () => {
+    for (const mode of ["never", "auto", "ask"] as const) {
+      for (const extra of [
+        {},
+        { consequential: false },
+        { resolved: allowed },
+        { mandatory: true },
+      ]) {
+        expect(gate(mode, { ...extra, explicitApproval: false })).toBe(gate(mode, extra));
+        expect(gate(mode, { ...extra, explicitApproval: undefined })).toBe(gate(mode, extra));
+      }
+    }
+    expect(gate("never", { resolved: allowed })).toBe("allow");
+  });
+
   it("runs reads in every mode", () => {
     for (const mode of ["never", "auto", "ask"] as const) {
       expect(gate(mode, { consequential: false })).toBe("allow");
@@ -881,6 +906,25 @@ describe("watchToolRefusal", () => {
       expect(watchToolRefusal({ toolName, readOnly: false, rules: [] })).toMatch(/can change data/);
     },
   );
+
+  it("refuses a tool that always needs approval even when it is declared read-only", () => {
+    expect(
+      watchToolRefusal({
+        toolName: "herdr_send_input",
+        readOnly: true,
+        alwaysRequireExplicitApproval: true,
+        rules: [rule("tool", "herdr_send_input", "always_allow")],
+      }),
+    ).toMatch(/always needs a person/);
+    expect(
+      watchToolRefusal({
+        toolName: "drive_files",
+        readOnly: true,
+        alwaysRequireExplicitApproval: false,
+        rules: [],
+      }),
+    ).toBeNull();
+  });
 
   it("refuses a read the space's rules would ask about", () => {
     expect(

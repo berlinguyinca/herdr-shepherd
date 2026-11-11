@@ -20,10 +20,14 @@ llm:
   max_tokens: 4096 # local only
   # vision_models: [example-model] # local only: models that accept images
   # reasoning_models: [example-model] # local only: models that accept reasoning effort
-# Optional: let the assistant read the agents on a herdr dashboard (read-only tools).
+# Optional: let the assistant read the agents on a herdr dashboard (read tools, plus one approval-gated write tool, herdr_send_input).
 # Override with SHEPHERD_HERDR_URL / SHEPHERD_HERDR_TOKEN. The token expires; keep this file chmod 600.
 # EXPOSURE: the token is instance-wide, so every bot can read the operator's agent conversations.
 # It is therefore refused unless access.mode is open-owner (a single-owner deployment).
+# WRITE TOOL: herdr_send_input types text into a LIVE agent terminal (the agent may run commands
+# on it). Every call needs a person to approve that exact agent id and text; Always allow, Auto
+# Review and Never ask do not pass it, and webhook runs refuse it. Limited to 6 sends a minute
+# per user per process (the count is in memory, so each API or worker process has its own). Opening the terminal can displace a dashboard terminal open on that agent.
 # http is accepted only for loopback or Tailscale (100.64.0.0/10, fd7a:115c:a1e0::/48, *.ts.net);
 # anything else must be https. Prefer an IP literal or a *.ts.net name: an ordinary DNS name can
 # be re-pointed between private hosts, and only the address class is checked, not the name.

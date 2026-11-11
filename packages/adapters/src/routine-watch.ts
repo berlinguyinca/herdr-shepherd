@@ -600,6 +600,7 @@ async function readTool(
       ctx.connectedConnections?.map((row) => row.externalId),
     ),
     readOnly: declaredRead(resolved.tool),
+    alwaysRequireExplicitApproval: resolved.tool.alwaysRequireExplicitApproval,
     rules: (await listApprovalRules(deps.prisma, {
       userId: routine.userId,
       spaceId: routine.spaceId,
@@ -832,8 +833,17 @@ export async function postRoutineWatchMessage(
   }
 }
 
-export function assertWatchToolReadOnly(tool: string, readOnly: boolean | undefined): void {
-  const refusal = watchToolRefusal({ toolName: tool, readOnly, rules: [] });
+export function assertWatchToolReadOnly(
+  tool: string,
+  readOnly: boolean | undefined,
+  alwaysRequireExplicitApproval?: boolean,
+): void {
+  const refusal = watchToolRefusal({
+    toolName: tool,
+    readOnly,
+    alwaysRequireExplicitApproval,
+    rules: [],
+  });
   if (refusal) throw new RoutineWatchError(refusal);
 }
 
@@ -863,7 +873,7 @@ export async function validateRoutineWatch(
       )
     )?.tool;
   if (!tool) throw new RoutineWatchError(`No connected integration has a tool named ${name}.`);
-  assertWatchToolReadOnly(name, declaredRead(tool));
+  assertWatchToolReadOnly(name, declaredRead(tool), tool.alwaysRequireExplicitApproval);
 }
 
 /** A batch runs whatever actions its arguments name, so it is never a declared read. */

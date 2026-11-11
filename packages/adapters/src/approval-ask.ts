@@ -61,9 +61,15 @@ export function buildApprovalAskBlock(
     batch?: ToolBatch;
     /** The approval asks every time, so the card never offers Always allow. */
     onceOnly?: boolean;
+    /** A tool that declared alwaysRequireExplicitApproval: the card shows every argument. */
+    explicitApproval?: boolean;
+    /** The tool's input schema, so the explicit card also shows defaults the call left out. */
+    inputSchema?: Record<string, unknown>;
   },
 ): MessageBlock {
   const onceOnly = toolRequiresExplicitApproval(toolName) || Boolean(options?.onceOnly);
+  if (options?.explicitApproval)
+    return explicitApprovalBlock(effectId, toolName, args, options.inputSchema, secrets);
   if (options?.summary) {
     // Built from what was resolved before the effect was recorded, not from what the model typed.
     return {
@@ -223,6 +229,94 @@ export function buildApprovalAskBlock(
               },
               { id: "deny", label: "Deny" },
             ],
+  };
+}
+
+/** The card as a whole. Sized so any call a tool accepts fits with every character escaped. */
+export const MAX_EXPLICIT_DETAIL_LENGTH = 12_000;
+
+type ExplicitCard = { ok: true; detail: string } | { ok: false; error: string };
+
+/** Shows a code point as pure ASCII, so nothing invisible or bidi-reordering can be on the card. */
+function asciiEscape(json: string): string {
+  return json.replace(/[^\u0020-\u007e]/gu, (char) => {
+    const code = char.codePointAt(0) ?? 0;
+    const hex = code.toString(16).padStart(4, "0");
+    return code > 0xffff ? `\\u{${hex}}` : `\\u${hex}`;
+  });
+}
+
+function jsonText(value: unknown): string {
+  return asciiEscape(JSON.stringify(value) ?? "null");
+}
+
+/** Arguments the model left out, as the tool's schema would fill them (`default`). */
+function withSchemaDefaults(
+  args: Record<string, unknown>,
+  inputSchema: Record<string, unknown> | undefined,
+): Record<string, unknown> {
+  const properties = inputSchema?.properties;
+  if (typeof properties !== "object" || properties === null) return args;
+  const filled: Record<string, unknown> = { ...args };
+  for (const [key, schema] of Object.entries(properties)) {
+    if (key in filled || typeof schema !== "object" || schema === null) continue;
+    if ("default" in schema) filled[key] = schema.default;
+  }
+  return filled;
+}
+
+/**
+ * The card body for a tool that always needs a person: every argument, defaults included, as
+ * `key: JSON value` on its own line. JSON keeps a newline in a value from forging a line, and
+ * every non-ASCII character is shown as an escape, so the card reads the same in any direction.
+ * It is never cut: a call that does not fit is refused instead of shown partly.
+ */
+export function explicitApprovalCard(
+  toolName: string,
+  args: Record<string, unknown>,
+  inputSchema: Record<string, unknown> | undefined,
+  secrets: string[],
+): ExplicitCard {
+  const shown = redactLeaves(withSchemaDefaults(args, inputSchema), secrets) as Record<
+    string,
+    unknown
+  >;
+  const detail = Object.entries(shown)
+    .map(([key, value]) => `${jsonText(key)}: ${jsonText(value)}`)
+    .join("\n");
+  if (detail.length > MAX_EXPLICIT_DETAIL_LENGTH) {
+    return {
+      ok: false,
+      error: `${toolName} was not run: the approval card cannot show this whole call (${detail.length} characters, at most ${MAX_EXPLICIT_DETAIL_LENGTH}), and a call is only approved when it can be read in full. Send less text.`,
+    };
+  }
+  return { ok: true, detail };
+}
+
+/** The card for a tool that always needs a person; see {@link explicitApprovalCard}. */
+function explicitApprovalBlock(
+  effectId: string,
+  toolName: string,
+  args: Record<string, unknown>,
+  inputSchema: Record<string, unknown> | undefined,
+  secrets: string[],
+): MessageBlock {
+  const card = explicitApprovalCard(toolName, args, inputSchema, secrets);
+  if (!card.ok) throw new Error(card.error);
+  return {
+    kind: "ask",
+    approvalEffectId: effectId,
+    text: truncate(
+      redactSecrets(`Approve this exact call to ${asciiEscape(toolName)}?`, secrets),
+      MAX_APPROVAL_SUMMARY_LENGTH,
+    ),
+    detail: card.detail,
+    detailFormat: "code",
+    status: "pending",
+    actions: [
+      { id: "allow", label: "Allow once" },
+      { id: "deny", label: "Deny" },
+    ],
   };
 }
 

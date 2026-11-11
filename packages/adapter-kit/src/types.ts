@@ -267,6 +267,14 @@ export interface ConnectorTool {
   inputSchema: Record<string, unknown>;
   /** Declared effect. `false` forces approval; `true` never relaxes the name-based gate. */
   readOnly?: boolean;
+  /**
+   * Every call needs its own explicit approval from a person, in every approval mode: no Always
+   * allow rule, Auto Review, taint heuristic or earlier grant can stand in for it, and the card
+   * never offers Always allow. The approval is bound to this call's exact arguments. A block rule
+   * still refuses it. Unattended runs (webhooks, background helpers) refuse it, since nobody can
+   * approve there. Set it on tools whose effect is hard to undo or reaches a live system.
+   */
+  alwaysRequireExplicitApproval?: boolean;
   /** Set when the tool runs other actions named in its arguments; see ToolBatch. */
   batch?: ToolBatch;
   /** What the person sees for a call, when the name the model uses would read badly. */

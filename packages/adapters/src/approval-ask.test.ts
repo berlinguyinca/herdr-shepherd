@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { approvalDetailLength, buildApprovalAskBlock } from "./approval-ask.js";
+import {
+  approvalDetailLength,
+  buildApprovalAskBlock,
+  explicitApprovalCard,
+  MAX_EXPLICIT_DETAIL_LENGTH,
+} from "./approval-ask.js";
+import { HERDR_LIMITS } from "./herdr-connector.js";
 
 describe("buildApprovalAskBlock", () => {
   it("binds the approval to its effect and redacts secrets", () => {
@@ -379,5 +385,92 @@ describe("approval card arguments", () => {
     );
     if (block.kind !== "ask") throw new Error("expected ask block");
     expect(block.detail?.split("\n")).toContain("to_email: f@example.test");
+  });
+
+  describe("explicit approval card", () => {
+    const schema = {
+      type: "object",
+      properties: {
+        agentId: { type: "string" },
+        text: { type: "string" },
+        submit: { type: "boolean", default: false },
+      },
+    };
+    const card = (args: Record<string, unknown>, secrets: string[] = []) =>
+      buildApprovalAskBlock("effect-1", "herdr_send_input", args, secrets, {
+        explicitApproval: true,
+        inputSchema: schema,
+      }) as {
+        text: string;
+        detail: string;
+        actions: Array<{ id: string }>;
+        approvalEffectId: string;
+      };
+
+    it("shows the target and the exact text, with no Always allow, bound to the effect", () => {
+      const block = card({ agentId: "agent-42", text: "run the tests\nthen stop", submit: true });
+      expect(block.approvalEffectId).toBe("effect-1");
+      expect(block.actions.map((a) => a.id)).toEqual(["allow", "deny"]);
+      expect(block.detail).toBe(
+        '"agentId": "agent-42"\n"text": "run the tests\\nthen stop"\n"submit": true',
+      );
+    });
+
+    it("always shows submit, false when the call left it out", () => {
+      expect(card({ agentId: "a", text: "x" }).detail.split("\n")).toContain('"submit": false');
+    });
+
+    it("cannot be made to forge a card line with a newline in a value", () => {
+      const lines = card({ agentId: "a", text: 'x\n"submit": false' }).detail.split("\n");
+      expect(lines).toHaveLength(3);
+      expect(lines[1]).toBe('"text": "x\\n\\"submit\\": false"');
+    });
+
+    it("shows every control, invisible and bidi character as an ASCII escape", () => {
+      const block = card({ agentId: "a\u001b[2J", text: "x\u202ey\u0000\u{e0041}\u200b\u3164é" });
+      expect([...block.detail].every((c) => c === "\n" || (c >= " " && c <= "~"))).toBe(true);
+      for (const expected of [
+        "\\u001b",
+        "\\u202e",
+        "\\u0000",
+        "\\u{e0041}",
+        "\\u200b",
+        "\\u3164",
+        "\\u00e9",
+      ]) {
+        expect(block.detail).toContain(expected);
+      }
+    });
+
+    it("refuses a call it cannot show in full instead of cutting it", () => {
+      const shown = explicitApprovalCard(
+        "herdr_send_input",
+        { agentId: "a", text: "y".repeat(MAX_EXPLICIT_DETAIL_LENGTH) },
+        schema,
+        [],
+      );
+      expect(shown.ok).toBe(false);
+      expect(JSON.stringify(shown)).not.toContain("TRUNCATED");
+      expect(() => card({ agentId: "a", text: "y".repeat(MAX_EXPLICIT_DETAIL_LENGTH) })).toThrow(
+        /cannot show this whole call/,
+      );
+    });
+
+    it("fits the longest text herdr_send_input accepts, every character escaped", () => {
+      // Two UTF-16 units per emoji cost 9 characters; a BMP letter costs 6 per unit, the worst case.
+      const shown = explicitApprovalCard(
+        "herdr_send_input",
+        { agentId: "\u00e9".repeat(200), text: "\u00e9".repeat(HERDR_LIMITS.maxSendChars) },
+        schema,
+        [],
+      );
+      expect(shown.ok).toBe(true);
+    });
+
+    it("redacts secrets", () => {
+      expect(
+        JSON.stringify(card({ agentId: "a", text: "token-secret" }, ["token-secret"])),
+      ).not.toContain("token-secret");
+    });
   });
 });
