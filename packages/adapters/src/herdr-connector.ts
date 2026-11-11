@@ -1,3 +1,4 @@
+import { lookup } from "node:dns/promises";
 import type {
   AdapterContext,
   ConnectorCall,
@@ -11,6 +12,7 @@ import {
   AgentListOutputSchema,
   AgentMessagesOutputSchema,
 } from "@rakazo/contracts";
+import { isOwnerNetworkAddress, isOwnerNetworkHost } from "@rakazo/core/node/owner-network";
 import { z } from "zod";
 import type { ResolveHostname, SafeRemoteFetch } from "./remote-mcp.js";
 import { createSafeRemoteFetch } from "./remote-mcp.js";
@@ -42,7 +44,20 @@ export function herdrSettingsFromEnv(source: NodeJS.ProcessEnv): HerdrSettings |
   if (!url && !token) return undefined;
   if (!url || !token)
     throw new Error(`${HERDR_URL_ENV} and ${HERDR_TOKEN_ENV} must be set together`);
+  // The bridge token reaches the operator's own agents and is not tied to a user, so only a
+  // single-owner deployment may hand it to bots; on a multi-user instance any user's bot could
+  // read the operator's agent conversations.
+  if (source.RAKAZO_ACCESS_MODE !== "open-owner") {
+    throw new Error(
+      `${HERDR_URL_ENV} needs RAKAZO_ACCESS_MODE=open-owner: the herdr token is instance-wide, ` +
+        "so it is only offered on a single-owner deployment",
+    );
+  }
   return { url: normalizeHerdrUrl(url), token };
+}
+
+function isTailnetName(host: string): boolean {
+  return host.toLowerCase().endsWith(".ts.net");
 }
 
 /** `scheme://host[:port][/prefix]` with no credentials, query or fragment. Never echoes the input. */
@@ -58,6 +73,15 @@ export function normalizeHerdrUrl(value: string): string {
   }
   if (url.username || url.password || url.search || url.hash) {
     throw new Error(`${HERDR_URL_ENV} must not contain credentials, a query or a fragment`);
+  }
+  // The bearer token must not cross an unencrypted link except on this computer or the owner's
+  // Tailscale network (already encrypted). A *.ts.net name is checked again when it resolves.
+  const bare = url.hostname.replace(/^\[(.*)\]$/, "$1");
+  if (url.protocol === "http:" && !isOwnerNetworkHost(bare) && !isTailnetName(bare)) {
+    throw new Error(
+      `${HERDR_URL_ENV} must use https unless the host is loopback or on Tailscale ` +
+        "(100.64.0.0/10, fd7a:115c:a1e0::/48 or a *.ts.net name)",
+    );
   }
   return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
 }
@@ -197,14 +221,18 @@ function agentView(agent: AgentRow) {
   };
 }
 
-function eventView(event: AgentEvent) {
-  const base = {
+function eventHead(event: AgentEvent) {
+  return {
     seq: event.seq,
     kind: sanitizeHerdrText(event.kind, 64),
     ts: sanitizeHerdrText(event.ts, 64),
     redacted: event.redacted,
     truncated: event.truncated,
   };
+}
+
+function eventView(event: AgentEvent) {
+  const base = eventHead(event);
   // The bridge marks what the dashboard itself hides; the assistant does not get it either.
   if (event.sensitive) return { ...base, withheld: true as const };
   return { ...base, data: boundValue(event.data) };
@@ -244,7 +272,21 @@ export function createHerdrFetch(
   options: HerdrFetchOptions = {},
 ): SafeRemoteFetch {
   const origin = new URL(baseUrl).origin;
-  const inner = createSafeRemoteFetch(undefined, options.resolveHostname, {
+  const base = new URL(baseUrl);
+  const baseResolve: ResolveHostname =
+    options.resolveHostname ?? ((host) => lookup(host, { all: true, verbatim: true }));
+  // Plain http to a name is only for loopback or Tailscale: check what the name resolves to.
+  const resolve: ResolveHostname =
+    base.protocol === "http:"
+      ? async (host) => {
+          const addresses = await baseResolve(host);
+          if (!addresses.every((a) => isOwnerNetworkAddress(a.address))) {
+            throw new Error("herdr over http must resolve to loopback or Tailscale addresses");
+          }
+          return addresses;
+        }
+      : baseResolve;
+  const inner = createSafeRemoteFetch(undefined, resolve, {
     allowPrivateEndpoint: true,
   });
   const guarded = async (input: string | URL | Request, init?: RequestInit) => {
@@ -445,7 +487,9 @@ function parseInput<S extends z.ZodType>(schema: S, args: unknown): z.infer<S> {
 }
 
 function boundEvents(events: AgentEvent[], hasMore: boolean) {
-  const views: ReturnType<typeof eventView>[] = [];
+  const views: Array<
+    ReturnType<typeof eventView> | (ReturnType<typeof eventHead> & { withheld: "too large" })
+  > = [];
   let budget = HERDR_LIMITS.maxResultChars;
   for (const event of events.slice(0, HERDR_LIMITS.maxEvents)) {
     const view = eventView(event);
@@ -453,6 +497,11 @@ function boundEvents(events: AgentEvent[], hasMore: boolean) {
     if (size > budget) break;
     budget -= size;
     views.push(view);
+  }
+  const first = events[0];
+  if (views.length === 0 && first) {
+    // One event alone is over budget: say so and step past it, or the model would loop.
+    views.push({ ...eventHead(first), withheld: "too large" });
   }
   const dropped = events.length - views.length;
   const oldest = views.at(-1)?.seq;

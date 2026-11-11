@@ -14,6 +14,7 @@ import {
 } from "./herdr-connector.js";
 
 const TOKEN = "fixture-bridge-token-not-real";
+const OWNER = { RAKAZO_ACCESS_MODE: "open-owner" };
 
 interface Seen {
   method: string;
@@ -280,6 +281,27 @@ describe("untrusted text", () => {
     expect(JSON.stringify(out).length).toBeLessThanOrEqual(HERDR_LIMITS.maxResultChars + 2_000);
   });
 
+  it("steps past a single over-budget event instead of looping", async () => {
+    const wide = Object.fromEntries(
+      Array.from({ length: HERDR_LIMITS.maxObjectKeys }, (_, k) => [
+        `k${k}`,
+        "w".repeat(HERDR_LIMITS.maxFieldChars),
+      ]),
+    );
+    bridge.handler = ok({
+      events: [event(77, { a: wide, b: wide, c: wide, d: wide }), event(76, { text: "small" })],
+      hasMore: true,
+      newestSeq: 77,
+      rev: 1,
+    });
+    const out = resultOf(await run(connector, "herdr_read_agent_events", { id: "a1" }));
+    const events = out.events as Array<{ seq: number; withheld?: unknown }>;
+    expect(events.length).toBeGreaterThan(0);
+    expect(events[0]).toMatchObject({ seq: 77, withheld: "too large" });
+    expect(out.hasMore).toBe(true);
+    expect(out.nextBeforeSeq).toBe(77);
+  });
+
   it("sanitizes agent summaries and names in lists", async () => {
     bridge.handler = ok({
       agents: [row("a1", { summary: "ok\u001b[31m‮", name: "n\u0000ame" })],
@@ -410,15 +432,45 @@ describe("network policy", () => {
     await fetchBridge.close();
   });
 
-  it("blocks the cloud metadata addresses even though the host may be private", async () => {
+  it("blocks the Alibaba metadata address even though it sits in the Tailscale range", async () => {
+    const c = new HerdrConnector({ url: "http://100.100.100.200", token: TOKEN });
+    expect(errorOf(await run(c, "herdr_list_agents", {}))).toContain("Could not reach herdr");
+  });
+
+  it("refuses at config time other plain-http private addresses and public names", () => {
     for (const url of [
-      "http://100.100.100.200",
       "http://169.254.169.254",
       "http://[fd00:ec2::254]",
+      "http://192.168.1.5:8787",
+      "http://10.0.0.2",
+      "http://herdr.example.com",
     ]) {
-      const c = new HerdrConnector({ url, token: TOKEN });
-      expect(errorOf(await run(c, "herdr_list_agents", {}))).toContain("Could not reach herdr");
+      expect(() => normalizeHerdrUrl(url)).toThrow(/must use https unless/);
     }
+  });
+
+  it("accepts https anywhere and http on loopback or Tailscale", () => {
+    for (const url of [
+      "https://herdr.example.com",
+      "http://localhost:1",
+      "http://127.0.0.1:1",
+      "http://[::1]:1",
+      "http://100.64.0.1:1",
+      "http://[fd7a:115c:a1e0::1]:1",
+      "http://box.tail1234.ts.net:1",
+    ]) {
+      expect(() => normalizeHerdrUrl(url)).not.toThrow();
+    }
+  });
+
+  it("refuses a ts.net name that resolves outside loopback and Tailscale", async () => {
+    const resolveHostname = async () => [{ address: "192.168.1.5", family: 4 }];
+    const c = new HerdrConnector(
+      { url: `http://herdr.tail1234.ts.net:${bridge.port}`, token: TOKEN },
+      { resolveHostname },
+    );
+    expect(errorOf(await run(c, "herdr_list_agents", {}))).toContain("Could not reach herdr");
+    expect(bridge.seen).toHaveLength(0);
   });
 
   it("refuses a name that resolves to mixed public and private addresses", async () => {
@@ -427,7 +479,7 @@ describe("network policy", () => {
       { address: "93.184.216.34", family: 4 },
     ];
     const c = new HerdrConnector(
-      { url: `http://herdr.example.test:${bridge.port}`, token: TOKEN },
+      { url: `http://herdr.tail1234.ts.net:${bridge.port}`, token: TOKEN },
       { resolveHostname },
     );
     expect(errorOf(await run(c, "herdr_list_agents", {}))).toContain("Could not reach herdr");
@@ -437,16 +489,7 @@ describe("network policy", () => {
   it("refuses a name that resolves to a metadata address", async () => {
     const resolveHostname = async () => [{ address: "100.100.100.200", family: 4 }];
     const c = new HerdrConnector(
-      { url: `http://herdr.example.test:${bridge.port}`, token: TOKEN },
-      { resolveHostname },
-    );
-    expect(errorOf(await run(c, "herdr_list_agents", {}))).toContain("Could not reach herdr");
-  });
-
-  it("refuses plain http to a public address", async () => {
-    const resolveHostname = async () => [{ address: "93.184.216.34", family: 4 }];
-    const c = new HerdrConnector(
-      { url: "http://herdr.example.test", token: TOKEN },
+      { url: `http://herdr.tail1234.ts.net:${bridge.port}`, token: TOKEN },
       { resolveHostname },
     );
     expect(errorOf(await run(c, "herdr_list_agents", {}))).toContain("Could not reach herdr");
@@ -456,7 +499,7 @@ describe("network policy", () => {
     bridge.handler = ok({ agents: [row("a1")], hiddenCount: 0, cursor: 0 });
     const resolveHostname = async () => [{ address: "127.0.0.1", family: 4 }];
     const c = new HerdrConnector(
-      { url: `http://herdr.example.test:${bridge.port}`, token: TOKEN },
+      { url: `http://herdr.tail1234.ts.net:${bridge.port}`, token: TOKEN },
       { resolveHostname },
     );
     expect(resultOf(await run(c, "herdr_list_agents", {})).agents).toHaveLength(1);
@@ -468,16 +511,37 @@ describe("settings", () => {
   it("is off without settings and requires both values", () => {
     expect(herdrSettingsFromEnv({})).toBeUndefined();
     expect(herdrSettingsFromEnv({ RAKAZO_HERDR_URL: " ", RAKAZO_HERDR_TOKEN: "" })).toBeUndefined();
-    expect(() => herdrSettingsFromEnv({ RAKAZO_HERDR_URL: "http://100.64.0.1:1" })).toThrow(
+    expect(() =>
+      herdrSettingsFromEnv({ ...OWNER, RAKAZO_HERDR_URL: "http://100.64.0.1:1" }),
+    ).toThrow(/set together/);
+    expect(() => herdrSettingsFromEnv({ ...OWNER, RAKAZO_HERDR_TOKEN: TOKEN })).toThrow(
       /set together/,
     );
-    expect(() => herdrSettingsFromEnv({ RAKAZO_HERDR_TOKEN: TOKEN })).toThrow(/set together/);
     expect(
       herdrSettingsFromEnv({
+        ...OWNER,
         RAKAZO_HERDR_URL: "http://100.64.0.1:8787/",
         RAKAZO_HERDR_TOKEN: TOKEN,
       }),
     ).toEqual({ url: "http://100.64.0.1:8787", token: TOKEN });
+  });
+
+  it("is only offered on a single-owner deployment", () => {
+    const configured = { RAKAZO_HERDR_URL: "http://100.64.0.1:1", RAKAZO_HERDR_TOKEN: TOKEN };
+    for (const mode of [undefined, "accounts", ""]) {
+      const env = mode === undefined ? configured : { ...configured, RAKAZO_ACCESS_MODE: mode };
+      let message = "";
+      try {
+        herdrSettingsFromEnv(env);
+      } catch (error) {
+        message = (error as Error).message;
+      }
+      expect(message).toContain("RAKAZO_ACCESS_MODE=open-owner");
+      expect(message).not.toContain(TOKEN);
+    }
+    expect(herdrSettingsFromEnv({ ...configured, ...OWNER })).toBeDefined();
+    // Nothing configured: no error on a multi-user instance.
+    expect(herdrSettingsFromEnv({ RAKAZO_ACCESS_MODE: "accounts" })).toBeUndefined();
   });
 
   it("rejects malformed urls without echoing them", () => {
