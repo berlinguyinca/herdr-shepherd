@@ -61,9 +61,12 @@ export function buildApprovalAskBlock(
     batch?: ToolBatch;
     /** The approval asks every time, so the card never offers Always allow. */
     onceOnly?: boolean;
+    /** A tool that declared alwaysRequireExplicitApproval: the card shows every argument. */
+    explicitApproval?: boolean;
   },
 ): MessageBlock {
   const onceOnly = toolRequiresExplicitApproval(toolName) || Boolean(options?.onceOnly);
+  if (options?.explicitApproval) return explicitApprovalBlock(effectId, toolName, args, secrets);
   if (options?.summary) {
     // Built from what was resolved before the effect was recorded, not from what the model typed.
     return {
@@ -223,6 +226,66 @@ export function buildApprovalAskBlock(
               },
               { id: "deny", label: "Deny" },
             ],
+  };
+}
+
+/** Room for one argument on an explicit card: above any text a tool is expected to accept. */
+export const MAX_EXPLICIT_VALUE_LENGTH = 4_500;
+/** The card as a whole; room for every value plus the keys, so nothing is cut by the total. */
+export const MAX_EXPLICIT_DETAIL_LENGTH = 6_000;
+
+const DISPLAY_UNSAFE =
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: showing control characters safely is the point
+  /[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u200b-\u200f\u2028-\u202e\u2060-\u2064\u2066-\u2069\ufeff]/g;
+
+/** A value as the card shows it: unseen and terminal control characters become visible escapes. */
+function displayValue(value: string): string {
+  return value.replace(
+    DISPLAY_UNSAFE,
+    (char) => `\\u{${char.codePointAt(0)?.toString(16).padStart(4, "0")}}`,
+  );
+}
+
+/**
+ * The card for a tool that always needs a person. It lists every argument with its key, in the
+ * order the call has them, so a target id and the exact text are both there to read. A value
+ * longer than the card holds is cut with a visible marker saying how much is hidden; the call is
+ * approved by effect, which is keyed on the exact arguments, so only what was shown is ever run.
+ */
+function explicitApprovalBlock(
+  effectId: string,
+  toolName: string,
+  args: Record<string, unknown>,
+  secrets: string[],
+): MessageBlock {
+  const lines = Object.entries(redactLeaves(args, secrets) as Record<string, unknown>).map(
+    ([key, value]) => {
+      const text = displayValue(argumentText(value));
+      const shown =
+        text.length > MAX_EXPLICIT_VALUE_LENGTH
+          ? `${text.slice(0, MAX_EXPLICIT_VALUE_LENGTH)} [TRUNCATED: ${text.length - MAX_EXPLICIT_VALUE_LENGTH} more characters are not shown]`
+          : text;
+      return `${displayValue(key)}: ${shown}`;
+    },
+  );
+  const detail = lines.join("\n");
+  return {
+    kind: "ask",
+    approvalEffectId: effectId,
+    text: truncate(
+      redactSecrets(`Approve this exact call to ${displayValue(toolName)}?`, secrets),
+      MAX_APPROVAL_SUMMARY_LENGTH,
+    ),
+    detail:
+      detail.length > MAX_EXPLICIT_DETAIL_LENGTH
+        ? `${detail.slice(0, MAX_EXPLICIT_DETAIL_LENGTH)} [TRUNCATED: ${detail.length - MAX_EXPLICIT_DETAIL_LENGTH} more characters are not shown]`
+        : detail,
+    detailFormat: "code",
+    status: "pending",
+    actions: [
+      { id: "allow", label: "Allow once" },
+      { id: "deny", label: "Deny" },
+    ],
   };
 }
 

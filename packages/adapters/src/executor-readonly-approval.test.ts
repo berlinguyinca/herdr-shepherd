@@ -109,7 +109,10 @@ function fixture({
   batch,
   browser,
   spendingLimit = null,
+  alwaysRequireExplicitApproval,
 }: {
+  /** The tool's own flag; see ConnectorTool.alwaysRequireExplicitApproval. */
+  alwaysRequireExplicitApproval?: boolean;
   /** A page browser on a graphical computer, so browser_act and computer_act are offered. */
   browser?: BrowserProvider;
   /** The user's spending limit for payments. */
@@ -161,6 +164,7 @@ function fixture({
     name,
     description: "Read an item",
     readOnly,
+    ...(alwaysRequireExplicitApproval === undefined ? {} : { alwaysRequireExplicitApproval }),
     batch,
     inputSchema: {
       type: "object",
@@ -1494,6 +1498,111 @@ describe("Composio batches", () => {
     expect(reviewMock.mock.calls[0]?.[0]).toMatchObject({
       toolName: "COMPOSIO_MULTI_EXECUTE_TOOL",
     });
+  });
+});
+
+describe("alwaysRequireExplicitApproval", () => {
+  beforeEach(() => {
+    reviewMock.mockReset();
+  });
+  const rule = (effect: ActionApprovalRule["effect"]): ActionApprovalRule => ({
+    effect,
+    matchKind: "tool",
+    matchValue: "demo_send_input",
+  });
+
+  it.each([
+    ["Ask", {}],
+    ["Auto Review", { autoReview: true }],
+    ["Never ask", { skipApprovals: true }],
+    ["an always-allow rule", { rules: [rule("always_allow")] }],
+    ["Auto Review with an always-allow rule", { autoReview: true, rules: [rule("always_allow")] }],
+    ["Never ask with an always-allow rule", { skipApprovals: true, rules: [rule("always_allow")] }],
+  ] as Array<[string, Partial<Parameters<typeof fixture>[0]>]>)(
+    "asks the person for the call under %s and never offers Always allow",
+    async (_label, options) => {
+      const f = fixture({
+        name: "demo_send_input",
+        readOnly: false,
+        alwaysRequireExplicitApproval: true,
+        ...options,
+      });
+      f.setCalls([{ args: { id: "agent-7" }, executionId: "call-1" }]);
+      await f.run();
+      expect(f.execute).not.toHaveBeenCalled();
+      expect(f.pauseRunForInput).toHaveBeenCalledOnce();
+      expect(reviewMock).not.toHaveBeenCalled();
+      expect(pausedActionIds(f)).toEqual(["allow", "deny"]);
+      expect(askDetail(f)).toContain("id: agent-7");
+    },
+  );
+
+  it("asks even when the tool also declares itself read-only", async () => {
+    const f = fixture({
+      name: "demo_get_item",
+      readOnly: true,
+      alwaysRequireExplicitApproval: true,
+      skipApprovals: true,
+    });
+    f.setCalls([{ args: { id: "agent-7" }, executionId: "call-1" }]);
+    await f.run();
+    expect(f.execute).not.toHaveBeenCalled();
+    expect(f.pauseRunForInput).toHaveBeenCalledOnce();
+  });
+
+  it("still refuses a call a block rule covers, without a card", async () => {
+    const f = fixture({
+      name: "demo_send_input",
+      readOnly: false,
+      alwaysRequireExplicitApproval: true,
+      rules: [rule("deny")],
+    });
+    f.setCalls([{ args: { id: "agent-7" }, executionId: "call-1" }]);
+    await f.run();
+    expect(f.execute).not.toHaveBeenCalled();
+    expect(f.pauseRunForInput).not.toHaveBeenCalled();
+    expect(JSON.stringify(f.results[0])).toContain("blocked");
+  });
+
+  it("refuses a webhook run outright, since nobody can approve there", async () => {
+    const f = fixture({
+      name: "demo_send_input",
+      readOnly: false,
+      alwaysRequireExplicitApproval: true,
+      trigger: "webhook",
+      skipApprovals: true,
+    });
+    f.setCalls([{ args: { id: "agent-7" }, executionId: "call-1" }]);
+    await f.run();
+    expect(f.execute).not.toHaveBeenCalled();
+    expect(f.pauseRunForInput).not.toHaveBeenCalled();
+    expect(JSON.stringify(f.results[0])).toContain("always needs the user's approval");
+  });
+
+  it("leaves a tool without the flag as it was: Never ask runs it, an allow rule runs it", async () => {
+    const never = fixture({ name: "demo_send_input", readOnly: false, skipApprovals: true });
+    never.setCalls([{ args: { id: "agent-7" }, executionId: "call-1" }]);
+    await never.run();
+    expect(never.pauseRunForInput).not.toHaveBeenCalled();
+    expect(never.execute).toHaveBeenCalledOnce();
+
+    const allowed = fixture({
+      name: "demo_send_input",
+      readOnly: false,
+      alwaysRequireExplicitApproval: false,
+      rules: [rule("always_allow")],
+    });
+    allowed.setCalls([{ args: { id: "agent-7" }, executionId: "call-1" }]);
+    await allowed.run();
+    expect(allowed.pauseRunForInput).not.toHaveBeenCalled();
+    expect(allowed.execute).toHaveBeenCalledOnce();
+  });
+
+  it("keys the approval on the exact arguments", () => {
+    const first = approvalEffectKey("run-1", "demo_send_input", { id: "a", text: "one" });
+    expect(approvalEffectKey("run-1", "demo_send_input", { id: "a", text: "one" })).toBe(first);
+    expect(approvalEffectKey("run-1", "demo_send_input", { id: "a", text: "two" })).not.toBe(first);
+    expect(approvalEffectKey("run-1", "demo_send_input", { id: "b", text: "one" })).not.toBe(first);
   });
 });
 

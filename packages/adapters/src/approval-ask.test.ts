@@ -380,4 +380,47 @@ describe("approval card arguments", () => {
     if (block.kind !== "ask") throw new Error("expected ask block");
     expect(block.detail?.split("\n")).toContain("to_email: f@example.test");
   });
+
+  describe("explicit approval card", () => {
+    const card = (args: Record<string, unknown>, secrets: string[] = []) =>
+      buildApprovalAskBlock("effect-1", "herdr_send_input", args, secrets, {
+        explicitApproval: true,
+      }) as {
+        text: string;
+        detail: string;
+        actions: Array<{ id: string }>;
+        approvalEffectId: string;
+      };
+
+    it("shows the target and the exact text, with no Always allow, bound to the effect", () => {
+      const block = card({ agentId: "agent-42", text: "run the tests\nthen stop", submit: true });
+      expect(block.approvalEffectId).toBe("effect-1");
+      expect(block.actions.map((a) => a.id)).toEqual(["allow", "deny"]);
+      expect(block.detail).toBe("agentId: agent-42\ntext: run the tests\nthen stop\nsubmit: true");
+    });
+
+    it("makes control and bidi characters visible instead of passing them on", () => {
+      const block = card({ agentId: "a\u001b[2J", text: "x\u202ey\u0000" });
+      expect([...block.detail].some((c) => ["\u0000", "\u001b", "\u202e"].includes(c))).toBe(false);
+      expect(block.detail).toContain("\\u{001b}");
+      expect(block.detail).toContain("\\u{202e}");
+    });
+
+    it("marks a value that is cut, and says how much is hidden", () => {
+      const block = card({ agentId: "a", text: "y".repeat(5_000) });
+      expect(block.detail).toContain("[TRUNCATED: 500 more characters are not shown]");
+    });
+
+    it("does not cut text up to the send limit", () => {
+      const block = card({ agentId: "a", text: "y".repeat(4_000) });
+      expect(block.detail).not.toContain("TRUNCATED");
+      expect(block.detail).toContain("y".repeat(4_000));
+    });
+
+    it("redacts secrets", () => {
+      expect(
+        JSON.stringify(card({ agentId: "a", text: "token-secret" }, ["token-secret"])),
+      ).not.toContain("token-secret");
+    });
+  });
 });

@@ -597,9 +597,14 @@ export function planActionGate(input: {
   newDestination?: boolean;
   /** A click that completes a purchase: a person approves it each time, in every mode. */
   purchase?: boolean;
+  /**
+   * A tool that declared `alwaysRequireExplicitApproval`: like a purchase, a person approves each
+   * call in every mode, and no rule, review or Never ask passes it. A block rule still refuses.
+   */
+  explicitApproval?: boolean;
 }): "ask" | "allow" | "judge" | "deny" {
   if (input.resolved.decision === "deny") return "deny";
-  if (input.purchase) return "ask";
+  if (input.purchase || input.explicitApproval) return "ask";
   if (input.mandatory) {
     if (input.mode !== "never") return "ask";
     return input.steerable ? "deny" : "allow";

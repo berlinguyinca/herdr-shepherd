@@ -92,6 +92,8 @@ type ApprovalCard = {
   summary: FleetCardSummary | undefined;
   batch: ToolBatch | undefined;
   onceOnly: boolean;
+  /** The card shows the exact arguments of this call and never offers Always allow. */
+  explicitApproval?: boolean;
 };
 
 /** A tool call that passed its approval gate, as tool handlers receive it. */
@@ -277,12 +279,21 @@ export async function gateToolCall(
       (name === "schedule_update" && Boolean(args.prompt))) &&
     (await isRunTainted(ctx)) &&
     (await ctx.trust.routineNamesNewSite(String(args.prompt ?? "")));
+  // A tool (or a batch action) that declared it always needs a person for that exact call.
+  const explicitApproval =
+    connectorTool?.alwaysRequireExplicitApproval === true ||
+    (viaConnector &&
+      !catalogControlRead &&
+      approvalToolNames.some(
+        (toolName) => ctx.tools.connector.get(toolName)?.alwaysRequireExplicitApproval === true,
+      ));
   const { purchase, cardUse } = request;
   // Typing a saved card is approved like a purchase: every time, by a person.
   const paying = Boolean(purchase) || Boolean(cardUse);
   const requiresApprovalByDefault =
     request.heldForApproval ||
     paying ||
+    explicitApproval ||
     commandWatch ||
     requiresUnattendedApproval ||
     siteGate === "new" ||
@@ -295,7 +306,11 @@ export async function gateToolCall(
   const gated = requiresApprovalByDefault || connectorReadGated;
   // These ask in every run, whatever started it.
   const mandatoryInAnyRun =
-    paying || commandWatch || scheduleNamesNewSite || toolRequiresExplicitApproval(name);
+    paying ||
+    explicitApproval ||
+    commandWatch ||
+    scheduleNamesNewSite ||
+    toolRequiresExplicitApproval(name);
   const requiresMandatoryApproval = mandatoryInAnyRun || requiresUnattendedApproval;
   // No allow rule skips these, and without them the tool needs no approval, so "Always allow"
   // on their card would save a rule that never takes effect.
@@ -369,7 +384,17 @@ export async function gateToolCall(
         checkerConfigured,
         newDestination: siteGate === "new",
         purchase: paying,
+        explicitApproval,
       });
+  // Nobody is there to approve a call that always needs a person when a webhook starts the run.
+  if (explicitApproval && run.trigger === "webhook" && plan !== "deny") {
+    await auditToolCall(ctx, name, "denied", { reason: "explicit_approval_unattended" });
+    return {
+      result: {
+        error: `${name} always needs the user's approval for each call, and a webhook run cannot ask. Don't retry; tell the user.`,
+      },
+    };
+  }
   // Nobody is there to approve a purchase a webhook run reaches.
   if (paying && run.trigger === "webhook" && plan !== "deny") {
     await auditToolCall(ctx, name, "denied", { reason: "purchase_unattended" });
@@ -593,7 +618,8 @@ export async function gateToolCall(
     reviewReason: webhookForcedAsk ? WEBHOOK_RUN_ASK_REASON : reviewReason,
     summary: request.fleetSummary,
     batch: connectorTool?.batch,
-    onceOnly: asksEveryTime || webhookForcedAsk,
+    onceOnly: asksEveryTime || webhookForcedAsk || explicitApproval,
+    explicitApproval,
   };
 
   if (applied?.duplicate) {
