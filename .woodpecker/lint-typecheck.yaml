@@ -1,0 +1,48 @@
+# Port of ci.yml `static-checks`: biome, db:generate, turbo typecheck, and the script self-tests.
+# The GitHub changed-areas filtering is not ported; everything always runs.
+when:
+  - event: pull_request
+  - event: push
+    branch: herdr/personal-dashboard
+
+steps:
+  - name: install
+    image: node:24-bookworm
+    commands:
+      - corepack enable
+      - pnpm install --frozen-lockfile
+    environment:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      pnpm_config_prefer_offline: "true"
+
+  - name: lint
+    image: node:24-bookworm
+    depends_on: [install]
+    commands:
+      - corepack enable
+      - pnpm lint
+
+  - name: typecheck
+    image: node:24-bookworm
+    depends_on: [install]
+    commands:
+      - corepack enable
+      - pnpm db:generate
+      - pnpm check
+    environment:
+      DATABASE_URL: postgres://rakazo:rakazo@127.0.0.1:5433/rakazo
+
+  - name: script-tests
+    image: node:24-bookworm
+    depends_on: [install]
+    commands:
+      - python3 infra/compose/host-safeguards.test.py
+      - python3 infra/preview/start.test.py
+      - python3 .github/scripts/codex-subscription-auth.test.py
+      - python3 .github/scripts/dependency-update-patch.test.py
+      - python3 .github/scripts/apply-issue-triage.test.py
+      - python3 .github/scripts/pr-screenshots.test.py
+      - python3 .github/scripts/changed-areas.test.py
+      - python3 .github/scripts/ota-base.test.py
+      - node --test .github/scripts/app-store-review.test.mjs
+      - node --test scripts/lazy-vendors.test.mjs

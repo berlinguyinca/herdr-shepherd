@@ -1,0 +1,57 @@
+# Port of playwright.yml `shard`: six Playwright shards on the official Playwright image
+# (browsers and fonts included, so no apt-get font install) with a Postgres service.
+# The image tag must match @playwright/test in apps/web/package.json (1.64.1).
+when:
+  - event: pull_request
+  - event: push
+    branch: herdr/personal-dashboard
+
+matrix:
+  SHARD:
+    - "1"
+    - "2"
+    - "3"
+    - "4"
+    - "5"
+    - "6"
+
+services:
+  - name: postgres
+    image: mirror.gcr.io/library/postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rakazo
+    command:
+      - postgres
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+      - -c
+      - max_connections=500
+
+steps:
+  - name: install
+    image: mcr.microsoft.com/playwright:v1.64.1-noble
+    commands:
+      - corepack enable
+      - pnpm install --frozen-lockfile
+    environment:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      pnpm_config_prefer_offline: "true"
+
+  - name: e2e
+    image: mcr.microsoft.com/playwright:v1.64.1-noble
+    depends_on: [install]
+    commands:
+      - corepack enable
+      - for i in $(seq 1 60); do (echo > /dev/tcp/postgres/5432) 2>/dev/null && break; sleep 1; done
+      - pnpm test:e2e -- --shard=${SHARD}/6
+    environment:
+      CI_POSTGRES_URL: postgres://postgres:postgres@postgres:5432/rakazo
+      E2E_SKIP_NIGHTLY: "1"
+      E2E_SKIP_HEAVY: "1"
+      TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX: mirror.gcr.io/

@@ -1,0 +1,59 @@
+# Port of ci.yml `test-integration-shard`: six shards against a Postgres service.
+# packages/testkit/src/cli/postgres.ts uses CI_POSTGRES_URL when set instead of Testcontainers.
+when:
+  - event: pull_request
+  - event: push
+    branch: herdr/personal-dashboard
+
+matrix:
+  SHARD:
+    - "1"
+    - "2"
+    - "3"
+    - "4"
+    - "5"
+    - "6"
+
+services:
+  - name: postgres
+    image: mirror.gcr.io/library/postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rakazo
+    command:
+      - postgres
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+      - -c
+      - max_connections=500
+
+steps:
+  - name: install
+    image: node:24-bookworm
+    commands:
+      - corepack enable
+      - pnpm install --frozen-lockfile
+    environment:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      pnpm_config_prefer_offline: "true"
+
+  - name: wait-for-postgres
+    image: mirror.gcr.io/library/postgres:18-alpine
+    depends_on: []
+    commands:
+      - for i in $(seq 1 60); do pg_isready -h postgres -U postgres -d rakazo && exit 0; sleep 1; done; echo "Postgres did not become ready" >&2; exit 1
+
+  - name: integration
+    image: node:24-bookworm
+    depends_on: [install, wait-for-postgres]
+    commands:
+      - corepack enable
+      - pnpm test:integration --shard=${SHARD}/6
+    environment:
+      CI_POSTGRES_URL: postgres://postgres:postgres@postgres:5432/rakazo
+      TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX: mirror.gcr.io/

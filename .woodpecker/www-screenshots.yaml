@@ -1,0 +1,16 @@
+# Port of playwright.yml `www-screenshots`: marketing homepage capture (no assertions on copy).
+when:
+  - event: pull_request
+  - event: push
+    branch: herdr/personal-dashboard
+
+steps:
+  - name: www-e2e
+    image: mcr.microsoft.com/playwright:v1.64.1-noble
+    commands:
+      - corepack enable
+      - pnpm install --frozen-lockfile
+      - pnpm --filter @rakazo/www e2e
+    environment:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      pnpm_config_prefer_offline: "true"

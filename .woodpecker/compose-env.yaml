@@ -1,0 +1,17 @@
+# The compose-env allowlist test. GitHub CI runs it inside the unit shards (and explicitly on
+# affected-only PRs); it is its own fast workflow here so a failure is visible immediately.
+when:
+  - event: pull_request
+  - event: push
+    branch: herdr/personal-dashboard
+
+steps:
+  - name: compose-env-allowlist
+    image: node:24-bookworm
+    commands:
+      - corepack enable
+      - pnpm install --frozen-lockfile
+      - pnpm exec vitest run infra/updater/src/compose-env.test.ts
+    environment:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      pnpm_config_prefer_offline: "true"

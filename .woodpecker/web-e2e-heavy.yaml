@@ -1,0 +1,59 @@
+# Port of playwright.yml `heavy` (page-browser, pages) and `www-screenshots`.
+when:
+  - event: pull_request
+  - event: push
+    branch: herdr/personal-dashboard
+
+matrix:
+  include:
+    - SPEC: page-browser
+      WORKERS: "1"
+    - SPEC: pages
+      WORKERS: "2"
+
+services:
+  - name: postgres
+    image: mirror.gcr.io/library/postgres:18-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: rakazo
+    command:
+      - postgres
+      - -c
+      - fsync=off
+      - -c
+      - synchronous_commit=off
+      - -c
+      - full_page_writes=off
+      - -c
+      - max_connections=500
+
+steps:
+  - name: install
+    image: mcr.microsoft.com/playwright:v1.64.1-noble
+    commands:
+      - corepack enable
+      - pnpm install --frozen-lockfile
+    environment:
+      ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      pnpm_config_prefer_offline: "true"
+
+  - name: e2e-heavy
+    image: mcr.microsoft.com/playwright:v1.64.1-noble
+    depends_on: [install]
+    commands:
+      - corepack enable
+      # page-browser drives a second browser through agent-browser; pages does not need it.
+      - |
+        if [ "${SPEC}" = "page-browser" ]; then
+          infra/sandboxes/computer/install-agent-browser.sh /tmp/agent-browser
+          export RAKAZO_AGENT_BROWSER=/tmp/agent-browser/agent-browser
+        fi
+        for i in $(seq 1 60); do (echo > /dev/tcp/postgres/5432) 2>/dev/null && break; sleep 1; done
+        pnpm test:e2e -- --spec="${SPEC}.spec.ts"
+    environment:
+      CI_POSTGRES_URL: postgres://postgres:postgres@postgres:5432/rakazo
+      E2E_SKIP_NIGHTLY: "1"
+      E2E_WORKERS: ${WORKERS}
+      TESTCONTAINERS_HUB_IMAGE_NAME_PREFIX: mirror.gcr.io/
