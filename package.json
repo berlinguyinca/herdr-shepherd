@@ -11,6 +11,7 @@
   "scripts": {
     "dev": "node scripts/dev.mjs",
     "onboard": "tsx packages/core/src/cli/onboard.ts",
+    "tui": "tsx packages/core/src/cli/tui.ts",
     "setup:worktree": "node scripts/setup-worktree.mjs",
     "gallery": "pnpm --filter @rakazo/web dev --open /e2e/fixtures/gallery.html",
     "build": "turbo build",

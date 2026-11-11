@@ -131,6 +131,8 @@ function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     if (entry === "node_modules" || entry === "dist") return [];
     const file = path.join(dir, entry);
+    // The terminal client reads the operator's shell (SHEPHERD_URL, SHEPHERD_TOKEN), not a process's.
+    if (file.endsWith(path.join("packages", "core", "src", "tui"))) return [];
     if (statSync(file).isDirectory()) return sourceFiles(file);
     if (!/\.(?:ts|tsx|mts)$/.test(entry) || /\.d\.ts$/.test(entry)) return [];
     if (/\.(?:test|spec)\.|test-support/.test(entry)) return [];
