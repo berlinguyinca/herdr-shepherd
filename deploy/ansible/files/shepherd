@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+# shepherd - short front for the local herdr-shepherd clone.
+#   shepherd            start the stack (same as shepherd-dev)
+#   shepherd onboard    configure the LLM server, key and model (writes shepherd.yaml)
+#   shepherd <cmd...>   run any pnpm script in the clone, e.g. `shepherd test`
+# Starts nothing by itself; run it by hand.
+set -euo pipefail
+
+CLONE="${SHEPHERD_HOME:-$HOME/IdeaProjects/herdr-shepherd}"
+[ -d "$CLONE/.git" ] || { echo "shepherd: no clone at $CLONE (set SHEPHERD_HOME)" >&2; exit 1; }
+
+case "${1:-}" in
+  "" | start | dev) exec shepherd-dev ;;
+  *)
+    cd "$CLONE"
+    export PATH="$HOME/.local/share/shepherd-dev/bin:$PATH"
+    exec pnpm "$@"
+    ;;
+esac
