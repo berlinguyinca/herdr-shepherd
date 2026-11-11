@@ -1,5 +1,6 @@
 import type {
   ApnsVoipConfig,
+  HerdrSettings,
   PhotonProjectCredentials,
   TelegramBotCredentials,
 } from "@rakazo/adapters";
@@ -7,6 +8,7 @@ import {
   apnsVoipConfig,
   boatApiKeyFromEnv,
   boatApiUrlFromEnv,
+  herdrSettingsFromEnv,
   mcpStdioOptionsFromEnv,
   photonProjectsFromEnv,
   resolveCloudAgentProvider,
@@ -179,6 +181,8 @@ export interface AppEnv {
   mcpStdio: ReturnType<typeof mcpStdioOptionsFromEnv>;
   /** Deployment-owner escape for remote MCP on RFC1918 / Docker-network hosts. */
   mcpAllowPrivateEndpoint: boolean;
+  /** The herdr dashboard bridge the bots may read (RAKAZO_HERDR_URL and RAKAZO_HERDR_TOKEN). */
+  herdr: HerdrSettings | undefined;
   port: number;
   gitSha: string | undefined;
   /** Oldest client build per kind the API still serves (RAKAZO_MIN_CLIENT_BUILD). */
@@ -366,6 +370,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       .filter(Boolean),
     mcpStdio: mcpStdioOptionsFromEnv(source),
     mcpAllowPrivateEndpoint: source.MCP_ALLOW_PRIVATE_ENDPOINT === "true",
+    herdr: herdrSettingsFromEnv(source),
     port: Number(source.API_PORT ?? 3100),
     gitSha: optional(source.GIT_SHA) ?? optional(source.RAKAZO_GIT_SHA),
     minimumClientBuilds: parseMinimumClientBuilds(source.RAKAZO_MIN_CLIENT_BUILD),

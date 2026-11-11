@@ -22,6 +22,34 @@ describe("loadEnv", () => {
     );
   });
 
+  it("keeps herdr agent tools off unless url and token are both set", () => {
+    expect(loadEnv(base).herdr).toBeUndefined();
+    expect(
+      loadEnv({
+        ...base,
+        RAKAZO_ACCESS_MODE: "open-owner",
+        RAKAZO_HERDR_URL: "http://100.64.0.1:8787/",
+        RAKAZO_HERDR_TOKEN: "t",
+      }).herdr,
+    ).toEqual({ url: "http://100.64.0.1:8787", token: "t" });
+    expect(() =>
+      loadEnv({
+        ...base,
+        RAKAZO_ACCESS_MODE: "open-owner",
+        RAKAZO_HERDR_URL: "http://100.64.0.1:8787",
+      }),
+    ).toThrow("RAKAZO_HERDR");
+    // A multi-user instance never gets the instance-wide herdr token.
+    expect(() =>
+      loadEnv({
+        ...base,
+        RAKAZO_ACCESS_MODE: "accounts",
+        RAKAZO_HERDR_URL: "http://100.64.0.1:8787",
+        RAKAZO_HERDR_TOKEN: "t",
+      }),
+    ).toThrow("RAKAZO_ACCESS_MODE=open-owner");
+  });
+
   it("keeps calls off unless explicitly enabled", () => {
     expect(loadEnv(base).phoneCallsEnabled).toBe(false);
     for (const value of ["false", "1", ""]) {

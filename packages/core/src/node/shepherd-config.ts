@@ -87,6 +87,8 @@ export const shepherdConfigSchema = z.strictObject({
     })
     .optional(),
   llm: llmSchema.optional(),
+  /** A herdr dashboard's bridge, which lets the assistant read its agents (read-only tools). */
+  herdr: z.strictObject({ url: z.url(), token: z.string().min(1) }).optional(),
 });
 export type ShepherdConfig = z.infer<typeof shepherdConfigSchema>;
 
@@ -130,6 +132,8 @@ export function shepherdConfigEnv(config: ShepherdConfig): Record<string, string
   set("API_HOST", config.server?.api_host);
   set("API_PORT", config.server?.api_port);
   set("WEB_ORIGIN", config.server?.web_origin);
+  set("RAKAZO_HERDR_URL", config.herdr?.url);
+  set("RAKAZO_HERDR_TOKEN", config.herdr?.token);
   const llm = config.llm;
   if (!llm) return env;
   set("PI_DEFAULT_PROVIDER", llm.provider);
@@ -177,7 +181,7 @@ export function readShepherdConfigEnv(options: ReadOptions = {}): Record<string,
   if (!file || !existsSync(file)) return {};
   const config = parseShepherdConfig(readFileSync(file, "utf8"), file);
   if (
-    config.llm?.api_key &&
+    (config.llm?.api_key || config.herdr?.token) &&
     process.platform !== "win32" &&
     statSync(file).mode & 0o077 &&
     !warned.has(file)
