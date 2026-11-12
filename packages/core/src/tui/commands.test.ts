@@ -349,6 +349,30 @@ describe("tui login and sign-in", () => {
     );
   });
 
+  it("opens a herdr bridge session with the shepherd origin when it allows it", async () => {
+    fixture.json.set("/api/auth/capabilities", () => ({ openOwner: false, passwordAuth: true }));
+    fixture.json.set(
+      "/api/auth/open",
+      () => new Response("{}", { status: 200, headers: { "set-auth-token": "bridge-token" } }),
+    );
+    fixture.json.set("agents/list", () => ({ agents: [], hiddenCount: 0, cursor: 0 }));
+    const { done } = run(["agents", "--once", "--url", fixture.origin]);
+    await done;
+    expect(fixture.seen.find((s) => s.url === "/api/auth/open")?.headers.origin).toBe(
+      "shepherd://",
+    );
+    expect(fixture.seen.find((s) => s.url === "/rpc/agents/list")?.headers.authorization).toBe(
+      "Bearer bridge-token",
+    );
+  });
+
+  it("falls back to the sign-in message when the bridge refuses the shepherd origin", async () => {
+    fixture.json.set("/api/auth/capabilities", () => ({ openOwner: false, passwordAuth: true }));
+    fixture.json.set("/api/auth/open", () => new Response("{}", { status: 403 }));
+    const { done } = run(["agents", "--once", "--url", fixture.origin]);
+    await expect(done).rejects.toThrow(/Not signed in/);
+  });
+
   it("asks for a sign-in on an accounts server without a token", async () => {
     fixture.json.set("/api/auth/capabilities", () => ({ openOwner: false, passwordAuth: true }));
     const { done } = run(["agents", "--once", "--url", fixture.origin]);

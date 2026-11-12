@@ -130,11 +130,18 @@ export async function signInWithPassword(
  * Tailscale that carries an allowed web origin. We send the server's own origin and never fake
  * the mobile app's.
  */
-export async function openOwnerSession(url: string, fetchImpl: FetchFn = fetch): Promise<string> {
+/** The Origin herdr's bridge must list in `open_owner_origins` (same value the herdr connector sends). */
+export const BRIDGE_OPEN_ORIGIN = "shepherd://";
+
+export async function openOwnerSession(
+  url: string,
+  fetchImpl: FetchFn = fetch,
+  origin: string = new URL(url).origin,
+): Promise<string> {
   const response = await send(fetchImpl, `${url}/api/auth/open`, {
     method: "POST",
     redirect: "error",
-    headers: { origin: new URL(url).origin, accept: "application/json" },
+    headers: { origin, accept: "application/json" },
   });
   if (response.status === 403) {
     throw new TuiError(
