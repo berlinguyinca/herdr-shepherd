@@ -25,6 +25,7 @@ import {
 } from "./render.js";
 import type { FetchFn, TuiClient } from "./rpc.js";
 import {
+  BRIDGE_OPEN_ORIGIN,
   checkHealth,
   createTuiClient,
   explainRpcError,
@@ -129,11 +130,26 @@ async function obtainToken(
   if (email) return signInPrompt(context, url, email, insecure);
   const capabilities = await fetchCapabilities(url, context.fetchImpl);
   if (capabilities?.openOwner) return openOwnerSession(url, context.fetchImpl);
+  const bridge = await openBridgeSession(context, url);
+  if (bridge) return bridge;
   if (capabilities === null) {
     // No auth routes at all (herdr's bridge): a token is the only way in.
     throw new TuiError("No token. Pass --token, set SHEPHERD_TOKEN, or run `pnpm tui login`.");
   }
   throw new TuiError("Not signed in. Run `pnpm tui login` or pass --email or --token.");
+}
+
+/**
+ * herdr's bridge opens an owner session for the `shepherd://` origin when its operator allowlisted
+ * it (`open_owner_origins`); it does not advertise that as a capability. Any refusal falls back to
+ * the token and password routes.
+ */
+async function openBridgeSession(context: Context, url: string): Promise<string | undefined> {
+  try {
+    return await openOwnerSession(url, context.fetchImpl, BRIDGE_OPEN_ORIGIN);
+  } catch {
+    return undefined;
+  }
 }
 
 async function signInPrompt(
@@ -191,6 +207,10 @@ async function loginToken(
 ): Promise<string> {
   const capabilities = await fetchCapabilities(url, context.fetchImpl);
   if (!email && capabilities?.openOwner) return openOwnerSession(url, context.fetchImpl);
+  if (!email) {
+    const bridge = await openBridgeSession(context, url);
+    if (bridge) return bridge;
+  }
   if (!prompter) {
     throw new TuiError("Nothing to sign in with. Pass --token, or run login in a terminal.");
   }
