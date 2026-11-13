@@ -147,6 +147,8 @@ describe("tui agents", () => {
       cursor: 7,
     }));
     fixture.onStream.set("agents/subscribeList", () => {
+      // The bridge interleaves keep-alive frames that carry no row.
+      fixture.emit("agents/subscribeList", { type: "heartbeat" });
       fixture.emit("agents/subscribeList", { seq: 8, row: agentRow("a1", "blocked", "needs you") });
       fixture.finish("agents/subscribeList");
     });
@@ -208,6 +210,7 @@ describe("tui agent", () => {
       rev: 2,
     }));
     fixture.onStream.set("agents/subscribe", () => {
+      fixture.emit("agents/subscribe", { type: "heartbeat" });
       fixture.emit("agents/subscribe", { seq: 3, event: event(3, "live one") });
       fixture.finish("agents/subscribe");
     });
