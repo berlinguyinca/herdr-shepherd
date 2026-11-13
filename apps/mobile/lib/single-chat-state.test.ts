@@ -1,6 +1,6 @@
 import type { Bot } from "@rakazo/contracts";
 import { describe, expect, it } from "vitest";
-import { resolveSingleChat, type SingleChatInputs } from "./single-chat-state";
+import { resolveSingleChat, type SingleChatInputs, shouldOpenSession } from "./single-chat-state";
 
 const bot = (id: string, over: Partial<Bot> = {}): Bot =>
   ({ id, isDefault: false, archivedAt: null, ...over }) as Bot;
