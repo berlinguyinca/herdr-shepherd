@@ -6,7 +6,13 @@ import { openOwnerSession, rpc } from "../../lib/api";
 import { t } from "../../lib/i18n";
 import { useMobileTokens } from "../../lib/native";
 import { loadSessionToken } from "../../lib/session";
-import { type BotsOutcome, type OpenOutcome, resolveSingleChat } from "../../lib/single-chat-state";
+import {
+  type BotsOutcome,
+  type FailureReason,
+  type OpenOutcome,
+  resolveSingleChat,
+  shouldOpenSession,
+} from "../../lib/single-chat-state";
 
 /**
  * The app's root in single-chat mode: opens the owner session silently, finds the default assistant,
