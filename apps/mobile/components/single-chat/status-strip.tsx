@@ -1,5 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { Text, View } from "react-native";
+import { useIsFocused } from "expo-router";
+import { useEffect, useState } from "react";
+import { AppState, Text, View } from "react-native";
 import { fetchSpaceActivity } from "../../lib/activity";
 import { agentListQuery } from "../../lib/agents";
 import { t } from "../../lib/i18n";
@@ -12,12 +14,19 @@ const POLL_MS = 15_000;
 /** Read-only band listing assistants that are working or blocked; hidden when none are. */
 export function StatusStrip() {
   const tokens = useMobileTokens();
-  const agents = useQuery({ ...agentListQuery(false), refetchInterval: POLL_MS }, queryClient);
+  const focused = useIsFocused();
+  const [appActive, setAppActive] = useState(AppState.currentState === "active");
+  useEffect(() => {
+    const sub = AppState.addEventListener("change", (next) => setAppActive(next === "active"));
+    return () => sub.remove();
+  }, []);
+  const refetchInterval = focused && appActive ? POLL_MS : false;
+  const agents = useQuery({ ...agentListQuery(false), refetchInterval }, queryClient);
   const activity = useQuery(
     {
       queryKey: ["single-chat-activity"],
       queryFn: fetchSpaceActivity,
-      refetchInterval: POLL_MS,
+      refetchInterval,
     },
     queryClient,
   );

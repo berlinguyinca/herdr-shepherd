@@ -68,9 +68,12 @@ describe("statusStripRows", () => {
   it("hides the strip when the server has no agents support", () => {
     expect(statusStripRows(undefined, [], unsupported)).toEqual([]);
   });
-  it("hides the strip on any error or missing data", () => {
+  it("hides the strip when there is no data", () => {
     expect(statusStripRows(undefined, [], new Error("x"))).toEqual([]);
     expect(statusStripRows(undefined, [], null)).toEqual([]);
+  });
+  it("keeps stale rows when a refetch errors but data exists", () => {
+    expect(statusStripRows([agent("a", "working", "s")], [], new Error("x"))).toHaveLength(1);
   });
   it("summarizes data when present", () => {
     expect(statusStripRows([agent("a", "working", "s")], [], null)).toHaveLength(1);

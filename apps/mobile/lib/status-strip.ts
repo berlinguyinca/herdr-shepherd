@@ -43,12 +43,12 @@ export function summarizeStatus(
   return rows;
 }
 
-/** Rows for the strip from a query result; any error (including unsupported servers) hides it. */
+/** Rows for the strip; stale data stays visible after a failed refetch, no data (including an unsupported server) hides it. */
 export function statusStripRows(
   agents: readonly AgentRow[] | undefined,
   runs: readonly RunActivityRow[],
-  error: unknown,
+  _error?: unknown,
 ): StatusRow[] {
-  if (error || !agents) return [];
+  if (!agents) return [];
   return summarizeStatus(agents, runs);
 }
