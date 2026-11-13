@@ -262,6 +262,8 @@ async function agents(
       context.signal ? { signal: context.signal } : {},
     );
     for await (const frame of stream) {
+      // Keep-alive frames carry no row.
+      if (!frame.row) continue;
       applyListFrame(rows, frame.row);
       if (context.interactive) {
         context.output.write(`\u001b[H\u001b[2J${formatAgentTable(rows.values())}\n`);
@@ -291,7 +293,10 @@ async function agent(context: Context, client: TuiClient, id: string): Promise<v
       { id, cursor: rev },
       context.signal ? { signal: context.signal } : {},
     );
-    for await (const frame of stream) context.say(formatAgentEvent(frame.event));
+    for await (const frame of stream) {
+      // Keep-alive frames carry no event.
+      if (frame.event) context.say(formatAgentEvent(frame.event));
+    }
   } catch (error) {
     if (context.signal?.aborted) return;
     throw explainRpcError(error, "agents/subscribe");
