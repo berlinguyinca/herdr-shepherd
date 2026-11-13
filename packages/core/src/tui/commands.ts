@@ -1,5 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { AgentRow } from "@rakazo/contracts";
+import type { HerdrDiscoveryOptions } from "../node/herdr-discovery.js";
+import { discoverHerdrUrl } from "../node/herdr-discovery.js";
 import type { ConnectionFlags, TuiCommand } from "./args.js";
 import { parseTuiArgs, TUI_USAGE } from "./args.js";
 import type { ClientFile, Connection } from "./config.js";
@@ -50,6 +52,8 @@ export type TuiRunOptions = {
   /** True when a person can answer prompts and the output is a screen. */
   interactive: boolean;
   fetch?: FetchFn;
+  /** How to look for a herdr dashboard when no server URL is given; tests point it at local servers. */
+  discovery?: HerdrDiscoveryOptions;
   /** Ends every follow loop; the CLI passes one tied to SIGINT. */
   signal?: AbortSignal;
 };
@@ -112,13 +116,26 @@ async function readToken(input: NodeJS.ReadableStream): Promise<string> {
 }
 
 /** Server URL plus a token from flag, env, saved file, or an open-owner/password sign-in. */
-async function authenticate(context: Context, flags: ConnectionFlags): Promise<Connection> {
-  const base = resolveConnection(flags, context.env, readClientFile(context.file));
+async function authenticate(context: Context, given: ConnectionFlags): Promise<Connection> {
+  const saved = readClientFile(context.file);
+  const flags = await withDiscoveredUrl(context, given, saved);
+  const base = resolveConnection(flags, context.env, saved);
   const warning = insecureUrlWarning(base.url);
   if (warning) context.warn(warning);
   if (base.token) return base;
   const token = await obtainToken(context, base.url, flags.email, flags.insecure === true);
   return { ...base, token };
+}
+
+/** With no URL from a flag, the environment or the saved file, a herdr dashboard on the tailnet. */
+async function withDiscoveredUrl(
+  context: Context,
+  flags: ConnectionFlags,
+  saved: ClientFile,
+): Promise<ConnectionFlags> {
+  if (flags.url || context.env.SHEPHERD_URL || saved.url) return flags;
+  const found = await discoverHerdrUrl({ fetchImpl: context.fetchImpl, ...context.discovery });
+  return found ? { ...flags, url: found } : flags;
 }
 
 async function obtainToken(
