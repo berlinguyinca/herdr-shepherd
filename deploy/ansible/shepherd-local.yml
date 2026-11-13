@@ -4,7 +4,7 @@
 # Starts nothing and installs no login item or launchd job: run `shepherd` by hand.
 # Secrets come from the environment, never from this repo:
 #   SHEPHERD_LLM_API_KEY  key for the LLM gateway (blank: the line is left for `shepherd onboard`)
-#   SHEPHERD_HERDR_TOKEN  herdr bridge token from `shepherd tui login` (blank: no token is written; Shepherd opens an owner session itself)
+#   SHEPHERD_HERDR_TOKEN  optional herdr bridge token (blank: no token is written; with access.mode open-owner Shepherd finds the dashboard and opens an owner session itself)
 - name: Set up the local Shepherd dashboard
   hosts: localhost
   connection: local
@@ -80,5 +80,12 @@
       ansible.builtin.debug:
         msg:
           - "Start it by hand: shepherd   (Docker must be running)"
-          - "Token is optional: Shepherd opens its own owner session. The bridge needs shepherd:// in open_owner_origins; or put a token from `shepherd tui login --url {{ shepherd_herdr_url }} --email <you>` in the herdr: block of shepherd.yaml (or SHEPHERD_HERDR_TOKEN)"
+          - "No login, token or config is needed: with access.mode open-owner Shepherd finds the herdr dashboard on your tailnet by itself (RAKAZO_HERDR_DISCOVER=off turns that off)"
+          - "The bridge must list shepherd:// (and rakazo://) in open_owner_origins"
+          - "Open the full-screen TUI with `pnpm tui` or `shepherd tui`"
           - "The bridge itself lives on bender; see deploy/ansible/README.md"
+
+    - name: Say how to pin the herdr host
+      ansible.builtin.debug:
+        msg: "To pin that host instead of discovering one: shepherd tui login --url {{ shepherd_herdr_url }} --email <you>"
+      when: shepherd_herdr_url | length > 0
