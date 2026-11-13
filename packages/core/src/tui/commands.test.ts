@@ -373,6 +373,32 @@ describe("tui login and sign-in", () => {
     await expect(done).rejects.toThrow(/Not signed in/);
   });
 
+  it("finds a herdr dashboard on the tailnet when no server is given", async () => {
+    fixture.json.set("/api/auth/capabilities", () => ({
+      openOwner: false,
+      passwordAuth: true,
+      nativePasskeys: { ios: false, android: false },
+    }));
+    fixture.json.set(
+      "/api/auth/open",
+      () => new Response("{}", { status: 200, headers: { "set-auth-token": "found-token" } }),
+    );
+    fixture.json.set("agents/list", () => ({ agents: [], hiddenCount: 0, cursor: 0 }));
+    const port = Number(new URL(fixture.origin).port);
+    const { done } = run(["agents", "--once"], {
+      discovery: { peers: async () => ["127.0.0.1"], port },
+    });
+    await done;
+    expect(fixture.seen.find((s) => s.url === "/rpc/agents/list")?.headers.authorization).toBe(
+      "Bearer found-token",
+    );
+  });
+
+  it("still asks for a server when none is given and none is found", async () => {
+    const { done } = run(["agents", "--once"], { discovery: { peers: async () => [] } });
+    await expect(done).rejects.toThrow(/No server URL/);
+  });
+
   it("asks for a sign-in on an accounts server without a token", async () => {
     fixture.json.set("/api/auth/capabilities", () => ({ openOwner: false, passwordAuth: true }));
     const { done } = run(["agents", "--once", "--url", fixture.origin]);

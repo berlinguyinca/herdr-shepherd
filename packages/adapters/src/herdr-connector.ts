@@ -14,9 +14,9 @@ import {
   TerminalOkOutputSchema,
   TerminalOpenOutputSchema,
 } from "@rakazo/contracts";
+import { discoverHerdrUrl } from "@rakazo/core/node/herdr-discovery";
 import { isOwnerNetworkAddress, isOwnerNetworkHost } from "@rakazo/core/node/owner-network";
 import { z } from "zod";
-import { discoverHerdrUrl } from "./herdr-discovery.js";
 import type { ResolveHostname, SafeRemoteFetch } from "./remote-mcp.js";
 import { createSafeRemoteFetch } from "./remote-mcp.js";
 
