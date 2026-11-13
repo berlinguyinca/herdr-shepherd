@@ -119,7 +119,8 @@ export async function runTui(options: TuiRunOptions): Promise<void> {
     case "agent":
       return agent(context, client, command.id);
     case "attach":
-      return attach(context, client, command.id);
+      await attach(context, client, command.id);
+      return;
     case "chat":
       return chat(context, client, command);
   }
@@ -324,7 +325,12 @@ async function agent(context: Context, client: TuiClient, id: string): Promise<v
   }
 }
 
-async function attach(context: Context, client: TuiClient, id: string): Promise<void> {
+/** Resolves with why the terminal ended when the person did not detach it, otherwise nothing. */
+async function attach(
+  context: Context,
+  client: TuiClient,
+  id: string,
+): Promise<string | undefined> {
   const { input, output } = context;
   const out = output as NodeJS.WriteStream;
   const size = { rows: out.rows || 24, cols: out.columns || 80 };
@@ -371,6 +377,7 @@ async function attach(context: Context, client: TuiClient, id: string): Promise<
   out.on?.("resize", onResize);
   let lastSeq = opened.seq - 1;
   let endMessage = "Detached.";
+  let ended: string | undefined;
   try {
     const stream = await client.terminal.subscribe(
       { terminalId, cursor: opened.seq },
@@ -382,6 +389,7 @@ async function attach(context: Context, client: TuiClient, id: string): Promise<
       lastSeq = action.seq;
       if (action.kind === "end") {
         endMessage = action.message;
+        ended = action.message;
         break;
       }
       output.write(action.bytes);
@@ -389,6 +397,7 @@ async function attach(context: Context, client: TuiClient, id: string): Promise<
   } catch (error) {
     if (!controller.signal.aborted) {
       endMessage = explainRpcError(error, "terminal/subscribe").message;
+      ended = endMessage;
     }
   } finally {
     input.off("data", onData);
@@ -405,6 +414,7 @@ async function attach(context: Context, client: TuiClient, id: string): Promise<
     await client.terminal.close({ terminalId }).catch(() => undefined);
   }
   context.say(`\n[${endMessage}]`);
+  return ended;
 }
 
 /** Reads and discards input for `ms`, so late terminal reports do not reach the shell. */

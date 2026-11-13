@@ -126,9 +126,9 @@ afterEach(async () => {
   await fixture.stop();
 });
 
-function start() {
+function start(onAttach: (id: string) => Promise<string | undefined> = async () => undefined) {
   const client = createTuiClient({ url: fixture.origin, token: "tok-fixture-not-real" });
-  const view = render(<App client={client} onAttach={async () => undefined} />);
+  const view = render(<App client={client} onAttach={onAttach} />);
   const type = async (text: string) => {
     for (const char of text) {
       view.stdin.write(char);
@@ -370,6 +370,13 @@ describe("full-screen view", () => {
     await until(() => (fixture.streams.get("agents/subscribeList") ?? []).length > 0);
     await type("q");
     await until(aborted);
+  });
+
+  it("says why an attached terminal ended on its own, since the view repaints over it", async () => {
+    const { type, see } = start(async () => "Terminal ended (pane_closed).");
+    await see("Agent a2");
+    await type("a");
+    await see("Terminal ended (pane_closed).");
   });
 });
 
