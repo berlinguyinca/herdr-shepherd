@@ -65,12 +65,20 @@ export function CreateAssistantModal({
   const submit = async () => {
     if (busy || !name.trim()) return;
     setBusy(true);
+    let bot: Bot;
     try {
-      const bot = await createAssistant(name, role);
-      await onCreated(bot);
+      bot = await createAssistant(name, role);
     } catch (error) {
       Alert.alert(t("Could not create bot"), errorText(error));
       setBusy(false);
+      return;
+    }
+    // The assistant exists now: a later failure must not offer a second create.
+    try {
+      await onCreated(bot);
+    } catch (error) {
+      Alert.alert(t("Could not continue"), errorText(error));
+      onClose();
     }
   };
   const input = {
@@ -156,7 +164,10 @@ export function AssistantPickerModal({
       <CreateAssistantModal
         onClose={() => setCreating(false)}
         onCreated={async (bot) => {
-          if (!bots?.some((b) => b.isDefault)) await setDefaultAssistant(bot.id).catch(() => {});
+          if (!bots?.some((b) => b.isDefault))
+            await setDefaultAssistant(bot.id).catch((error) =>
+              Alert.alert(t("Could not set default assistant"), errorText(error)),
+            );
           onSwitch(bot);
         }}
       />
@@ -173,7 +184,7 @@ export function AssistantPickerModal({
           >
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={t("Switch assistant")}
+              accessibilityLabel={bot.name}
               accessibilityState={{ selected: bot.id === currentBotId }}
               onPress={() => onSwitch(bot)}
               style={{ flex: 1 }}
@@ -185,7 +196,11 @@ export function AssistantPickerModal({
             {bot.isDefault ? (
               <Text style={{ ...text, opacity: 0.6 }}>{t("Default")}</Text>
             ) : (
-              <Pressable accessibilityRole="button" onPress={() => void makeDefault(bot.id)}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`${t("Set as default")}: ${bot.name}`}
+                onPress={() => void makeDefault(bot.id)}
+              >
                 <Text style={text}>{t("Set as default")}</Text>
               </Pressable>
             )}

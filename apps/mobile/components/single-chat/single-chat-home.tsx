@@ -1,7 +1,7 @@
 import { isRetryableError, isUnauthorizedError } from "@rakazo/core";
 import { Redirect, useNavigation } from "expo-router";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ActivityIndicator, Pressable, Text, View } from "react-native";
+import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import { openOwnerSession, rpc } from "../../lib/api";
 import { setDefaultAssistant } from "../../lib/assistant-actions";
 import { t } from "../../lib/i18n";
@@ -14,6 +14,7 @@ import {
   resolveSingleChat,
   shouldOpenSession,
 } from "../../lib/single-chat-state";
+import { errorText } from "../../lib/user-error";
 import { CreateAssistantModal } from "./assistant-picker";
 
 /**
@@ -144,7 +145,9 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
           onClose={() => setCreating(false)}
           onCreated={async (bot) => {
             // The first assistant becomes the default, then the list reloads and the chat opens.
-            await setDefaultAssistant(bot.id).catch(() => undefined);
+            await setDefaultAssistant(bot.id).catch((error) =>
+              Alert.alert(t("Could not set default assistant"), errorText(error)),
+            );
             setCreating(false);
             setAttempt((n) => n + 1);
           }}
