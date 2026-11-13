@@ -69,7 +69,7 @@ const isTty = (stream: NodeJS.ReadableStream): stream is NodeJS.ReadStream =>
   "setRawMode" in stream && typeof (stream as NodeJS.ReadStream).setRawMode === "function";
 
 export async function runTui(options: TuiRunOptions): Promise<void> {
-  const { command, flags } = parseTuiArgs(options.argv);
+  const { command, flags } = parseTuiArgs(options.argv, options.interactive);
   const context: Context = {
     ...options,
     say: (text) => void options.output.write(`${text}\n`),
@@ -84,7 +84,7 @@ export async function runTui(options: TuiRunOptions): Promise<void> {
     );
   }
   if (flags.tokenStdin) {
-    if (command.kind === "attach" || command.kind === "chat") {
+    if (command.kind === "attach" || command.kind === "chat" || command.kind === "ui") {
       throw new TuiError(
         "--token-stdin cannot be combined with a command that reads the keyboard.",
       );
@@ -95,6 +95,18 @@ export async function runTui(options: TuiRunOptions): Promise<void> {
   const connection = await authenticate(context, flags);
   const client = createTuiClient(connection, context.fetchImpl);
   switch (command.kind) {
+    case "ui": {
+      if (!context.interactive) throw new TuiError("The full-screen view needs a terminal.");
+      // Loaded only here, so the other commands do not pay for Ink and React.
+      const { runUi } = await import("./ui/run.js");
+      return runUi({
+        client,
+        input: options.input as NodeJS.ReadStream,
+        output: options.output as NodeJS.WriteStream,
+        signal: context.signal,
+        onAttach: (id) => attach(context, client, id),
+      });
+    }
     case "agents":
       return agents(context, client, command);
     case "agent":

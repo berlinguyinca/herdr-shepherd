@@ -61,6 +61,13 @@ describe("parseTuiArgs", () => {
     expect(parseTuiArgs(["attach", "abc"]).command).toEqual({ kind: "attach", id: "abc" });
     expect(parseTuiArgs(["chat", "--bot", "b"]).command).toEqual({ kind: "chat", botId: "b" });
     expect(parseTuiArgs([]).command).toEqual({ kind: "agents", all: false, once: false });
+    expect(parseTuiArgs([], true).command).toEqual({ kind: "ui" });
+    expect(parseTuiArgs(["ui"]).command).toEqual({ kind: "ui" });
+    expect(parseTuiArgs(["agents"], true).command).toEqual({
+      kind: "agents",
+      all: false,
+      once: false,
+    });
     expect(parseTuiArgs(["--help"]).command).toEqual({ kind: "help" });
     expect(parseTuiArgs(["help"]).command).toEqual({ kind: "help" });
   });

@@ -1,7 +1,8 @@
 import { parseArgs } from "node:util";
 import { TuiError } from "./errors.js";
 
-export const TUI_USAGE = `Usage: pnpm tui <command> [options]
+export const TUI_USAGE = `Usage: pnpm tui [command] [options]
+  ui                          full-screen view of agents and bots (the default in a terminal)
   login                       sign in and remember the server (url + token) in the client file
   agents [--all] [--once]     list agents and follow live changes (--once prints and exits)
   agent <id>                  show an agent's events and follow new ones
@@ -30,6 +31,7 @@ export type ConnectionFlags = {
 export type TuiCommand =
   | { kind: "help" }
   | { kind: "login" }
+  | { kind: "ui" }
   | { kind: "agents"; all: boolean; once: boolean }
   | { kind: "agent"; id: string }
   | { kind: "attach"; id: string }
@@ -37,8 +39,11 @@ export type TuiCommand =
 
 export type ParsedTuiArgs = { command: TuiCommand; flags: ConnectionFlags };
 
-/** Pure: argv (after `tui`) to a typed command. Throws TuiError with the usage on bad input. */
-export function parseTuiArgs(argv: readonly string[]): ParsedTuiArgs {
+/**
+ * Pure: argv (after `tui`) to a typed command. Throws TuiError with the usage on bad input. With
+ * no command, a terminal gets the full-screen view and anything else follows the agents.
+ */
+export function parseTuiArgs(argv: readonly string[], interactive = false): ParsedTuiArgs {
   let parsed: ReturnType<typeof parse>;
   try {
     parsed = parse(argv);
@@ -58,8 +63,12 @@ export function parseTuiArgs(argv: readonly string[]): ParsedTuiArgs {
     throw new TuiError(`Use either --token or --token-stdin, not both.\n${TUI_USAGE}`);
   }
   if (values.help || name === "help") return { command: { kind: "help" }, flags };
-  // Bare `pnpm tui` follows the agents, the thing most people open it for.
-  if (name === undefined) return { command: { kind: "agents", all: false, once: false }, flags };
+  if (name === undefined) {
+    const command: TuiCommand = interactive
+      ? { kind: "ui" }
+      : { kind: "agents", all: false, once: false };
+    return { command, flags };
+  }
   const extra = rest.length > 0;
   const needId = (): string => {
     if (!id || extra) throw new TuiError(`"${name}" takes exactly one agent id.\n${TUI_USAGE}`);
@@ -68,6 +77,8 @@ export function parseTuiArgs(argv: readonly string[]): ParsedTuiArgs {
   switch (name) {
     case "login":
       return { command: { kind: "login" }, flags };
+    case "ui":
+      return { command: { kind: "ui" }, flags };
     case "agents":
       return {
         command: { kind: "agents", all: values.all === true, once: values.once === true },
