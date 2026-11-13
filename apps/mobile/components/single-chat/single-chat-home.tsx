@@ -3,6 +3,7 @@ import { Redirect, useNavigation } from "expo-router";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { openOwnerSession, rpc } from "../../lib/api";
+import { setDefaultAssistant } from "../../lib/assistant-actions";
 import { t } from "../../lib/i18n";
 import { useMobileTokens } from "../../lib/native";
 import { loadSessionToken } from "../../lib/session";
@@ -13,6 +14,7 @@ import {
   resolveSingleChat,
   shouldOpenSession,
 } from "../../lib/single-chat-state";
+import { CreateAssistantModal } from "./assistant-picker";
 
 /**
  * The app's root in single-chat mode: opens the owner session silently, finds the default assistant,
@@ -25,6 +27,7 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
   const [hasSession, setHasSession] = useState<boolean | null>(null);
   const [open, setOpen] = useState<OpenOutcome>({ kind: "idle" });
   const [bots, setBots] = useState<BotsOutcome>({ kind: "pending" });
+  const [creating, setCreating] = useState(false);
 
   useLayoutEffect(() => {
     navigation.setOptions({ headerShown: false });
@@ -126,9 +129,26 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
         </>
       ) : null}
       {state.kind === "empty" ? (
-        <Pressable accessibilityRole="button" onPress={onCreateAssistant}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => {
+            onCreateAssistant?.();
+            setCreating(true);
+          }}
+        >
           <Text style={label}>{t("Create assistant")}</Text>
         </Pressable>
+      ) : null}
+      {creating ? (
+        <CreateAssistantModal
+          onClose={() => setCreating(false)}
+          onCreated={async (bot) => {
+            // The first assistant becomes the default, then the list reloads and the chat opens.
+            await setDefaultAssistant(bot.id).catch(() => undefined);
+            setCreating(false);
+            setAttempt((n) => n + 1);
+          }}
+        />
       ) : null}
     </View>
   );

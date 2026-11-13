@@ -2,6 +2,7 @@ import { isRetryableError } from "@rakazo/core";
 import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
+import { AssistantSwitcher } from "../components/single-chat/assistant-picker";
 import { Thread } from "../components/thread/thread-screen";
 import { currentApiBase, selectedSpaceId, selectSpace } from "../lib/api";
 import { t, useI18n } from "../lib/i18n";
@@ -12,6 +13,7 @@ import {
   threadSpaceRequest,
   threadSpaceSwitchResult,
 } from "../lib/notification-open";
+import { singleChatOnly } from "../lib/server-config";
 import {
   currentReadySessionGeneration,
   currentSessionGeneration,
@@ -63,7 +65,11 @@ export default function ThreadRoute() {
   const { t } = useI18n();
   const router = useRouter();
   const focused = useIsFocused();
-  const { spaceId } = useLocalSearchParams<{ spaceId?: string | string[] }>();
+  const { spaceId, botId, name } = useLocalSearchParams<{
+    spaceId?: string | string[];
+    botId?: string;
+    name?: string;
+  }>();
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(() => selectedSpaceId());
   const [switchFailed, setSwitchFailed] = useState(false);
   const [appliedFocus, setAppliedFocus] = useState(focused);
@@ -109,8 +115,8 @@ export default function ThreadRoute() {
     };
   }, [activeSpaceId, focused, spaceId]);
 
-  if (request.action === "show" && !focusSync.switchFailed)
-    return (
+  if (request.action === "show" && !focusSync.switchFailed) {
+    const chat = (
       <>
         {owner?.generation !== generation ? <ActivityIndicator color={tokens.foreground} /> : null}
         <View style={{ flex: 1, display: owner?.generation === generation ? "flex" : "none" }}>
@@ -118,6 +124,19 @@ export default function ThreadRoute() {
         </View>
       </>
     );
+    // Single-chat mode: a header pill switches this chat to another assistant without changing the default.
+    return singleChatOnly() ? (
+      <AssistantSwitcher
+        botId={typeof botId === "string" ? botId : null}
+        name={typeof name === "string" ? name : null}
+        onSwitch={(bot) => router.setParams({ botId: bot.id, name: bot.name })}
+      >
+        {chat}
+      </AssistantSwitcher>
+    ) : (
+      chat
+    );
+  }
   return (
     <View
       style={{
