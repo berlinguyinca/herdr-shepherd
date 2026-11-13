@@ -922,3 +922,53 @@ describe("owner session without a configured token", () => {
     expect(rpcs()[0]?.authorization).toBe(`Bearer ${TOKEN}`);
   });
 });
+
+describe("dashboard discovery", () => {
+  const listing: Handler = (_req, res, seen) => {
+    if (seen.url === "/api/auth/open") {
+      res.writeHead(200, { "content-type": "application/json", "set-auth-token": "found-token" });
+      res.end(JSON.stringify({ token: "found-token", user: { id: "owner" } }));
+      return;
+    }
+    json(res, 200, { json: { agents: [row("a1")], hiddenCount: 0, cursor: 0 } });
+  };
+
+  it("finds the dashboard on first use and then keeps talking to it", async () => {
+    bridge.handler = listing;
+    let searches = 0;
+    const connector = new HerdrConnector(
+      {},
+      {
+        discover: async () => {
+          searches += 1;
+          return bridge.url;
+        },
+      },
+    );
+    expect(await connector.discoverTools()).toHaveLength(4);
+    resultOf(await run(connector, "herdr_list_agents"));
+    resultOf(await run(connector, "herdr_list_agents"));
+    expect(searches).toBe(1);
+    expect(bridge.seen.find((s) => s.url === "/api/auth/open")?.origin).toBe("shepherd://");
+  });
+
+  it("offers no tools and explains itself when nothing is found, then retries later", async () => {
+    let clock = 0;
+    let found: string | undefined;
+    const connector = new HerdrConnector({}, { discover: async () => found, now: () => clock });
+    expect(await connector.discoverTools()).toEqual([]);
+    expect(errorOf(await run(connector, "herdr_list_agents"))).toContain("No herdr dashboard");
+    bridge.handler = listing;
+    found = bridge.url;
+    // Within the minute the earlier answer stands.
+    expect(await connector.discoverTools()).toEqual([]);
+    clock = 61_000;
+    expect(await connector.discoverTools()).toHaveLength(4);
+  });
+
+  it("looks only when no url is set and the deployment is single-owner", () => {
+    expect(herdrSettingsFromEnv(OWNER)).toEqual({});
+    expect(herdrSettingsFromEnv({ ...OWNER, RAKAZO_HERDR_DISCOVER: "off" })).toBeUndefined();
+    expect(herdrSettingsFromEnv({ RAKAZO_ACCESS_MODE: "accounts" })).toBeUndefined();
+  });
+});

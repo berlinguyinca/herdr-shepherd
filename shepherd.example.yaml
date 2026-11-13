@@ -21,6 +21,8 @@ llm:
   # vision_models: [example-model] # local only: models that accept images
   # reasoning_models: [example-model] # local only: models that accept reasoning effort
 # Optional: let the assistant read the agents on a herdr dashboard (read tools, plus one approval-gated write tool, herdr_send_input).
+# With access.mode open-owner and no herdr block, Shepherd looks for the dashboard among your Tailscale peers on
+# its own (RAKAZO_HERDR_DISCOVER=off stops that); set a url only to pick a specific host.
 # Override with SHEPHERD_HERDR_URL / SHEPHERD_HERDR_TOKEN. The token is optional: with only a url, Shepherd
 # opens its own owner session (POST /api/auth/open with Origin shepherd://, kept in memory, re-opened on a 401);
 # the bridge must list shepherd:// in open_owner_origins. A configured token expires; keep this file chmod 600.

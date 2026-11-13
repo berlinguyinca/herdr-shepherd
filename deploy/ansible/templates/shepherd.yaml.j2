@@ -16,8 +16,10 @@ llm:
   models: [{{ shepherd_llm_models | join(', ') }}]
   default_model: {{ shepherd_llm_default_model }}
 {% endif %}
+{% if shepherd_herdr_url %}
 herdr:
   url: {{ shepherd_herdr_url }}
 {% if shepherd_herdr_token %}
   token: {{ shepherd_herdr_token }}
+{% endif %}
 {% endif %}

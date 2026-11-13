@@ -25,4 +25,4 @@ per address (Shepherd fails the tool call on a 429 instead of waiting). Alternat
 `shepherd tui login --url http://100.104.39.6 --email <you>` and put the token in `shepherd.yaml` or `SHEPHERD_HERDR_TOKEN`
 (it expires, `token_ttl_days`, 30 by default); a configured token is used as is and no open call is made.
 
-Shepherd accepts the `herdr:` block only with `access.mode: open-owner`, and only for http to loopback or Tailscale.
+Shepherd accepts the `herdr:` block only with `access.mode: open-owner`, and only for http to loopback or Tailscale. Without a `herdr:` block (and access.mode open-owner) Shepherd finds the dashboard among your Tailscale peers itself; the bridge only needs `shepherd://` in `open_owner_origins`.
