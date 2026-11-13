@@ -219,6 +219,8 @@ export const ES_MESSAGES: Record<string, string> = {
   "Could not load bots": "No se pudieron cargar los bots",
   "Could not save the default space": "No se pudo guardar el espacio predeterminado",
   "Could not switch spaces": "No se pudo cambiar de espacio",
+  "Can't reach the assistant": "No se puede conectar con el asistente",
+  "Create assistant": "Crear asistente",
   Create: "Crear",
   "Delete space": "Eliminar espacio",
   "Delete {name}?": "¿Eliminar {name}?",

@@ -440,6 +440,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not submit answer": "Не удалось отправить ответ",
   "Could not switch computer": "Не удалось переключить компьютер",
   "Could not switch spaces": "Не удалось переключить пространства",
+  "Can't reach the assistant": "Не удаётся связаться с ассистентом",
+  "Create assistant": "Создать ассистента",
   "Could not update chat": "Не удалось обновить чат",
   "Could not update computer": "Не удалось обновить компьютер",
   "Could not update notifications": "Не удалось обновить уведомления.",

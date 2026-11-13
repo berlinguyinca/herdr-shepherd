@@ -217,6 +217,8 @@ export const JA_MESSAGES: Record<string, string> = {
   "Could not load bots": "ボットを読み込めませんでした",
   "Could not save the default space": "デフォルトのスペースを保存できませんでした",
   "Could not switch spaces": "スペースを切り替えられませんでした",
+  "Can't reach the assistant": "アシスタントに接続できません",
+  "Create assistant": "アシスタントを作成",
   Create: "作成",
   "Delete space": "スペースを削除",
   "Delete {name}?": "{name}を削除しますか？",

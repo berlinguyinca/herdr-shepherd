@@ -234,6 +234,8 @@ export const DE_MESSAGES: Record<string, string> = {
   "Could not load bots": "Bots konnten nicht geladen werden",
   "Could not save the default space": "Standard-Space konnte nicht gespeichert werden",
   "Could not switch spaces": "Space konnte nicht gewechselt werden",
+  "Can't reach the assistant": "Der Assistent ist nicht erreichbar",
+  "Create assistant": "Assistent erstellen",
   Create: "Erstellen",
   "Delete space": "Space löschen",
   "Delete {name}?": "{name} löschen?",

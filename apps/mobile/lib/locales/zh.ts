@@ -419,6 +419,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not submit answer": "无法提交回答",
   "Could not switch computer": "无法切换电脑",
   "Could not switch spaces": "无法切换空间",
+  "Can't reach the assistant": "无法连接到助手",
+  "Create assistant": "创建助手",
   "Could not update chat": "无法更新聊天",
   "Could not update computer": "无法更新电脑",
   "Could not update notifications": "无法更新通知",

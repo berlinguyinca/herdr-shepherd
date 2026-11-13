@@ -229,6 +229,8 @@ export const NL_MESSAGES: Record<string, string> = {
   "Could not load bots": "Bots laden mislukt",
   "Could not save the default space": "De standaardspace opslaan mislukt",
   "Could not switch spaces": "Van space wisselen mislukt",
+  "Can't reach the assistant": "Kan de assistent niet bereiken",
+  "Create assistant": "Assistent maken",
   Create: "Aanmaken",
   "Delete space": "Space verwijderen",
   "Delete {name}?": "{name} verwijderen?",
