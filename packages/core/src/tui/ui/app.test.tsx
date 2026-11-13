@@ -281,6 +281,41 @@ describe("full-screen view", () => {
     expect(body.json.clientNonce).toBeTruthy();
   });
 
+  it("omits the Rooms section, quietly, when collaboration is not linked to the account", async () => {
+    fixture.json.set(
+      "groups/list",
+      () =>
+        new Response(
+          JSON.stringify({
+            json: {
+              defined: false,
+              code: "BAD_REQUEST",
+              status: 400,
+              message: "Collaboration is not linked to this account",
+              data: {},
+            },
+          }),
+          { status: 400, headers: { "content-type": "application/json" } },
+        ),
+    );
+    const { see, screen } = start();
+    await see("Helper");
+    await until(() => calls("groups/list").length > 0);
+    await sleep(150);
+    expect(screen()).toContain("AGENTS");
+    expect(screen()).toContain("BOTS");
+    expect(screen()).not.toContain("ROOMS");
+    expect(screen()).not.toContain("groups/list");
+    expect(screen()).not.toContain("not linked");
+  });
+
+  it("shows an empty Rooms section with a hint for a linked account with no rooms", async () => {
+    const { see, screen } = start();
+    await see("ROOMS");
+    await see("No rooms yet");
+    expect(screen().indexOf("ROOMS")).toBeLessThan(screen().indexOf("AGENTS"));
+  });
+
   it("surfaces a pending ask in a room, answers it, and clears it once answered", async () => {
     withRoom(fixture);
     fixture.json.set("threads/get", () => groupSnapshot([askMessage("pending")]));

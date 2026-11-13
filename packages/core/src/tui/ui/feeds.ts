@@ -80,20 +80,31 @@ export async function follow<F>(
   }
 }
 
+/** True when the account has no collaboration link, so the server has no rooms to list. */
+const isCollaborationUnlinked = (error: unknown): boolean =>
+  isRecord(error) &&
+  error.status === 400 &&
+  typeof error.message === "string" &&
+  /not linked/i.test(error.message);
+
+/** The rooms, or undefined while unknown and when the account is not linked (no Rooms section). */
 export function useRooms(
   client: TuiClient,
   tick: number,
   report: Report,
-): { id: string; name: string }[] {
-  const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
+): { id: string; name: string }[] | undefined {
+  const [rooms, setRooms] = useState<{ id: string; name: string }[] | undefined>();
   useEffect(() => {
     let live = true;
     client.groups.list().then(
       (list) =>
         live &&
         setRooms(list.filter((room) => !room.archivedAt).map((r) => ({ id: r.id, name: r.name }))),
-      // A server without rooms (or without this route) just shows no rooms section.
-      (error) => live && report(explainRpcError(error, "groups/list").message),
+      (error) => {
+        if (!live) return;
+        if (isCollaborationUnlinked(error)) setRooms(undefined);
+        else report(explainRpcError(error, "groups/list").message);
+      },
     );
     return () => {
       live = false;
