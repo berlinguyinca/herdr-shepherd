@@ -1,6 +1,9 @@
+import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
 import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { AdapterContext, ConnectorEvent } from "@rakazo/adapter-kit";
 import { connectorToolRequiresApproval } from "@rakazo/core";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -141,12 +144,20 @@ function errorOf(event: ConnectorEvent): string {
 }
 
 let bridge: FakeBridge;
+let clientDir: string;
 let connector: HerdrConnector;
 beforeEach(async () => {
+  // The connector shares its session through the client file; keep each test's apart.
+  clientDir = mkdtempSync(path.join(tmpdir(), "herdr-client-"));
+  process.env.SHEPHERD_CLIENT_FILE = path.join(clientDir, "client.json");
   bridge = await new FakeBridge().start();
   connector = new HerdrConnector({ url: bridge.url, token: TOKEN });
 });
-afterEach(() => bridge.stop());
+afterEach(async () => {
+  await bridge.stop();
+  rmSync(clientDir, { recursive: true, force: true });
+  delete process.env.SHEPHERD_CLIENT_FILE;
+});
 
 describe("herdr tools", () => {
   it("offers three read tools that the approval gate treats as reads, and one flagged write", async () => {
@@ -870,13 +881,48 @@ describe("owner session without a configured token", () => {
     expect(message).not.toContain(MINTED_2);
   });
 
-  it("fails with a clear error on 429 and leaks nothing", async () => {
+  it("shares the kept session: reuses it, and re-opens once after a 401", async () => {
+    resultOf(await run(sessionConnector, "herdr_list_agents"));
+    const file = process.env.SHEPHERD_CLIENT_FILE as string;
+    expect(statSync(file).mode & 0o777).toBe(0o600);
+    expect(readFileSync(file, "utf8")).toContain(MINTED);
+    // A second connector (another process) starts from the kept token and opens nothing.
+    resultOf(await run(new HerdrConnector({ url: bridge.url }), "herdr_list_agents"));
+    expect(opens()).toHaveLength(1);
+    expect(rpcs().map((r) => r.authorization)).toEqual([`Bearer ${MINTED}`, `Bearer ${MINTED}`]);
+    // The bridge forgets it: one 401, one new open, one repeat.
+    bridge.handler = (_req, res, seen) => {
+      if (seen.url === "/api/auth/open") json(res, 200, { token: MINTED_2 });
+      else if (seen.authorization === `Bearer ${MINTED_2}`) {
+        json(res, 200, { json: { agents: [row("a1")], hiddenCount: 0, cursor: 0 } });
+      } else json(res, 401, {});
+    };
+    resultOf(await run(new HerdrConnector({ url: bridge.url }), "herdr_list_agents"));
+    expect(opens()).toHaveLength(2);
+    expect(readFileSync(file, "utf8")).toContain(MINTED_2);
+  });
+
+  it("waits out a short rate limit instead of failing", async () => {
+    let calls = 0;
+    bridge.handler = (_req, res, seen) => {
+      if (seen.url !== "/api/auth/open") {
+        json(res, 200, { json: { agents: [row("a1")], hiddenCount: 0, cursor: 0 } });
+      } else if (++calls === 1) {
+        res.writeHead(429, { "retry-after": "1", "content-type": "application/json" });
+        res.end("{}");
+      } else json(res, 200, { token: MINTED });
+    };
+    resultOf(await run(sessionConnector, "herdr_list_agents"));
+    expect(opens()).toHaveLength(2);
+  });
+
+  it("fails with a clear error on a long 429 and leaks nothing", async () => {
     bridge.handler = (_req, res) => {
-      res.writeHead(429, { "retry-after": "30", "content-type": "application/json" });
+      res.writeHead(429, { "retry-after": "120", "content-type": "application/json" });
       res.end(JSON.stringify({ token: MINTED, error: "slow down" }));
     };
     const message = errorOf(await run(sessionConnector, "herdr_list_agents"));
-    expect(message).toMatch(/30/);
+    expect(message).toMatch(/120/);
     expect(message).not.toContain(MINTED);
     expect(rpcs()).toHaveLength(0);
   });

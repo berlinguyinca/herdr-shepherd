@@ -1,4 +1,4 @@
-import { mkdtempSync, readFileSync, rmSync, statSync } from "node:fs";
+import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -528,5 +528,62 @@ describe("ui command", () => {
   it("cannot take the token from stdin, which the view needs for keys", async () => {
     const { done } = run(["ui", "--url", fixture.origin, "--token-stdin"]);
     await expect(done).rejects.toThrow("--token-stdin");
+  });
+});
+
+describe("bridge session reuse", () => {
+  const MINTED = "bridge-session-one-not-real";
+  const file = () => path.join(dir, "client.json");
+  const listAgents = () =>
+    fixture.json.set("agents/list", (_input, seen) =>
+      seen.headers.authorization === `Bearer ${MINTED}`
+        ? { agents: [agentRow("a1", "idle")], hiddenCount: 0, cursor: 1 }
+        : new Response("{}", { status: 401 }),
+    );
+  const opens = () => fixture.seen.filter((s) => s.url === "/api/auth/open");
+
+  it("keeps the minted token in an owner-only file and reuses it without a second open", async () => {
+    fixture.json.set("/api/auth/open", () => ({ token: MINTED }));
+    listAgents();
+    const first = run(["agents", "--once", "--url", fixture.origin]);
+    await first.done;
+    const second = run(["agents", "--once", "--url", fixture.origin]);
+    await second.done;
+    expect(opens()).toHaveLength(1);
+    expect(second.stdout()).toMatch(/idle\s+a1/);
+    expect(statSync(file()).mode & 0o777).toBe(0o600);
+    expect(readFileSync(file(), "utf8")).toContain(MINTED);
+    for (const text of [first.stdout(), first.stderr(), second.stdout(), second.stderr()]) {
+      expect(text).not.toContain(MINTED);
+    }
+  });
+
+  it("opens a new session once when the kept token is refused", async () => {
+    fixture.json.set("/api/auth/open", () => ({ token: MINTED }));
+    listAgents();
+    writeFileSync(
+      file(),
+      JSON.stringify({ bridgeSession: { url: fixture.origin, token: "expired-not-real" } }),
+    );
+    const { done, stdout } = run(["agents", "--once", "--url", fixture.origin]);
+    await done;
+    expect(opens()).toHaveLength(1);
+    expect(stdout()).toMatch(/idle\s+a1/);
+    expect(readFileSync(file(), "utf8")).toContain(MINTED);
+  });
+
+  it("waits out a rate limit and then signs in", async () => {
+    let calls = 0;
+    fixture.json.set("/api/auth/open", () =>
+      ++calls === 1
+        ? new Response("{}", { status: 429, headers: { "retry-after": "1" } })
+        : { token: MINTED },
+    );
+    listAgents();
+    const { done, stdout, stderr } = run(["agents", "--once", "--url", fixture.origin]);
+    await done;
+    expect(opens()).toHaveLength(2);
+    expect(stdout()).toMatch(/idle\s+a1/);
+    expect(stderr()).toContain("Waiting for the dashboard");
   });
 });

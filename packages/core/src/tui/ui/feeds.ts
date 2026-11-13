@@ -18,6 +18,30 @@ import { itemKey } from "./state.js";
 
 export type Line = { key: string; tone: "you" | "them" | "event"; text: string };
 export type Report = (message: string) => void;
+/** A question a room or bot is waiting on; `a` answers it. */
+export type Ask = { runId: string; messageId: string; text: string };
+export type Target = { botId: string } | { groupId: string };
+
+const targetOf = (item: SidebarItem): Target =>
+  item.kind === "room" ? { groupId: item.id } : { botId: item.id };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+/** The open question in a message, if any; `answered` asks and plain text give undefined. */
+function askIn(message: Record<string, unknown>): Ask | undefined {
+  const blocks = Array.isArray(message.blocks) ? message.blocks : [];
+  const messageId = message.id ?? message.messageId;
+  if (typeof message.runId !== "string" || typeof messageId !== "string") return undefined;
+  for (const block of blocks) {
+    if (isRecord(block) && block.kind === "ask" && typeof block.text === "string") {
+      return block.status === "pending"
+        ? { runId: message.runId, messageId, text: sanitize(block.text) }
+        : undefined;
+    }
+  }
+  return undefined;
+}
 
 const MAX_LINES = 500;
 const RETRY_MS = 1500;
@@ -53,6 +77,28 @@ export async function follow<F>(
     }
     await sleep(RETRY_MS, undefined, { signal }).catch(() => undefined);
   }
+}
+
+export function useRooms(
+  client: TuiClient,
+  tick: number,
+  report: Report,
+): { id: string; name: string }[] {
+  const [rooms, setRooms] = useState<{ id: string; name: string }[]>([]);
+  useEffect(() => {
+    let live = true;
+    client.groups.list().then(
+      (list) =>
+        live &&
+        setRooms(list.filter((room) => !room.archivedAt).map((r) => ({ id: r.id, name: r.name }))),
+      // A server without rooms (or without this route) just shows no rooms section.
+      (error) => live && report(explainRpcError(error, "groups/list").message),
+    );
+    return () => {
+      live = false;
+    };
+  }, [client, tick, report]);
+  return rooms;
 }
 
 /** The agent list, kept current from the list stream. `tick` reloads it. */
@@ -118,11 +164,13 @@ export function useTimeline(
   item: SidebarItem | undefined,
   tick: number,
   report: Report,
-): Line[] {
+): { lines: Line[]; ask: Ask | undefined } {
   const [lines, setLines] = useState<Line[]>([]);
+  const [ask, setAsk] = useState<Ask | undefined>();
   const key = item ? itemKey(item) : "";
   useEffect(() => {
     setLines([]);
+    setAsk(undefined);
     if (!item) return;
     const controller = new AbortController();
     const seen = new Set<string>();
@@ -131,11 +179,11 @@ export function useTimeline(
       for (const line of fresh) seen.add(line.key);
       if (fresh.length > 0) setLines((prev) => [...prev, ...fresh].slice(-MAX_LINES));
     };
-    const load = item.kind === "agent" ? followAgent : followBot;
-    void load(client, item.id, add, controller.signal, report);
+    if (item.kind === "agent") void followAgent(client, item.id, add, controller.signal, report);
+    else void followThread(client, targetOf(item), add, setAsk, controller.signal, report);
     return () => controller.abort();
   }, [client, key, tick, report]);
-  return lines;
+  return { lines, ask };
 }
 
 type Add = (lines: Line[]) => void;
@@ -175,16 +223,24 @@ async function followAgent(
   );
 }
 
-async function followBot(
+/** A bot's or a room's thread: history, then live. Pending questions are reported through `setAsk`. */
+async function followThread(
   client: TuiClient,
-  botId: string,
+  target: Target,
   add: Add,
+  setAsk: (ask: Ask | undefined) => void,
   signal: AbortSignal,
   report: Report,
 ): Promise<void> {
   let cursor: number;
+  let open: Ask | undefined;
+  const track = (ask: Ask | undefined) => {
+    open = ask;
+    setAsk(ask);
+  };
   try {
-    const snapshot = await client.threads.get({ botId });
+    const snapshot = await client.threads.get(target);
+    track([...snapshot.messages].reverse().map(askIn).find(Boolean));
     add(
       snapshot.messages.map((message) => ({
         key: message.id,
@@ -199,11 +255,18 @@ async function followBot(
   }
   await follow(
     "threads/subscribe",
-    (stream) => client.threads.subscribe({ botId, cursor }, { signal: stream }),
+    (stream) => client.threads.subscribe({ ...target, cursor }, { signal: stream }),
     (event) => {
       // Keep-alive frames are `{type:"heartbeat"}` with no payload.
       if (!event.id) return;
       cursor = Math.max(cursor, event.seq);
+      if (event.type === "thread.message.created" || event.type === "thread.message.updated") {
+        const ask = askIn(event.payload);
+        if (ask) track(ask);
+        else if (open && (event.payload.id ?? event.payload.messageId) === open.messageId) {
+          track(undefined);
+        }
+      }
       if (event.type === "thread.message.created") {
         const text = messageText(event.payload);
         if (text) {
@@ -213,6 +276,7 @@ async function followBot(
         return;
       }
       const end = chatLineFor(event);
+      if (end.kind === "end") track(undefined);
       if (end.kind === "end" && end.text) {
         add([{ key: event.id, tone: "event", text: end.text }]);
       }
@@ -222,14 +286,33 @@ async function followBot(
   );
 }
 
-/** Messages a bot; the reply arrives on the thread stream. */
-export async function sendToBot(client: TuiClient, botId: string, text: string): Promise<void> {
-  await client.threads.send({ botId, text, clientNonce: randomUUID() });
+/** Messages a bot, a room or an agent (its bot id); the reply arrives on the thread stream. */
+export async function sendMessage(
+  client: TuiClient,
+  item: SidebarItem,
+  text: string,
+): Promise<void> {
+  await client.threads.send({ ...targetOf(item), text, clientNonce: randomUUID() });
+}
+
+/** Answers the open question in a room or bot thread. */
+export async function answerAsk(
+  client: TuiClient,
+  item: SidebarItem,
+  ask: Ask,
+  answer: string,
+): Promise<void> {
+  await client.threads.answer({
+    ...targetOf(item),
+    runId: ask.runId,
+    messageId: ask.messageId,
+    answer,
+  });
 }
 
 /**
- * The bridge has no "send to agent" procedure; the text is typed into the agent's terminal, then
- * Enter. Callers confirm with the person first.
+ * Fallback when the bridge cannot message an agent: the text is typed into the agent's terminal,
+ * then Enter. Callers confirm with the person first.
  */
 export async function typeIntoAgent(
   client: TuiClient,

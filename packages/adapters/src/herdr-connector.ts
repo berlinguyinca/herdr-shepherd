@@ -14,6 +14,13 @@ import {
   TerminalOkOutputSchema,
   TerminalOpenOutputSchema,
 } from "@rakazo/contracts";
+import {
+  BRIDGE_OPEN_WAIT_SECONDS,
+  clientFilePath,
+  readBridgeSession,
+  retryAfterSeconds,
+  saveBridgeSession,
+} from "@rakazo/core/node/bridge-session";
 import { discoverHerdrUrl } from "@rakazo/core/node/herdr-discovery";
 import { isOwnerNetworkAddress, isOwnerNetworkHost } from "@rakazo/core/node/owner-network";
 import { z } from "zod";
@@ -610,7 +617,7 @@ export class HerdrConnector implements ConnectorProvider {
     if (minted && reply.status === 401) {
       // The minted session expired or was revoked: mint a new one and retry this call once.
       if (this.session === minted) this.session = undefined;
-      reply = await send(await this.sessionToken(context, timeoutMs));
+      reply = await send(await this.sessionToken(context, timeoutMs, true));
     }
     if (reply.status === 401 || reply.status === 403) {
       throw new HerdrToolError(
@@ -635,11 +642,11 @@ export class HerdrConnector implements ConnectorProvider {
   }
 
   /** One session per connector; concurrent calls share the one open (the bridge limits opens). */
-  private sessionToken(context: AdapterContext, timeoutMs: number): Promise<string> {
+  private sessionToken(context: AdapterContext, timeoutMs: number, fresh = false): Promise<string> {
     if (!this.session) {
       // Shared by every waiting call, so it runs under its own limit, not one caller's signal.
       const owned = { ...context, signal: new AbortController().signal };
-      const opened = this.openSession(owned, timeoutMs);
+      const opened = this.keptOrOpenedSession(owned, timeoutMs, fresh);
       this.session = opened;
       opened.catch(() => {
         if (this.session === opened) this.session = undefined;
@@ -648,8 +655,30 @@ export class HerdrConnector implements ConnectorProvider {
     return this.session;
   }
 
+  /**
+   * The session the terminal view or an earlier run kept in the client file, unless the bridge just
+   * refused it; otherwise a new one, which is kept for them in turn.
+   */
+  private async keptOrOpenedSession(
+    context: AdapterContext,
+    timeoutMs: number,
+    fresh: boolean,
+  ): Promise<string> {
+    const endpoint = await this.resolveEndpoint();
+    const file = clientFilePath(process.env);
+    const kept = endpoint && !fresh ? readBridgeSession(file, endpoint.base) : undefined;
+    if (kept) return kept;
+    const token = await this.openSession(context, timeoutMs);
+    if (endpoint) saveBridgeSession(file, endpoint.base, token);
+    return token;
+  }
+
   /** Ask the bridge for an owner session. Never logs, echoes or returns the token to the model. */
-  private async openSession(context: AdapterContext, timeoutMs: number): Promise<string> {
+  private async openSession(
+    context: AdapterContext,
+    timeoutMs: number,
+    waited = false,
+  ): Promise<string> {
     const reply = await this.post(
       "/api/auth/open",
       { origin: HERDR_OPEN_ORIGIN },
@@ -658,8 +687,11 @@ export class HerdrConnector implements ConnectorProvider {
       timeoutMs,
     );
     if (reply.status === 429) {
-      const seconds = Number(reply.headers.get("retry-after"));
-      const wait = Number.isFinite(seconds) && seconds > 0 ? Math.ceil(seconds) : 30;
+      const wait = retryAfterSeconds(reply.headers.get("retry-after"));
+      if (!waited && wait <= BRIDGE_OPEN_WAIT_SECONDS) {
+        await new Promise((resolve) => setTimeout(resolve, wait * 1000));
+        return this.openSession(context, timeoutMs, true);
+      }
       throw new HerdrToolError(
         `herdr limits how often a session can be opened. Try again in about ${wait} seconds.`,
       );

@@ -2,6 +2,7 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import type { ContractRouterClient } from "@orpc/contract";
 import type { AppContract } from "@rakazo/contracts";
+import { retryAfterSeconds } from "../node/bridge-session.js";
 import type { Connection } from "./config.js";
 import { TuiError } from "./errors.js";
 import { oneLine } from "./render.js";
@@ -133,6 +134,13 @@ export async function signInWithPassword(
 /** The Origin herdr's bridge must list in `open_owner_origins` (same value the herdr connector sends). */
 export const BRIDGE_OPEN_ORIGIN = "shepherd://";
 
+/** The server allows another sign-in only after `seconds`. */
+export class RateLimitedError extends TuiError {
+  constructor(readonly seconds: number) {
+    super(`The dashboard allows another sign-in in about ${seconds} seconds.`);
+  }
+}
+
 export async function openOwnerSession(
   url: string,
   fetchImpl: FetchFn = fetch,
@@ -147,6 +155,9 @@ export async function openOwnerSession(
     throw new TuiError(
       "The open-owner server refused this client (network or origin not allowed). Pass --token or sign in with --email.",
     );
+  }
+  if (response.status === 429) {
+    throw new RateLimitedError(retryAfterSeconds(response.headers.get("retry-after")));
   }
   if (!response.ok) throw new TuiError(`Open-owner sign-in failed (HTTP ${response.status}).`);
   const token = await tokenFrom(response);

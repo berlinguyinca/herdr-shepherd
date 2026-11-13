@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AgentRow } from "@rakazo/contracts";
+import { readBridgeSession } from "../node/bridge-session.js";
 import type { HerdrDiscoveryOptions } from "../node/herdr-discovery.js";
 import { discoverHerdrUrl } from "../node/herdr-discovery.js";
 import type { ConnectionFlags, TuiCommand } from "./args.js";
@@ -27,7 +28,6 @@ import {
 } from "./render.js";
 import type { FetchFn, TuiClient } from "./rpc.js";
 import {
-  BRIDGE_OPEN_ORIGIN,
   checkHealth,
   createTuiClient,
   explainRpcError,
@@ -35,6 +35,7 @@ import {
   openOwnerSession,
   signInWithPassword,
 } from "./rpc.js";
+import { openBridgeSession, withSessionRetry } from "./session.js";
 import {
   createDetachFilter,
   createInputSequencer,
@@ -92,8 +93,14 @@ export async function runTui(options: TuiRunOptions): Promise<void> {
     flags.token = await readToken(options.input);
   }
   if (command.kind === "login") return login(context, flags);
-  const connection = await authenticate(context, flags);
-  const client = createTuiClient(connection, context.fetchImpl);
+  const { connection, bridge } = await authenticate(context, flags);
+  // A kept bridge session can have been revoked since the last run; one 401 opens a new one.
+  const fetchImpl = bridge
+    ? withSessionRetry(context.fetchImpl, connection, () =>
+        openBridgeSession(sessionContext(context, false), connection.url, true),
+      )
+    : context.fetchImpl;
+  const client = createTuiClient(connection, fetchImpl);
   switch (command.kind) {
     case "ui": {
       if (!context.interactive) throw new TuiError("The full-screen view needs a terminal.");
@@ -128,16 +135,29 @@ async function readToken(input: NodeJS.ReadableStream): Promise<string> {
 }
 
 /** Server URL plus a token from flag, env, saved file, or an open-owner/password sign-in. */
-async function authenticate(context: Context, given: ConnectionFlags): Promise<Connection> {
+async function authenticate(
+  context: Context,
+  given: ConnectionFlags,
+): Promise<{ connection: Connection; bridge: boolean }> {
   const saved = readClientFile(context.file);
   const flags = await withDiscoveredUrl(context, given, saved);
   const base = resolveConnection(flags, context.env, saved);
   const warning = insecureUrlWarning(base.url);
   if (warning) context.warn(warning);
-  if (base.token) return base;
-  const token = await obtainToken(context, base.url, flags.email, flags.insecure === true);
-  return { ...base, token };
+  if (base.token) return { connection: base, bridge: false };
+  const kept = flags.email ? undefined : readBridgeSession(context.file, base.url);
+  if (kept) return { connection: { ...base, token: kept }, bridge: true };
+  const opened = await obtainToken(context, base.url, flags.email, flags.insecure === true);
+  return { connection: { ...base, token: opened.token }, bridge: opened.bridge };
 }
+
+/** What opening a bridge session needs; `notify` is off while the full-screen view owns the screen. */
+const sessionContext = (context: Context, notify = true) => ({
+  file: context.file,
+  fetchImpl: context.fetchImpl,
+  signal: context.signal,
+  ...(notify ? { notify: context.warn } : {}),
+});
 
 /** With no URL from a flag, the environment or the saved file, a herdr dashboard on the tailnet. */
 async function withDiscoveredUrl(
@@ -155,30 +175,19 @@ async function obtainToken(
   url: string,
   email: string | undefined,
   insecure: boolean,
-): Promise<string> {
-  if (email) return signInPrompt(context, url, email, insecure);
+): Promise<{ token: string; bridge: boolean }> {
+  if (email) return { token: await signInPrompt(context, url, email, insecure), bridge: false };
   const capabilities = await fetchCapabilities(url, context.fetchImpl);
-  if (capabilities?.openOwner) return openOwnerSession(url, context.fetchImpl);
-  const bridge = await openBridgeSession(context, url);
-  if (bridge) return bridge;
+  if (capabilities?.openOwner) {
+    return { token: await openOwnerSession(url, context.fetchImpl), bridge: false };
+  }
+  const bridge = await openBridgeSession(sessionContext(context), url);
+  if (bridge) return { token: bridge, bridge: true };
   if (capabilities === null) {
     // No auth routes at all (herdr's bridge): a token is the only way in.
     throw new TuiError("No token. Pass --token, set SHEPHERD_TOKEN, or run `pnpm tui login`.");
   }
   throw new TuiError("Not signed in. Run `pnpm tui login` or pass --email or --token.");
-}
-
-/**
- * herdr's bridge opens an owner session for the `shepherd://` origin when its operator allowlisted
- * it (`open_owner_origins`); it does not advertise that as a capability. Any refusal falls back to
- * the token and password routes.
- */
-async function openBridgeSession(context: Context, url: string): Promise<string | undefined> {
-  try {
-    return await openOwnerSession(url, context.fetchImpl, BRIDGE_OPEN_ORIGIN);
-  } catch {
-    return undefined;
-  }
 }
 
 async function signInPrompt(
@@ -237,7 +246,7 @@ async function loginToken(
   const capabilities = await fetchCapabilities(url, context.fetchImpl);
   if (!email && capabilities?.openOwner) return openOwnerSession(url, context.fetchImpl);
   if (!email) {
-    const bridge = await openBridgeSession(context, url);
+    const bridge = await openBridgeSession(sessionContext(context), url, true);
     if (bridge) return bridge;
   }
   if (!prompter) {

@@ -39,6 +39,11 @@
       "development": "./src/node/herdr-discovery.ts",
       "default": "./src/node/herdr-discovery.ts"
     },
+    "./node/bridge-session": {
+      "types": "./src/node/bridge-session.ts",
+      "development": "./src/node/bridge-session.ts",
+      "default": "./src/node/bridge-session.ts"
+    },
     "./node/shutdown-signals": {
       "types": "./src/node/shutdown-signals.ts",
       "development": "./src/node/shutdown-signals.ts",

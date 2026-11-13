@@ -39,6 +39,47 @@ const botMessage = (id: string, role: "user" | "bot", text: string) => ({
   createdAt: "2026-01-01T00:00:00Z",
 });
 
+const group = (id: string, name: string) => ({ id, name, archivedAt: null });
+
+const askMessage = (status: "pending" | "answered") => ({
+  id: "m7",
+  threadId: "t9",
+  seq: 7,
+  role: "bot",
+  runId: "run7",
+  blocks: [{ kind: "ask", text: "Deploy to staging?", status }],
+  createdAt: "2026-01-01T00:00:00Z",
+});
+
+const groupSnapshot = (messages: unknown[]) => ({
+  threadId: "t9",
+  cursor: 7,
+  messages,
+  olderCursor: null,
+  run: null,
+});
+
+const threadEvent = (id: string, seq: number, type: string, payload: unknown) => ({
+  id,
+  spaceId: "s",
+  threadId: "t9",
+  seq,
+  type,
+  createdAt: "2026-01-01T00:00:00Z",
+  payload,
+});
+
+const withRoom = (fixture: FixtureServer) =>
+  fixture.json.set("groups/list", () => [group("g1", "Ops room")]);
+
+const notFound = () =>
+  new Response(
+    JSON.stringify({
+      json: { defined: false, code: "NOT_FOUND", status: 404, message: "Not found", data: {} },
+    }),
+    { status: 404, headers: { "content-type": "application/json" } },
+  );
+
 let fixture: FixtureServer;
 let aborted: () => boolean;
 
@@ -64,7 +105,9 @@ beforeEach(async () => {
     olderCursor: null,
     run: null,
   }));
-  fixture.json.set("threads/send", () => ({ ok: true }));
+  fixture.json.set("groups/list", () => []);
+  fixture.json.set("threads/send", () => ({ taskId: "k1", runId: "r1", seq: 9 }));
+  fixture.json.set("threads/answer", () => ({ ok: true }));
   fixture.json.set("terminal/open", () => ({ terminalId: "term1", seq: 1, rows: 24, cols: 80 }));
   fixture.json.set("terminal/input", () => ({ ok: true }));
   fixture.json.set("terminal/close", () => ({ ok: true }));
@@ -156,21 +199,117 @@ describe("full-screen view", () => {
     await see("live reply");
   });
 
-  it("types into an agent only after an explicit confirm", async () => {
+  it("assigns work to an agent as a message to its bot id, only after an explicit confirm", async () => {
     const { view, type, see } = start();
     await see("Agent a2");
     await type("n");
     await type("run the tests");
     view.stdin.write("\r");
     await see("Send to Agent a2: run the tests");
+    expect(calls("threads/send")).toHaveLength(0);
+    view.stdin.write("\r");
+    await until(() => calls("threads/send").length === 1);
+    expect(calls("threads/send")[0]?.body).toMatchObject({
+      json: { botId: "a2", text: "run the tests" },
+    });
+    await sleep(100);
     expect(calls("terminal/open")).toHaveLength(0);
+  });
+
+  it("falls back to typing into the terminal when the bridge cannot message an agent, and says so", async () => {
+    fixture.json.set("threads/send", notFound);
+    const { view, type, see } = start();
+    await see("Agent a2");
+    await type("n");
+    await type("run the tests");
+    view.stdin.write("\r");
+    await see("Send to Agent a2: run the tests");
     view.stdin.write("\r");
     await until(() => calls("terminal/close").length === 1);
     expect(calls("terminal/open")[0]?.body).toMatchObject({ json: { id: "a2" } });
     const input = calls("terminal/input")[0]?.body as { json: { data: string; n: number } };
     expect(new TextDecoder().decode(fromBase64(input.json.data))).toBe("run the tests\r");
     expect(input.json.n).toBe(1);
-    await see("Sent to Agent a2");
+    await see("by typing into its terminal");
+  });
+
+  it("lists rooms first, shows a room's history, follows it live and sends to it", async () => {
+    withRoom(fixture);
+    fixture.json.set("threads/get", (body) =>
+      (body as { groupId?: string }).groupId
+        ? groupSnapshot([botMessage("g-m1", "bot", "room history")])
+        : groupSnapshot([]),
+    );
+    const { view, type, see, screen } = start();
+    await see("Ops room");
+    expect(screen().indexOf("ROOMS")).toBeLessThan(screen().indexOf("AGENTS"));
+    await see("room history");
+    expect(calls("threads/get")[0]?.body).toMatchObject({ json: { groupId: "g1" } });
+    await until(() => (fixture.streams.get("threads/subscribe") ?? []).length > 0);
+    fixture.emit("threads/subscribe", { type: "heartbeat" });
+    fixture.emit(
+      "threads/subscribe",
+      threadEvent("ev1", 8, "thread.message.created", {
+        id: "g-m2",
+        role: "bot",
+        blocks: [{ kind: "text", text: "room live" }],
+      }),
+    );
+    await see("room live");
+    expect(calls("threads/subscribe")[0]?.body).toMatchObject({ json: { groupId: "g1" } });
+    await type("n");
+    await type("hello room");
+    view.stdin.write("\r");
+    await until(() => calls("threads/send").length === 1);
+    const body = calls("threads/send")[0]?.body as {
+      json: { groupId: string; clientNonce: string };
+    };
+    expect(body.json).toMatchObject({ groupId: "g1", text: "hello room" });
+    expect(body.json.clientNonce).toBeTruthy();
+  });
+
+  it("surfaces a pending ask in a room, answers it, and clears it once answered", async () => {
+    withRoom(fixture);
+    fixture.json.set("threads/get", () => groupSnapshot([askMessage("pending")]));
+    const { view, type, see, screen } = start();
+    await see("? Deploy to staging?");
+    await type("a");
+    await type("yes");
+    view.stdin.write("\r");
+    await until(() => calls("threads/answer").length === 1);
+    expect(calls("threads/answer")[0]?.body).toMatchObject({
+      json: { groupId: "g1", runId: "run7", messageId: "m7", answer: "yes" },
+    });
+    await until(() => (fixture.streams.get("threads/subscribe") ?? []).length > 0);
+    fixture.emit(
+      "threads/subscribe",
+      threadEvent("ev2", 8, "thread.message.updated", askMessage("answered")),
+    );
+    await until(() => !screen().includes("? Deploy to staging?"));
+  });
+
+  it("says plainly when answering is not allowed for this account", async () => {
+    withRoom(fixture);
+    fixture.json.set("threads/get", () => groupSnapshot([askMessage("pending")]));
+    fixture.json.set("threads/answer", notFound);
+    const { view, type, see } = start();
+    await see("? Deploy to staging?");
+    await type("a");
+    await type("yes");
+    view.stdin.write("\r");
+    await see("not allowed to answer");
+  });
+
+  it("sends no answer when no question is open", async () => {
+    withRoom(fixture);
+    const { view, type, see } = start();
+    await see("Ops room");
+    await type("a");
+    await type("yes");
+    await see("answer › yes");
+    view.stdin.write("\r");
+    await see("Nothing is waiting for an answer");
+    expect(calls("threads/answer")).toHaveLength(0);
   });
 
   it("sends nothing when the confirm step is cancelled", async () => {
@@ -191,10 +330,10 @@ describe("full-screen view", () => {
     const { type, see, screen } = start();
     await see("Agent a2");
     await type("?");
-    await see("attach to the selected agent");
+    await see("room: answer");
     await type("x");
     await see("Enter write");
-    expect(screen()).not.toContain("attach to the selected agent");
+    expect(screen()).not.toContain("room: answer");
   });
 
   it("shows a refused sign-in in the status line instead of crashing", async () => {

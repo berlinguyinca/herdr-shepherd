@@ -2,7 +2,7 @@ import { parseArgs } from "node:util";
 import { TuiError } from "./errors.js";
 
 export const TUI_USAGE = `Usage: pnpm tui [command] [options]
-  ui                          full-screen view of agents and bots (the default in a terminal)
+  ui                          full-screen view of rooms, agents and bots (the default in a terminal)
   login                       sign in and remember the server (url + token) in the client file
   agents [--all] [--once]     list agents and follow live changes (--once prints and exits)
   agent <id>                  show an agent's events and follow new ones

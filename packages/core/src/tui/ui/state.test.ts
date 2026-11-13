@@ -21,8 +21,18 @@ const row = (id: string, status: "blocked" | "working" | "idle", updated = "2026
 });
 
 const items: SidebarItem[] = buildSidebar(
+  [],
   [row("a1", "idle"), row("a2", "blocked")],
   [{ id: "b1", name: "Helper" }],
+);
+const withRoom: SidebarItem[] = buildSidebar(
+  [{ id: "g1", name: "Ops" }],
+  [row("a1", "idle")],
+  // The bridge lists every agent as a bot too; it shows once, as the agent.
+  [
+    { id: "a1", name: "Agent a1" },
+    { id: "b1", name: "Helper" },
+  ],
 );
 const press = (input: string, extra: Partial<Press> = {}): Press => ({ input, ...extra });
 const feed = (state: UiState, ...presses: Press[]) =>
@@ -32,6 +42,40 @@ describe("buildSidebar", () => {
   it("lists agents most urgent first, then bots", () => {
     expect(items.map(itemKey)).toEqual(["agent:a2", "agent:a1", "bot:b1"]);
     expect(items[0]).toMatchObject({ kind: "agent", status: "blocked", label: "Agent a2" });
+  });
+
+  it("puts rooms first and shows an agent once even when the bridge lists it as a bot", () => {
+    expect(withRoom.map(itemKey)).toEqual(["room:g1", "agent:a1", "bot:b1"]);
+  });
+});
+
+describe("rooms", () => {
+  const onRoom = (...presses: Press[]) =>
+    presses.reduce((s, p) => reduce(s, p, withRoom).state, initialState());
+
+  it("Enter writes to a room and sends without a confirm step", () => {
+    const s = onRoom(press("n"), press("h"), press("i"));
+    expect(s).toMatchObject({ mode: "compose", answering: false });
+    expect(reduce(s, press("", { enter: true }), withRoom).effect).toEqual({
+      kind: "send",
+      text: "hi",
+      to: withRoom[0],
+    });
+  });
+
+  it("a answers the room's open question and sends an answer effect", () => {
+    const s = onRoom(press("a"), press("y"), press("e"), press("s"));
+    expect(s).toMatchObject({ mode: "compose", answering: true, draft: "yes" });
+    expect(hintsFor(s, withRoom[0])).toBe("Enter answer  Esc cancel");
+    const step = reduce(s, press("", { enter: true }), withRoom);
+    expect(step.effect).toEqual({ kind: "answer", text: "yes", to: withRoom[0] });
+    expect(step.state).toMatchObject({ mode: "browse", answering: false });
+  });
+
+  it("Esc leaves answering, and hints offer a answer only on a room", () => {
+    expect(onRoom(press("a"), press("", { escape: true }))).toMatchObject({ answering: false });
+    expect(hintsFor(initialState(), withRoom[0])).toContain("a answer");
+    expect(hintsFor(initialState(), withRoom[1])).not.toContain("a answer");
   });
 });
 

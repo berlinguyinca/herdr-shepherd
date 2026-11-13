@@ -2,6 +2,7 @@ import type { AgentRow } from "@rakazo/contracts";
 import { oneLine, sanitize, sortAgents } from "../render.js";
 
 export type SidebarItem =
+  | { kind: "room"; id: string; label: string }
   | { kind: "agent"; id: string; label: string; status: AgentRow["status"] }
   | { kind: "bot"; id: string; label: string };
 
@@ -15,6 +16,8 @@ export type UiState = {
   mode: Mode;
   /** Text being typed; in confirm mode, the exact text that will be sent. */
   draft: string;
+  /** What the typed text is for: a message, or the answer to a room's open question. */
+  answering: boolean;
   /** Lines scrolled up from the newest. */
   scroll: number;
 };
@@ -34,7 +37,8 @@ export type Effect =
   | { kind: "quit" }
   | { kind: "refresh" }
   | { kind: "attach"; id: string }
-  | { kind: "send"; text: string; to: SidebarItem };
+  | { kind: "send"; text: string; to: SidebarItem }
+  | { kind: "answer"; text: string; to: SidebarItem };
 
 export type Step = { state: UiState; effect?: Effect };
 
@@ -45,19 +49,26 @@ export const initialState = (): UiState => ({
   focus: "sidebar",
   mode: "browse",
   draft: "",
+  answering: false,
   scroll: 0,
 });
 
-/** Agents most urgent first, then bots. */
+/** Rooms, then agents most urgent first, then bots. The bridge also lists every agent as a bot; those are left out. */
 export function buildSidebar(
+  rooms: readonly { id: string; name: string }[],
   agents: Iterable<AgentRow>,
   bots: readonly { id: string; name: string }[],
 ): SidebarItem[] {
+  const rows = sortAgents(agents);
+  const agentIds = new Set(rows.map((row) => row.id));
   return [
-    ...sortAgents(agents).map(
+    ...rooms.map((room): SidebarItem => ({ kind: "room", id: room.id, label: room.name })),
+    ...rows.map(
       (row): SidebarItem => ({ kind: "agent", id: row.id, label: row.name, status: row.status }),
     ),
-    ...bots.map((bot): SidebarItem => ({ kind: "bot", id: bot.id, label: bot.name })),
+    ...bots
+      .filter((bot) => !agentIds.has(bot.id))
+      .map((bot): SidebarItem => ({ kind: "bot", id: bot.id, label: bot.name })),
   ];
 }
 
@@ -70,7 +81,12 @@ export const selectedItem = (
 export const truncate = (text: string, width: number): string =>
   width <= 0 ? "" : oneLine(text, width);
 
-const idle = (state: UiState): UiState => ({ ...state, mode: "browse", draft: "" });
+const idle = (state: UiState): UiState => ({
+  ...state,
+  mode: "browse",
+  draft: "",
+  answering: false,
+});
 
 function move(state: UiState, items: readonly SidebarItem[], delta: number): UiState {
   const current = items.indexOf(selectedItem(items, state) as SidebarItem);
@@ -92,14 +108,26 @@ function browse(state: UiState, press: Press, items: readonly SidebarItem[]): St
     return { state: { ...state, focus: state.focus === "sidebar" ? "main" : "sidebar" } };
   if (press.escape) return { state: { ...state, focus: "sidebar" } };
   if ((press.enter || press.input === "n") && item) {
-    return { state: { ...state, mode: "compose", draft: "" } };
+    return { state: { ...state, mode: "compose", draft: "", answering: false } };
+  }
+  if (press.input === "a" && item?.kind === "room") {
+    return { state: { ...state, mode: "compose", draft: "", answering: true } };
   }
   if (press.input === "a" && item?.kind === "agent")
     return { state, effect: { kind: "attach", id: item.id } };
   if (press.input === "c") {
     const bot = items.find((candidate) => candidate.kind === "bot");
     if (bot)
-      return { state: { ...state, selected: itemKey(bot), scroll: 0, mode: "compose", draft: "" } };
+      return {
+        state: {
+          ...state,
+          selected: itemKey(bot),
+          scroll: 0,
+          mode: "compose",
+          draft: "",
+          answering: false,
+        },
+      };
   }
   if (press.input === "r") return { state, effect: { kind: "refresh" } };
   if (press.input === "?") return { state: { ...state, mode: "help" } };
@@ -114,7 +142,8 @@ function compose(state: UiState, press: Press, item: SidebarItem | undefined): S
     if (!text || !item) return { state };
     // Text typed into a live agent is only sent after a second, explicit Enter.
     if (item.kind === "agent") return { state: { ...state, mode: "confirm", draft: text } };
-    return { state: idle(state), effect: { kind: "send", text, to: item } };
+    const kind = state.answering ? "answer" : "send";
+    return { state: idle(state), effect: { kind, text, to: item } };
   }
   if (press.backspace) return { state: { ...state, draft: state.draft.slice(0, -1) } };
   if (press.ctrl || press.tab || press.up || press.down || !press.input) return { state };
@@ -145,12 +174,14 @@ export function reduce(state: UiState, press: Press, items: readonly SidebarItem
 export function hintsFor(state: UiState, item: SidebarItem | undefined): string {
   if (state.mode === "confirm") return "Enter confirm  Esc cancel";
   if (state.mode === "compose") {
-    return `Enter ${item?.kind === "agent" ? "review" : "send"}  Esc cancel`;
+    const enter = item?.kind === "agent" ? "review" : state.answering ? "answer" : "send";
+    return `Enter ${enter}  Esc cancel`;
   }
   if (state.mode === "help") return "any key closes";
   const keys = ["↑↓ move", "Tab pane"];
   if (item) keys.push("Enter write");
   if (item?.kind === "agent") keys.push("a attach");
+  if (item?.kind === "room") keys.push("a answer");
   keys.push("c chat", "r refresh", "? help", "q quit");
   return keys.join("  ");
 }
