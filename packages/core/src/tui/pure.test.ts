@@ -60,7 +60,9 @@ describe("parseTuiArgs", () => {
     });
     expect(parseTuiArgs(["attach", "abc"]).command).toEqual({ kind: "attach", id: "abc" });
     expect(parseTuiArgs(["chat", "--bot", "b"]).command).toEqual({ kind: "chat", botId: "b" });
-    expect(parseTuiArgs([]).command).toEqual({ kind: "help" });
+    expect(parseTuiArgs([]).command).toEqual({ kind: "agents", all: false, once: false });
+    expect(parseTuiArgs(["--help"]).command).toEqual({ kind: "help" });
+    expect(parseTuiArgs(["help"]).command).toEqual({ kind: "help" });
   });
 
   it("rejects unknown commands, missing ids and unknown flags", () => {
