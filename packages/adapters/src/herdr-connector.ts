@@ -16,6 +16,7 @@ import {
 } from "@rakazo/contracts";
 import { isOwnerNetworkAddress, isOwnerNetworkHost } from "@rakazo/core/node/owner-network";
 import { z } from "zod";
+import { discoverHerdrUrl } from "./herdr-discovery.js";
 import type { ResolveHostname, SafeRemoteFetch } from "./remote-mcp.js";
 import { createSafeRemoteFetch } from "./remote-mcp.js";
 
@@ -37,9 +38,12 @@ import { createSafeRemoteFetch } from "./remote-mcp.js";
 export const HERDR_CONNECTOR_ID = "herdr";
 export const HERDR_URL_ENV = "RAKAZO_HERDR_URL";
 export const HERDR_TOKEN_ENV = "RAKAZO_HERDR_TOKEN";
+/** `off` stops the connector from looking for a dashboard on the tailnet when no URL is set. */
+export const HERDR_DISCOVER_ENV = "RAKAZO_HERDR_DISCOVER";
 
 export interface HerdrSettings {
-  url: string;
+  /** Unset: the connector looks for a dashboard on this computer's Tailscale network. */
+  url?: string;
   /** Unset: the connector opens its own owner session on the bridge (see `openSession`). */
   token?: string;
 }
@@ -51,7 +55,9 @@ export const HERDR_OPEN_ORIGIN = "shepherd://";
 export function herdrSettingsFromEnv(source: NodeJS.ProcessEnv): HerdrSettings | undefined {
   const url = source[HERDR_URL_ENV]?.trim();
   const token = source[HERDR_TOKEN_ENV]?.trim();
-  if (!url && !token) return undefined;
+  const discover =
+    source.RAKAZO_ACCESS_MODE === "open-owner" && source[HERDR_DISCOVER_ENV] !== "off";
+  if (!url && !token) return discover ? {} : undefined;
   if (!url) throw new Error(`${HERDR_TOKEN_ENV} needs ${HERDR_URL_ENV} to be set`);
   // The bridge token reaches the operator's own agents and is not tied to a user, so only a
   // single-owner deployment may hand it to bots; on a multi-user instance any user's bot could
@@ -397,11 +403,15 @@ export interface HerdrConnectorOptions extends HerdrFetchOptions {
   timeoutMs?: number;
   /** Own time limit for releasing the terminal, which no cancelled run may skip. */
   closeTimeoutMs?: number;
+  /** Finds the dashboard when the settings carry no URL; defaults to a Tailscale peer scan. */
+  discover?: () => Promise<string | undefined>;
 }
 
 export class HerdrConnector implements ConnectorProvider {
-  private readonly base: string;
-  private readonly fetchBridge: SafeRemoteFetch;
+  /** The dashboard's address and its pinned fetch; found on first use when no URL is set. */
+  private endpoint: { base: string; fetchBridge: SafeRemoteFetch } | undefined;
+  private search: Promise<void> | undefined;
+  private searchedAt = 0;
   private readonly allow: (key: string) => boolean;
   private readonly allowSend: (key: string) => boolean;
   private readonly timeoutMs: number;
@@ -409,14 +419,16 @@ export class HerdrConnector implements ConnectorProvider {
   /** Minted owner-session token, in memory only; never logged or returned. */
   private session: Promise<string> | undefined;
 
+  private readonly options: HerdrConnectorOptions;
+
   constructor(
     private readonly settings: HerdrSettings,
     options: HerdrConnectorOptions = {},
   ) {
-    this.base = normalizeHerdrUrl(settings.url);
+    this.options = options;
+    if (settings.url) this.endpoint = this.connect(settings.url);
     this.timeoutMs = options.timeoutMs ?? HERDR_LIMITS.timeoutMs;
     this.closeTimeoutMs = options.closeTimeoutMs ?? HERDR_LIMITS.closeTimeoutMs;
-    this.fetchBridge = createHerdrFetch(this.base, options);
     this.allow = createWindowLimiter(
       HERDR_LIMITS.callsPerWindow,
       HERDR_LIMITS.windowMs,
@@ -431,6 +443,26 @@ export class HerdrConnector implements ConnectorProvider {
     );
   }
 
+  private connect(url: string) {
+    const base = normalizeHerdrUrl(url);
+    return { base, fetchBridge: createHerdrFetch(base, this.options) };
+  }
+
+  /** The dashboard to talk to; without a URL, looked for on the tailnet (again after a minute). */
+  private async resolveEndpoint() {
+    if (this.endpoint) return this.endpoint;
+    const now = (this.options.now ?? Date.now)();
+    if (!this.search || now - this.searchedAt > 60_000) {
+      this.searchedAt = now;
+      this.search = (async () => {
+        const found = await (this.options.discover ?? discoverHerdrUrl)();
+        if (found) this.endpoint = this.connect(found);
+      })().catch(() => undefined);
+    }
+    await this.search;
+    return this.endpoint;
+  }
+
   describe() {
     return {
       id: HERDR_CONNECTOR_ID,
@@ -441,6 +473,8 @@ export class HerdrConnector implements ConnectorProvider {
   }
 
   async discoverTools(): Promise<ConnectorTool[]> {
+    // No dashboard configured or found: leave the tools out rather than offer ones that fail.
+    if (!(await this.resolveEndpoint())) return [];
     return HERDR_TOOLS.map((tool) => ({ ...tool }));
   }
 
@@ -657,10 +691,16 @@ export class HerdrConnector implements ConnectorProvider {
     context: AdapterContext,
     timeoutMs: number,
   ): Promise<{ status: number; headers: Headers; text: string }> {
+    const endpoint = await this.resolveEndpoint();
+    if (!endpoint) {
+      throw new HerdrToolError(
+        "No herdr dashboard found on your Tailscale network. Set herdr.url in shepherd.yaml.",
+      );
+    }
     const signal = AbortSignal.any([context.signal, AbortSignal.timeout(timeoutMs)]);
     let response: Response;
     try {
-      response = await this.fetchBridge(`${this.base}${path}`, {
+      response = await endpoint.fetchBridge(`${endpoint.base}${path}`, {
         method: "POST",
         headers: {
           accept: "application/json",

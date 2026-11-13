@@ -17,9 +17,9 @@
     shepherd_pnpm_dir: "{{ ansible_env.HOME }}/.local/share/shepherd-dev/bin"
     shepherd_api_port: 3100
     shepherd_web_origin: http://127.0.0.1:5173
-    # The herdr control plane runs on bender; its bridge is http://<tailscale ip> (port 80). Tailscale or loopback
-    # only: Shepherd refuses plain http to anything else.
-    shepherd_herdr_url: http://100.104.39.6
+    # Blank: Shepherd finds the herdr dashboard among your Tailscale peers by itself. Set it (for example
+    # http://<tailscale ip>, port 80) only to pin one host; Tailscale or loopback only, plain http elsewhere is refused.
+    shepherd_herdr_url: ""
     shepherd_llm_base_url: https://llm.metabolomics.us/v1
     shepherd_llm_default_model: deepseek_v4-flash-modality-text-quant-mxfp4
     shepherd_llm_models:
