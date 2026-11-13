@@ -15,10 +15,13 @@ export type OpenOutcome =
   | { kind: "ok" }
   | { kind: "failed"; reason: "network" | "refused" };
 
+/** `auth` is a rejected session (401); anything else is unreachable or a server fault. */
+export type FailureReason = "auth" | "other";
+
 export type BotsOutcome =
   | { kind: "pending" }
   | { kind: "loaded"; bots: readonly Bot[] }
-  | { kind: "failed" };
+  | { kind: "failed"; reason: FailureReason };
 
 export type SingleChatInputs = {
   /** null until the saved session has been read. */
@@ -43,4 +46,17 @@ export function resolveSingleChat({
   if (bots.kind === "pending") return { kind: "connecting" };
   const bot = pickDefaultBot(bots.bots);
   return bot ? { kind: "ready", bot } : { kind: "empty" };
+}
+
+/**
+ * Whether to open the owner session now: when none is saved, or when the saved one was refused,
+ * which means it is stale. At most once per attempt, so a server that refuses both stays offline.
+ */
+export function shouldOpenSession(input: {
+  hasSession: boolean;
+  openedThisAttempt: boolean;
+  lastFailure: FailureReason | null;
+}): boolean {
+  if (input.openedThisAttempt) return false;
+  return !input.hasSession || input.lastFailure === "auth";
 }

@@ -172,20 +172,16 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
   const [error, setError] = useState<string | null>(null);
   // Kept apart from action errors so a failed action never borrows the load's title.
   const [inboxLoading, setInboxLoading] = useState(false);
-  const [loadFailure, setLoadFailure] = useState<{
-    kind: LoadFailureKind;
-    message: string;
-  } | null>(null);
+  const [loadFailure, setLoadFailure] = useState<{ kind: LoadFailureKind; message: string } | null>(
+    null,
+  );
   const [sessionLoaded, setSessionLoaded] = useState(false);
   const [hasSession, setHasSession] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [organizeTarget, setOrganizeTarget] = useState<OrganizeTarget | null>(null);
   const organizeRequestId = useRef(0);
   const [activityMode, setActivityMode] = useState(false);
-  const [activity, setActivity] = useState<{
-    active: RunActivityRow[];
-    recent: RunActivityRow[];
-  }>({
+  const [activity, setActivity] = useState<{ active: RunActivityRow[]; recent: RunActivityRow[] }>({
     active: [],
     recent: [],
   });
@@ -368,13 +364,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     organizeFromMenu,
     editSectionFromMenu,
     deleteSection,
-  } = useInboxChatActions({
-    loadBots,
-    setBots,
-    setGroups,
-    setSpaces,
-    botSections,
-  });
+  } = useInboxChatActions({ loadBots, setBots, setGroups, setSpaces, botSections });
 
   const loadActivity = useCallback(async () => {
     if (spaceActionRef.current.busy || spaceActionRef.current.recoveryId) return;
@@ -550,10 +540,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
   });
   const router = useRouter();
   const pathname = usePathname();
-  const openParams = useGlobalSearchParams<{
-    botId?: string;
-    groupId?: string;
-  }>();
+  const openParams = useGlobalSearchParams<{ botId?: string; groupId?: string }>();
   const selectedChatId =
     pathname === "/thread"
       ? (openParams.botId ?? null)
@@ -713,11 +700,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
       if (spaceActionRef.current.busy || spaceActionRef.current.recoveryId) return;
       void openMobileSpace(bot.spaceId, () => {
         if (onShareSelect) onShareSelect(bot);
-        else
-          openChat({
-            pathname: "/thread",
-            params: { botId: bot.id, name: bot.name },
-          });
+        else openChat({ pathname: "/thread", params: { botId: bot.id, name: bot.name } });
       });
     },
     [openChat, onShareSelect],
@@ -726,10 +709,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     (group: MobileGroup | SpaceGroup) => {
       if (spaceActionRef.current.busy || spaceActionRef.current.recoveryId) return;
       void openMobileSpace(group.spaceId, () =>
-        openChat({
-          pathname: "/group-thread",
-          params: { groupId: group.id, name: group.name },
-        }),
+        openChat({ pathname: "/group-thread", params: { groupId: group.id, name: group.name } }),
       );
     },
     [openChat],
@@ -748,11 +728,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
         target = await findOrganizeTarget(
           kind,
           chat,
-          {
-            currentSpaceId: me?.spaceId,
-            current: { bots, groups, botSections },
-            spaces,
-          },
+          { currentSpaceId: me?.spaceId, current: { bots, groups, botSections }, spaces },
           isCurrent,
         );
       } catch (err) {
@@ -847,10 +823,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
                 indicatorStyle={appearance === "dark" ? "white" : "black"}
                 contentContainerStyle={[
                   styles.list,
-                  {
-                    paddingLeft: columnInsets.left,
-                    paddingRight: columnInsets.right,
-                  },
+                  { paddingLeft: columnInsets.left, paddingRight: columnInsets.right },
                 ]}
                 contentInsetAdjustmentBehavior="automatic"
                 refreshControl={
@@ -933,9 +906,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
             renameSection(sectionId, name, organizeTarget.spaceId)
           }
           onDeleteSection={async (sectionId) => {
-            await chatRpc(organizeTarget.spaceId, "botSections/remove", {
-              sectionId,
-            });
+            await chatRpc(organizeTarget.spaceId, "botSections/remove", { sectionId });
             await loadBots();
           }}
         />

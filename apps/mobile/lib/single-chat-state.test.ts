@@ -44,9 +44,10 @@ describe("resolveSingleChat", () => {
     expect(state.kind).toBe("offline");
   });
   it("is offline when the bot list fails", () => {
-    expect(resolveSingleChat(inputs({ hasSession: true, bots: { kind: "failed" } })).kind).toBe(
-      "offline",
-    );
+    expect(
+      resolveSingleChat(inputs({ hasSession: true, bots: { kind: "failed", reason: "other" } }))
+        .kind,
+    ).toBe("offline");
   });
   it("is empty with a session and no bots", () => {
     expect(
@@ -58,5 +59,29 @@ describe("resolveSingleChat", () => {
     expect(
       resolveSingleChat(inputs({ hasSession: true, bots: { kind: "loaded", bots } })).kind,
     ).toBe("empty");
+  });
+});
+
+describe("shouldOpenSession", () => {
+  it("opens when there is no saved session", () => {
+    expect(
+      shouldOpenSession({ hasSession: false, openedThisAttempt: false, lastFailure: null }),
+    ).toBe(true);
+  });
+  it("keeps a saved session that worked", () => {
+    expect(
+      shouldOpenSession({ hasSession: true, openedThisAttempt: false, lastFailure: null }),
+    ).toBe(false);
+    expect(
+      shouldOpenSession({ hasSession: true, openedThisAttempt: false, lastFailure: "other" }),
+    ).toBe(false);
+  });
+  it("reopens a saved session the list refused, but only once per attempt", () => {
+    expect(
+      shouldOpenSession({ hasSession: true, openedThisAttempt: false, lastFailure: "auth" }),
+    ).toBe(true);
+    expect(
+      shouldOpenSession({ hasSession: true, openedThisAttempt: true, lastFailure: "auth" }),
+    ).toBe(false);
   });
 });

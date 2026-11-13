@@ -1,6 +1,6 @@
-import { isRetryableError } from "@rakazo/core";
+import { isRetryableError, isUnauthorizedError } from "@rakazo/core";
 import { Redirect, useNavigation } from "expo-router";
-import { useEffect, useLayoutEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 import { openOwnerSession, rpc } from "../../lib/api";
 import { t } from "../../lib/i18n";
@@ -24,35 +24,56 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
     navigation.setOptions({ headerShown: false });
   }, [navigation]);
 
-  // Each attempt reads the saved session, opens one only if missing, then lists the bots.
+  // Each attempt reads the saved session, opens one if missing or refused by the last attempt, then lists the bots.
+  // A saved session the list refuses is stale: it is reopened once, then the list is tried again.
+  const lastFailure = useRef<FailureReason | null>(null);
   useEffect(() => {
     let cancelled = false;
+    let openedThisAttempt = false;
     setOpen({ kind: "idle" });
     setBots({ kind: "pending" });
+    const openSession = async () => {
+      openedThisAttempt = true;
+      setOpen({ kind: "pending" });
+      try {
+        await openOwnerSession();
+      } catch (error) {
+        if (!cancelled)
+          setOpen({ kind: "failed", reason: isRetryableError(error) ? "network" : "refused" });
+        return false;
+      }
+      if (cancelled) return false;
+      setOpen({ kind: "ok" });
+      return true;
+    };
     void (async () => {
       const saved = Boolean(await loadSessionToken());
       if (cancelled) return;
       setHasSession(saved);
-      if (!saved) {
-        setOpen({ kind: "pending" });
+      if (
+        shouldOpenSession({
+          hasSession: saved,
+          openedThisAttempt,
+          lastFailure: lastFailure.current,
+        })
+      )
+        if (!(await openSession())) return;
+      for (;;) {
         try {
-          await openOwnerSession();
-        } catch (error) {
-          if (!cancelled)
-            setOpen({
-              kind: "failed",
-              reason: isRetryableError(error) ? "network" : "refused",
-            });
+          const list = await rpc("bots/list");
+          lastFailure.current = null;
+          if (!cancelled) setBots({ kind: "loaded", bots: list });
           return;
+        } catch (error) {
+          if (cancelled) return;
+          const reason: FailureReason = isUnauthorizedError(error) ? "auth" : "other";
+          lastFailure.current = reason;
+          if (!shouldOpenSession({ hasSession: true, openedThisAttempt, lastFailure: reason })) {
+            setBots({ kind: "failed", reason });
+            return;
+          }
+          if (!(await openSession())) return;
         }
-        if (cancelled) return;
-        setOpen({ kind: "ok" });
-      }
-      try {
-        const list = await rpc("bots/list");
-        if (!cancelled) setBots({ kind: "loaded", bots: list });
-      } catch {
-        if (!cancelled) setBots({ kind: "failed" });
       }
     })();
     return () => {
