@@ -20,6 +20,8 @@ const ClientFileSchema = z.object({
   url: z.string().optional(),
   token: z.string().optional(),
   space: z.string().optional(),
+  /** The bridge session this computer opened last, shared by the TUI and the assistant connector. */
+  bridgeSession: z.object({ url: z.string(), token: z.string() }).optional(),
 });
 export type ClientFile = z.infer<typeof ClientFileSchema>;
 

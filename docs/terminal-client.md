@@ -3,12 +3,20 @@
 `pnpm tui` (or `shepherd tui`) is a terminal client for the oRPC contract. It runs inside any terminal, including a herdr pane, and talks to either a Shepherd server (this repo's `apps/api`) or herdr's bridge, which serves the same contract over plain oRPC JSON.
 
 ```sh
+pnpm tui                                          # full-screen view (in a terminal); same as `pnpm tui ui`
 pnpm tui login --url http://127.0.0.1:3100        # saves url + token (owner-only file)
 pnpm tui agents [--all] [--once]                  # list, then follow live changes
 pnpm tui agent <id>                               # history, then live events
 pnpm tui attach <id>                              # terminal; detach with Ctrl-] then q
 pnpm tui chat [--bot <id>]                        # talk to a bot; /quit leaves
 ```
+
+## Full-screen view
+
+A sidebar lists rooms, agents (most urgent first) and bots; the main pane shows the selected item's history and follows it live. Keys: `↑ ↓` move, `Tab` switches pane, `Enter` or `n` writes, `a` attaches to an agent or answers a room's open question, `c` chats with a bot, `r` reloads, `?` shows help, `q` quits.
+
+- Messages to a room or bot go out at once. A message to an agent is sent to its bot id and always asks you to confirm first; if the bridge cannot message agents, the text is typed into its terminal instead and the status line says so.
+- A room's open question shows above the input. Only the operator can answer it; other accounts get a plain "not allowed" line.
 
 ## Connection
 
@@ -17,6 +25,7 @@ The server URL, token and space come from, in order: flags (`--url`, `--token`, 
 With no token the client signs in for you where it can:
 
 - Open-owner servers: `POST /api/auth/open` with the server's own origin. The server only allows this from loopback or Tailscale with an allowed origin; if it refuses, pass `--token` or `--email`.
+- herdr's bridge allows one passwordless open per address every 30 seconds and each open retires the oldest session, so the session is kept in the client file (owner-only, never printed) and reused until the bridge refuses it, then opened once more. The assistant's herdr connector shares it. On a rate limit of 30 seconds or less the client waits and retries once.
 - Accounts servers: `--email you@example.com` prompts for the password without echo (needs a terminal).
 - Otherwise: `--token` / `SHEPHERD_TOKEN`.
 
