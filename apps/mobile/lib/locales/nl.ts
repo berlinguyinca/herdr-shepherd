@@ -236,6 +236,8 @@ export const NL_MESSAGES: Record<string, string> = {
   "Role (optional)": "Rol (optioneel)",
   "New assistant": "Nieuwe assistent",
   "Could not set default assistant": "Standaardassistent kon niet worden ingesteld",
+  "Assistant status": "Assistentstatus",
+  "+{count} more": "+{count} meer",
   "Switch assistant": "Van assistent wisselen",
   Create: "Aanmaken",
   "Delete space": "Space verwijderen",

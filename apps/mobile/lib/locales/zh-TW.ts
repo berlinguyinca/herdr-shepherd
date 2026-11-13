@@ -409,6 +409,8 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Role (optional)": "角色(選填)",
   "New assistant": "新助理",
   "Could not set default assistant": "無法設定預設助理",
+  "Assistant status": "助理狀態",
+  "+{count} more": "另外 {count} 個",
   "Switch assistant": "切換助理",
   "Could not update chat": "無法更新聊天",
   "Could not update computer": "無法更新電腦",

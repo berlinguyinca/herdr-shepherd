@@ -3,6 +3,7 @@ import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
 import { AssistantSwitcher } from "../components/single-chat/assistant-picker";
+import { StatusStrip } from "../components/single-chat/status-strip";
 import { Thread } from "../components/thread/thread-screen";
 import { currentApiBase, selectedSpaceId, selectSpace } from "../lib/api";
 import { t, useI18n } from "../lib/i18n";
@@ -138,6 +139,7 @@ export default function ThreadRoute() {
         onSwitch={(bot) => router.setParams({ botId: bot.id, name: bot.name })}
       >
         {chat}
+        <StatusStrip />
       </AssistantSwitcher>
     ) : (
       chat

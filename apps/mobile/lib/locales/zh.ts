@@ -426,6 +426,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Role (optional)": "角色(可选)",
   "New assistant": "新助手",
   "Could not set default assistant": "无法设置默认助手",
+  "Assistant status": "助手状态",
+  "+{count} more": "另外 {count} 个",
   "Switch assistant": "切换助手",
   "Could not update chat": "无法更新聊天",
   "Could not update computer": "无法更新电脑",

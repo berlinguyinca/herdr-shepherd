@@ -224,6 +224,8 @@ export const JA_MESSAGES: Record<string, string> = {
   "Role (optional)": "役割(任意)",
   "New assistant": "新しいアシスタント",
   "Could not set default assistant": "デフォルトのアシスタントを設定できませんでした",
+  "Assistant status": "アシスタントの状態",
+  "+{count} more": "他{count}件",
   "Switch assistant": "アシスタントを切り替える",
   Create: "作成",
   "Delete space": "スペースを削除",

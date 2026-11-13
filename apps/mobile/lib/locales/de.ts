@@ -241,6 +241,8 @@ export const DE_MESSAGES: Record<string, string> = {
   "Role (optional)": "Rolle (optional)",
   "New assistant": "Neuer Assistent",
   "Could not set default assistant": "Standardassistent konnte nicht festgelegt werden",
+  "Assistant status": "Assistentenstatus",
+  "+{count} more": "+{count} weitere",
   "Switch assistant": "Assistent wechseln",
   Create: "Erstellen",
   "Delete space": "Space löschen",

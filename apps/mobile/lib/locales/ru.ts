@@ -447,6 +447,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Role (optional)": "Роль (необязательно)",
   "New assistant": "Новый ассистент",
   "Could not set default assistant": "Не удалось назначить основного ассистента",
+  "Assistant status": "Статус ассистентов",
+  "+{count} more": "ещё {count}",
   "Switch assistant": "Сменить ассистента",
   "Could not update chat": "Не удалось обновить чат",
   "Could not update computer": "Не удалось обновить компьютер",
