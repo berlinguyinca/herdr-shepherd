@@ -1,3 +1,4 @@
+/** @jsxRuntime automatic @jsxImportSource react */
 import type { AgentRow } from "@rakazo/contracts";
 import { Box, Text, useApp, useInput, useWindowSize } from "ink";
 import { useCallback, useRef, useState } from "react";

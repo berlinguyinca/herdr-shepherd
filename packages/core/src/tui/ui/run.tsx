@@ -1,3 +1,5 @@
+/** @jsxRuntime automatic @jsxImportSource react */
+// Set here because `tsx` run from the repo root does not read this package's tsconfig.
 import { render } from "ink";
 import type { AppProps } from "./app.js";
 import { App } from "./app.js";

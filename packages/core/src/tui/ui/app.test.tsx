@@ -173,6 +173,19 @@ describe("full-screen view", () => {
     expect(screen()).not.toContain("heartbeat");
   });
 
+  it("follows only the item the selection settles on, so a held key does not flood the bridge", async () => {
+    const { type, see } = start();
+    await see("Agent a1");
+    await type("jk");
+    await type("j");
+    await see("first thing");
+    await sleep(300);
+    const ids = calls("agents/messages").map(
+      (seen) => (seen.body as { json: { id: string } }).json.id,
+    );
+    expect(ids).toEqual(["a1"]);
+  });
+
   it("shows a bot thread and sends a chat message without a confirm step", async () => {
     const { view, type, see, screen } = start();
     await see("Helper");

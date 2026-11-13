@@ -45,6 +45,7 @@ function askIn(message: Record<string, unknown>): Ask | undefined {
 
 const MAX_LINES = 500;
 const RETRY_MS = 1500;
+const SETTLE_MS = 250;
 
 /**
  * Runs a stream until `signal` aborts, reopening it after a drop or a clean end. `open` reads the
@@ -179,9 +180,16 @@ export function useTimeline(
       for (const line of fresh) seen.add(line.key);
       if (fresh.length > 0) setLines((prev) => [...prev, ...fresh].slice(-MAX_LINES));
     };
-    if (item.kind === "agent") void followAgent(client, item.id, add, controller.signal, report);
-    else void followThread(client, targetOf(item), add, setAsk, controller.signal, report);
-    return () => controller.abort();
+    // Holding a key walks the whole list; the bridge rate-limits calls, so follow only once the
+    // selection has settled.
+    const settle = setTimeout(() => {
+      if (item.kind === "agent") void followAgent(client, item.id, add, controller.signal, report);
+      else void followThread(client, targetOf(item), add, setAsk, controller.signal, report);
+    }, SETTLE_MS);
+    return () => {
+      clearTimeout(settle);
+      controller.abort();
+    };
   }, [client, key, tick, report]);
   return { lines, ask };
 }
