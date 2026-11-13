@@ -27,8 +27,8 @@ import {
 
 export type AppProps = {
   client: TuiClient;
-  /** Hands the terminal to the existing attach flow and returns when the person detaches. */
-  onAttach: (agentId: string) => Promise<void>;
+  /** Hands the terminal to the existing attach flow; resolves when the person detaches, with why it ended if it ended by itself. */
+  onAttach: (agentId: string) => Promise<string | undefined>;
 };
 
 const STATUS_COLOR: Record<AgentRow["status"], string | undefined> = {
@@ -75,8 +75,14 @@ export function App({ client, onAttach }: AppProps) {
     try {
       if (effect.kind === "quit") exit();
       else if (effect.kind === "refresh") setTick((n) => n + 1);
-      else if (effect.kind === "attach") await suspendTerminal(() => onAttach(effect.id));
-      else if (effect.kind === "answer") await answer(effect.to, effect.text);
+      else if (effect.kind === "attach") {
+        let ended: string | undefined;
+        await suspendTerminal(async () => {
+          ended = await onAttach(effect.id);
+        });
+        // The view repaints over the attach screen, so a terminal that ended on its own says why here.
+        if (ended) setNotice(ended);
+      } else if (effect.kind === "answer") await answer(effect.to, effect.text);
       else if (effect.to.kind === "agent") await assign(effect.to, effect.text);
       else await sendMessage(client, effect.to, effect.text);
     } catch (error) {
