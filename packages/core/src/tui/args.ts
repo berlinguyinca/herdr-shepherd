@@ -57,9 +57,9 @@ export function parseTuiArgs(argv: readonly string[]): ParsedTuiArgs {
   if (values.token && values["token-stdin"]) {
     throw new TuiError(`Use either --token or --token-stdin, not both.\n${TUI_USAGE}`);
   }
-  if (values.help || name === undefined || name === "help") {
-    return { command: { kind: "help" }, flags };
-  }
+  if (values.help || name === "help") return { command: { kind: "help" }, flags };
+  // Bare `pnpm tui` follows the agents, the thing most people open it for.
+  if (name === undefined) return { command: { kind: "agents", all: false, once: false }, flags };
   const extra = rest.length > 0;
   const needId = (): string => {
     if (!id || extra) throw new TuiError(`"${name}" takes exactly one agent id.\n${TUI_USAGE}`);
