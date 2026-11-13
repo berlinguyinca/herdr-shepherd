@@ -62,7 +62,7 @@ export function App({ client, onAttach }: AppProps) {
   const agents = useAgents(client, tick, report);
   const bots = useBots(client, tick, report);
   const rooms = useRooms(client, tick, report);
-  const items = buildSidebar(rooms, agents, bots);
+  const items = buildSidebar(rooms ?? [], agents, bots);
   const item = selectedItem(items, ui);
   const { lines, ask } = useTimeline(client, item, tick, report);
   const openAsk = useRef<Ask | undefined>(ask);
@@ -133,7 +133,13 @@ export function App({ client, onAttach }: AppProps) {
   return (
     <Box flexDirection="column" height={height + 1} width={width}>
       <Box height={height}>
-        <Sidebar items={items} selected={item} width={sideWidth} height={height} />
+        <Sidebar
+          items={items}
+          showRooms={rooms !== undefined}
+          selected={item}
+          width={sideWidth}
+          height={height}
+        />
         <Main
           item={item}
           agent={agents.find((row) => item?.kind === "agent" && row.id === item.id)}
@@ -153,12 +159,14 @@ export function App({ client, onAttach }: AppProps) {
 
 function Sidebar(props: {
   items: SidebarItem[];
+  /** False when the account has no rooms feature at all; true with zero rooms shows a hint. */
+  showRooms: boolean;
   selected: SidebarItem | undefined;
   width: number;
   height: number;
 }) {
-  const { items, selected, width, height } = props;
-  const entries: (SidebarItem | string)[] = [];
+  const { items, showRooms, selected, width, height } = props;
+  const entries: (SidebarItem | string | { hint: string })[] = [];
   for (const [kind, title] of [
     ["room", "ROOMS"],
     ["agent", "AGENTS"],
@@ -166,6 +174,7 @@ function Sidebar(props: {
   ] as const) {
     const group = items.filter((candidate) => candidate.kind === kind);
     if (group.length > 0) entries.push(title, ...group);
+    else if (kind === "room" && showRooms) entries.push(title, { hint: "No rooms yet" });
   }
   const at = selected ? entries.indexOf(selected) : 0;
   const start = Math.min(
@@ -187,6 +196,10 @@ function Sidebar(props: {
         typeof entry === "string" ? (
           <Text key={entry} dimColor bold>
             {entry}
+          </Text>
+        ) : "hint" in entry ? (
+          <Text key={entry.hint} dimColor>
+            {entry.hint}
           </Text>
         ) : (
           <SidebarRow
