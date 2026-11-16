@@ -11,6 +11,48 @@ function time(iso: string | undefined): number {
 }
 
 /**
+ * A minimal Bot for one known only from a run: the thread route needs just its id and name, so
+ * every other required field gets a safe, inert default (never default, archived or spawned).
+ */
+function runOnlyBot(run: RunActivityRow): Bot {
+  return {
+    id: run.botId,
+    spaceId: "",
+    name: run.botName,
+    title: "",
+    description: "",
+    instructions: "",
+    color: "",
+    notifyOnFinish: false,
+    pinned: false,
+    sectionId: null,
+    archivedAt: null,
+    unread: false,
+    parentBotId: null,
+    memoryScope: null,
+    threadId: run.threadId,
+    preview: "",
+    status: "",
+    runErrorId: null,
+    computerMode: "team",
+    updatedAt: run.updatedAt,
+    createdAt: run.updatedAt,
+    voiceId: null,
+    autoSpeak: false,
+    modelProvider: null,
+    modelId: null,
+    thinkingLevel: null,
+    teamChatAmbientEnabled: false,
+    teamChatRules: "",
+    fleetManagement: false,
+    isDefault: false,
+    disabledBuiltinTools: [],
+    webhookConfigured: false,
+    spawnKey: null,
+  };
+}
+
+/**
  * Assistant bots plus bots known only from recent runs (e.g. one absent from bots/list), by botId.
  * A run-only bot is a minimal Bot: the thread route needs just its id and name.
  */
@@ -23,23 +65,15 @@ export function assistantCandidates(
   for (const run of runs) {
     if (known.has(run.botId)) continue;
     known.add(run.botId);
-    out.push({
-      id: run.botId,
-      name: run.botName,
-      isDefault: false,
-      archivedAt: null,
-      spawnKey: null,
-      parentBotId: null,
-      threadId: run.threadId,
-      updatedAt: run.updatedAt,
-    } as Bot);
+    out.push(runOnlyBot(run));
   }
   return out;
 }
 
 /**
  * The assistant the app opens into: the one flagged default, else the one with the most recent
- * run activity, else none (the empty state offers Create assistant). Never an arbitrary bot.
+ * run activity, else the first assistant bot, else none (the empty state offers Create assistant).
+ * Spawned, child and archived bots are never picked.
  */
 export function pickDefaultBot(
   bots: readonly Bot[],
@@ -60,5 +94,5 @@ export function pickDefaultBot(
       bestAt = at;
     }
   }
-  return best;
+  return best ?? candidates[0] ?? null;
 }

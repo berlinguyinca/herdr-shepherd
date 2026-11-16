@@ -16,7 +16,8 @@ function activeAgents(agents: readonly AgentRow[], now: Date): AgentRow[] {
   return agents.filter((a) => {
     if (a.status !== "working" && a.status !== "blocked") return false;
     const age = now.getTime() - new Date(a.updated_at).getTime();
-    return age <= STATUS_FRESH_MS;
+    // No usable timestamp: the agent cannot be shown stale, so it counts as active.
+    return Number.isNaN(age) || age <= STATUS_FRESH_MS;
   });
 }
 const LINE_MAX = 60;

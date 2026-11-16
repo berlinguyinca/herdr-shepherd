@@ -21,6 +21,18 @@ const agent = (id: string, status: AgentRow["status"], summary = ""): AgentRow =
   has_conversation: true,
 });
 
+describe("agents with an unusable updated_at", () => {
+  it("count as active when working or blocked", () => {
+    const missing = { ...agent("a", "working"), updated_at: "" };
+    const garbage = { ...agent("b", "blocked"), updated_at: "not a date" };
+    expect(summarizeStatus([missing, garbage], [], NOW).map((r) => r.state)).toEqual([
+      "blocked",
+      "working",
+    ]);
+    expect(statusChip([missing], NOW).tone).toBe("working");
+  });
+});
+
 describe("summarizeStatus", () => {
   it("excludes idle, closed, unknown and done agents", () => {
     const rows = summarizeStatus(

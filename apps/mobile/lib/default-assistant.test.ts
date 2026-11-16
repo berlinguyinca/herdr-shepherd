@@ -18,13 +18,31 @@ describe("pickDefaultBot", () => {
       pickDefaultBot([bot("a"), bot("b", { isDefault: true }), bot("c", { isDefault: true })])?.id,
     ).toBe("b");
   });
-  it("ignores an archived default and does not fall back to an arbitrary bot", () => {
+  it("ignores an archived default and falls back to the first live assistant", () => {
     const bots = [
       bot("a", { archivedAt: "2026-01-01" }),
       bot("b", { isDefault: true, archivedAt: "2026-01-01" }),
       bot("c"),
     ];
-    expect(pickDefaultBot(bots)).toBeNull();
+    expect(pickDefaultBot(bots)?.id).toBe("c");
+  });
+  it("falls back to the first assistant when no signal exists, never a spawned bot", () => {
+    const bots = [bot("s", { spawnKey: "agent_1" }), bot("a"), bot("b")];
+    expect(pickDefaultBot(bots)?.id).toBe("a");
+  });
+  it("ranks despite an unparsable updatedAt", () => {
+    const bots = [
+      bot("a", { updatedAt: "garbage" }),
+      bot("b", { updatedAt: "2026-01-01T00:00:00Z" }),
+    ];
+    expect(pickDefaultBot(bots)?.id).toBe("b");
+    expect(pickDefaultBot([bot("a", { updatedAt: "garbage" })], [run("a", "nope")])?.id).toBe("a");
+  });
+  it("does not resurrect an archived or spawned bot from a run", () => {
+    const bots = [bot("x", { archivedAt: "2026-01-01" }), bot("s", { spawnKey: "k" })];
+    expect(
+      pickDefaultBot(bots, [run("x", "2026-02-01T00:00:00Z"), run("s", "2026-02-01T00:00:00Z")]),
+    ).toBeNull();
   });
   it("ignores spawned and child bots, even when flagged", () => {
     const bots = [
