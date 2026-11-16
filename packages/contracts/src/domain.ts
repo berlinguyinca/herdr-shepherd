@@ -123,6 +123,8 @@ export const BotSchema = z.object({
   teamChatRules: z.string(),
   crossSpaceCommunication: z.boolean().optional(),
   fleetManagement: z.boolean().default(false),
+  /** The space's default assistant: the chat the mobile app opens into. */
+  isDefault: z.boolean().default(false),
   disabledBuiltinTools: z.array(z.string()).default([]),
   webhookConfigured: z.boolean(),
   /** Present when created with an idempotency key (e.g. onboarding:first). */
@@ -253,6 +255,7 @@ export const SpaceBotSchema = BotSchema.pick({
   preview: true,
   status: true,
   runErrorId: true,
+  isDefault: true,
   updatedAt: true,
 });
 export type SpaceBot = z.infer<typeof SpaceBotSchema>;
@@ -417,6 +420,7 @@ export const UpdateBotInput = z
     teamChatRules: z.string().max(TEAM_CHAT_RULES_MAX_LENGTH).optional(),
     crossSpaceCommunication: z.boolean().optional(),
     fleetManagement: z.boolean().optional(),
+    isDefault: z.boolean().optional(),
     disabledBuiltinTools: DisabledBuiltinToolsSchema.optional(),
   })
   .superRefine((value, ctx) => {

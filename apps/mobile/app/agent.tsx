@@ -3,6 +3,7 @@ import { useCallback, useContext, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
+  type NativeScrollEvent,
   Pressable,
   StyleSheet,
   Text,
@@ -30,10 +31,13 @@ import { useI18n } from "../lib/i18n";
 import { useMobileTokens } from "../lib/native";
 import { iosAtLeast } from "../lib/native-controls";
 import { InboxBesideContext, useSideInsets } from "../lib/side-insets";
+import { nextStick } from "../lib/stick-to-bottom";
 import { useAgentConversation } from "../lib/use-agent-conversation";
 
 /** Within this many points of the end counts as "at the bottom". */
 const BOTTOM_SLACK = 80;
+/** Scroll events this soon after our own scrollToEnd belong to it, not the user. */
+const PROGRAMMATIC_SCROLL_MS = 250;
 
 function StatusChip({ status }: { status: string }) {
   const { label, color } = useAgentStatus(status as never);
@@ -56,7 +60,28 @@ export default function AgentScreen() {
   const nothingToShow =
     !loading && !empty && !conversation.hasMore && !events.some(isRenderableEvent);
   const list = useRef<FlatList<Event>>(null);
-  const atBottom = useRef(true);
+  // Pinned to the newest output until the user scrolls up; each agent starts pinned again.
+  const follow = useRef({ agentId, stick: true, programmaticUntil: 0 });
+  if (follow.current.agentId !== agentId) {
+    follow.current = { agentId, stick: true, programmaticUntil: 0 };
+  }
+  const settle = (n: NativeScrollEvent) => {
+    follow.current.stick = nextStick(
+      follow.current.stick,
+      {
+        offset: n.contentOffset.y,
+        contentHeight: n.contentSize.height,
+        viewportHeight: n.layoutMeasurement.height,
+        threshold: BOTTOM_SLACK,
+      },
+      Date.now() < follow.current.programmaticUntil,
+    );
+  };
+  // Our own jump to the end: scroll events during it must not unpin.
+  const jumpToEnd = () => {
+    follow.current.programmaticUntil = Date.now() + PROGRAMMATIC_SCROLL_MS;
+    list.current?.scrollToEnd({ animated: false });
+  };
   const [mode, setMode, modeLoading] = useViewMode(agentId, agent?.status);
   // The terminal mounts on first use and then stays, under Chat, so toggling does not rebuild its
   // client; the chat list stays mounted under Terminal to keep its scroll position. Neither is
@@ -197,6 +222,7 @@ export default function AgentScreen() {
             </View>
           ) : (
             <FlatList<Event>
+              key={agentId}
               ref={list}
               style={styles.list}
               contentContainerStyle={conversationColumn}
@@ -206,14 +232,13 @@ export default function AgentScreen() {
               maintainVisibleContentPosition={{ minIndexForVisible: 0 }}
               onStartReached={conversation.loadOlder}
               onStartReachedThreshold={0.5}
-              onScroll={({ nativeEvent: n }) => {
-                atBottom.current =
-                  n.contentOffset.y + n.layoutMeasurement.height >=
-                  n.contentSize.height - BOTTOM_SLACK;
-              }}
+              onScroll={({ nativeEvent: n }) => settle(n)}
               scrollEventThrottle={64}
+              onLayout={() => {
+                if (follow.current.stick) jumpToEnd();
+              }}
               onContentSizeChange={() => {
-                if (atBottom.current) list.current?.scrollToEnd({ animated: false });
+                if (follow.current.stick) jumpToEnd();
               }}
               ListHeaderComponent={
                 conversation.loadingOlder ? (

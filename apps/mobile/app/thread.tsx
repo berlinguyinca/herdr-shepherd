@@ -1,7 +1,9 @@
 import { isRetryableError } from "@rakazo/core";
-import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useIsFocused, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { SingleChatHeader } from "../components/single-chat/chat-header";
 import { Thread } from "../components/thread/thread-screen";
 import { currentApiBase, selectedSpaceId, selectSpace } from "../lib/api";
 import { t, useI18n } from "../lib/i18n";
@@ -12,6 +14,7 @@ import {
   threadSpaceRequest,
   threadSpaceSwitchResult,
 } from "../lib/notification-open";
+import { singleChatOnly } from "../lib/server-config";
 import {
   currentReadySessionGeneration,
   currentSessionGeneration,
@@ -62,8 +65,18 @@ export default function ThreadRoute() {
   const tokens = useMobileTokens();
   const { t } = useI18n();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const navigation = useNavigation();
+  // Single-chat draws its own header row, so the native one stays hidden. Runs after the chat's own effect.
+  useLayoutEffect(() => {
+    if (singleChatOnly()) navigation.setOptions({ headerShown: false });
+  }, [navigation]);
   const focused = useIsFocused();
-  const { spaceId } = useLocalSearchParams<{ spaceId?: string | string[] }>();
+  const { spaceId, botId, name } = useLocalSearchParams<{
+    spaceId?: string | string[];
+    botId?: string;
+    name?: string;
+  }>();
   const [activeSpaceId, setActiveSpaceId] = useState<string | null>(() => selectedSpaceId());
   const [switchFailed, setSwitchFailed] = useState(false);
   const [appliedFocus, setAppliedFocus] = useState(focused);
@@ -109,15 +122,34 @@ export default function ThreadRoute() {
     };
   }, [activeSpaceId, focused, spaceId]);
 
-  if (request.action === "show" && !focusSync.switchFailed)
-    return (
+  if (request.action === "show" && !focusSync.switchFailed) {
+    const chat = (
       <>
         {owner?.generation !== generation ? <ActivityIndicator color={tokens.foreground} /> : null}
         <View style={{ flex: 1, display: owner?.generation === generation ? "flex" : "none" }}>
-          {owner ? <Thread key={owner.key} sessionEpoch={ready} userId={owner.userId} /> : null}
+          {owner ? (
+            <Thread
+              key={singleChatOnly() ? `${owner.key}:${botId ?? ""}` : owner.key}
+              sessionEpoch={ready}
+              userId={owner.userId}
+            />
+          ) : null}
         </View>
       </>
     );
+    // Single-chat mode: a header row with menu, assistant picker and status; the chat fills the rest.
+    return singleChatOnly() ? (
+      <SingleChatHeader
+        botId={typeof botId === "string" ? botId : null}
+        name={typeof name === "string" ? name : null}
+        onSwitch={(bot) => router.setParams({ botId: bot.id, name: bot.name })}
+      >
+        {chat}
+      </SingleChatHeader>
+    ) : (
+      chat
+    );
+  }
   return (
     <View
       style={{
@@ -125,8 +157,29 @@ export default function ThreadRoute() {
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: tokens.background,
+        // Single-chat hides the native header, so keep clear of the notch and offer the menu.
+        paddingTop: singleChatOnly() ? insets.top : 0,
       }}
     >
+      {singleChatOnly() ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("Menu")}
+          hitSlop={4}
+          onPress={() => router.push("/menu")}
+          style={{
+            position: "absolute",
+            top: insets.top,
+            left: Math.max(insets.left, 8),
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text style={{ color: tokens.foreground, fontSize: 22 }}>☰</Text>
+        </Pressable>
+      ) : null}
       {request.action === "switch" && !focusSync.switchFailed ? (
         <ActivityIndicator color={tokens.foreground} />
       ) : (

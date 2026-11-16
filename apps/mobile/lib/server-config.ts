@@ -4,6 +4,8 @@ export const LOCAL_API = "http://127.0.0.1:3100";
 /** Shepherd connects to any Herdr server the user enters. A build for one person's own dashboard can pin it:
  * EXPO_PUBLIC_PERSONAL_SERVER_ONLY=true plus EXPO_PUBLIC_PERSONAL_SERVER_URL locks the app to that server. */
 export const personalServerOnly = () => process.env.EXPO_PUBLIC_PERSONAL_SERVER_ONLY === "true";
+/** EXPO_PUBLIC_SINGLE_CHAT=true builds the app as one chat with the default assistant, without the bot list. */
+export const singleChatOnly = () => process.env.EXPO_PUBLIC_SINGLE_CHAT === "true";
 export const DEFAULT_API =
   process.env.EXPO_PUBLIC_PERSONAL_SERVER_URL ?? process.env.EXPO_PUBLIC_API_URL ?? LOCAL_API;
 /** The server this build was made for, if any. A public build has none and asks the user for one on first launch. */

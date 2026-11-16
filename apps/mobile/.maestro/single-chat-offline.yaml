@@ -1,0 +1,12 @@
+appId: com.berlinguyinca.shepherd
+name: Shepherd single-chat offline
+---
+# Run against a build whose EXPO_PUBLIC_PERSONAL_SERVER_URL is unreachable.
+- launchApp:
+    clearState: true
+
+- extendedWaitUntil:
+    visible: "Can't reach the assistant"
+    timeout: 45000
+- assertVisible: "Retry"
+- assertNotVisible: "Sign up for Shepherd"
