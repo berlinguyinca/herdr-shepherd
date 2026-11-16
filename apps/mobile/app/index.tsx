@@ -9,7 +9,15 @@ import {
   usePathname,
   useRouter,
 } from "expo-router";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { ViewToken } from "react-native";
 import {
   ActivityIndicator,
@@ -119,11 +127,13 @@ export default function HomeRoute() {
   return singleChatOnly() ? <SingleChatHome /> : <ClassicHomeRoute />;
 }
 
-function ClassicHomeRoute() {
+/** The chat list and tabs. In single-chat mode the /menu route hosts it, with `aboveTabs` linking back to the chat. */
+export function ClassicHomeRoute({ aboveTabs }: { aboveTabs?: ReactNode } = {}) {
   const { split } = useSplitView();
   return (
     <View style={{ flex: 1 }}>
       <View style={{ flex: 1 }}>{split ? <PickChatPane /> : <HomeSession />}</View>
+      {aboveTabs}
       {/* On a wide window the tab bar sits under the list instead, not under the open chat. */}
       {split ? null : <HomeTabBar active="assistant" />}
     </View>

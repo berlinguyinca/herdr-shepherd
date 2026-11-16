@@ -404,6 +404,7 @@ function LayoutContent() {
                       name="index"
                       options={{ headerShown: false, title: "Shepherd" }}
                     />
+                    <Stack.Screen name="menu" options={{ headerShown: false, title: "Shepherd" }} />
                     <Stack.Screen
                       name="search"
                       options={{
