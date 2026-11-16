@@ -1,9 +1,10 @@
 import type { Bot } from "@rakazo/contracts";
 import { newClientId } from "@rakazo/core";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Pressable, ScrollView, Text, TextInput } from "react-native";
 import { rpc } from "../../lib/api";
 import { assignSendInput } from "../../lib/assign-message";
+import { isAssistantBot } from "../../lib/default-assistant";
 import { t } from "../../lib/i18n";
 import { useMobileTokens } from "../../lib/native";
 import { errorText } from "../../lib/user-error";
@@ -29,15 +30,20 @@ export function AssignSheet({
   const [busy, setBusy] = useState(false);
   useEffect(() => {
     void rpc("bots/list")
-      .then((list) => setBots(list.filter((b) => !b.archivedAt && b.id !== defaultBotId)))
+      .then((list) => setBots(list.filter((b) => isAssistantBot(b) && b.id !== defaultBotId)))
       .catch(() => setBots([]));
   }, [defaultBotId]);
-  const input = assignSendInput(defaultBotId, { target, task }, newClientId());
+  // One nonce per intended send: a retry after a failure reuses it (so the server can dedupe),
+  // and only a success mints the next one.
+  const nonce = useRef<string | null>(null);
+  nonce.current ??= newClientId();
+  const input = assignSendInput(defaultBotId, { target, task }, nonce.current);
   const submit = async () => {
     if (busy || !input) return;
     setBusy(true);
     try {
       await rpc("threads/send", input);
+      nonce.current = newClientId();
       onSent();
     } catch (error) {
       Alert.alert(t("Could not assign"), errorText(error));

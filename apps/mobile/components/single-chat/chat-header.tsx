@@ -1,6 +1,6 @@
 import type { Bot, RunActivityRow } from "@rakazo/contracts";
 import { useRouter } from "expo-router";
-import { type ReactNode, useCallback, useEffect, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { rpc } from "../../lib/api";
@@ -35,7 +35,16 @@ export function SingleChatHeader({
   const [expanded, setExpanded] = useState(false);
   const [bots, setBots] = useState<Bot[]>([]);
   const [runs, setRuns] = useState<RunActivityRow[]>([]);
+  // Only the latest request may apply, and none after unmount; a failure keeps the last good data.
+  const requestId = useRef(0);
+  useEffect(
+    () => () => {
+      requestId.current = -1;
+    },
+    [],
+  );
   const loadBots = useCallback(() => {
+    const id = ++requestId.current;
     void Promise.all([
       rpc("bots/list"),
       rpc("runs/list", { filter: "recent" })
@@ -43,10 +52,11 @@ export function SingleChatHeader({
         .catch(() => []),
     ])
       .then(([list, runs]) => {
+        if (requestId.current !== id) return;
         setBots(list);
         setRuns(runs);
       })
-      .catch(() => undefined);
+      .catch(() => undefined); // keep the last good bots and runs
   }, []);
   // Reloaded when the picker closes, since it can change the default.
   useEffect(() => {
