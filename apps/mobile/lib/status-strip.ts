@@ -52,3 +52,15 @@ export function statusStripRows(
   if (!agents) return [];
   return summarizeStatus(agents, runs);
 }
+
+export type StatusChip = { tone: "idle" | "working" | "blocked"; label: string };
+
+/** One-line summary for the header chip: blocked agents first, then working, else idle. */
+export function statusChip(agents: readonly AgentRow[] | undefined): StatusChip {
+  const list = agents ?? [];
+  const blocked = list.filter((a) => a.status === "blocked").length;
+  if (blocked > 0) return { tone: "blocked", label: t("{count} blocked", { count: blocked }) };
+  const working = list.filter((a) => a.status === "working").length;
+  if (working > 0) return { tone: "working", label: t("{count} working", { count: working }) };
+  return { tone: "idle", label: t("All idle") };
+}

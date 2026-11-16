@@ -23,6 +23,7 @@ const { element } = vi.hoisted(() => ({
 vi.mock("expo-router", () => ({
   useIsFocused: () => true,
   useLocalSearchParams: () => state.params,
+  useNavigation: () => ({ setOptions: vi.fn() }),
   useRouter: () => ({ replace: state.replace }),
 }));
 vi.mock("react-native", () => ({
@@ -31,6 +32,10 @@ vi.mock("react-native", () => ({
   Pressable: element("button"),
   Text: element("span"),
   View: element("div"),
+}));
+vi.mock("../components/single-chat/chat-header", () => ({
+  SingleChatHeader: ({ children }: { children?: ReactNode }) =>
+    createElement("div", null, children),
 }));
 vi.mock("../components/thread/thread-screen", () => ({
   Thread: ({ userId }: { userId: string }) => createElement("main", null, `thread:${userId}`),

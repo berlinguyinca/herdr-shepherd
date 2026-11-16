@@ -18,7 +18,7 @@ import { t } from "../../lib/i18n";
 import { useMobileTokens } from "../../lib/native";
 import { errorText } from "../../lib/user-error";
 
-function Sheet({
+export function Sheet({
   title,
   onClose,
   children,
@@ -40,7 +40,12 @@ function Sheet({
       >
         <View style={{ flexDirection: "row", justifyContent: "space-between" }}>
           <Text style={{ color: tokens.foreground, fontSize: 20, fontWeight: "600" }}>{title}</Text>
-          <Pressable accessibilityRole="button" hitSlop={8} onPress={onClose}>
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={12}
+            onPress={onClose}
+            style={{ minHeight: 44, justifyContent: "center" }}
+          >
             <Text style={{ color: tokens.foreground, fontSize: 17 }}>{t("Close")}</Text>
           </Pressable>
         </View>
@@ -211,54 +216,5 @@ export function AssistantPickerModal({
         <Text style={{ ...text, fontWeight: "600" }}>{t("Create assistant")}</Text>
       </Pressable>
     </Sheet>
-  );
-}
-
-/** Single-chat wrapper: a pill showing the current assistant that opens the picker over the chat. */
-export function AssistantSwitcher({
-  botId,
-  name,
-  onSwitch,
-  children,
-}: {
-  botId: string | null;
-  name: string | null;
-  onSwitch: (bot: Bot) => void;
-  children: ReactNode;
-}) {
-  const tokens = useMobileTokens();
-  const [open, setOpen] = useState(false);
-  return (
-    <View style={{ flex: 1 }}>
-      {children}
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={t("Switch assistant")}
-        onPress={() => setOpen(true)}
-        style={{
-          position: "absolute",
-          top: 8,
-          right: 12,
-          paddingHorizontal: 12,
-          paddingVertical: 6,
-          borderRadius: 16,
-          backgroundColor: tokens.background,
-          borderWidth: 1,
-          borderColor: tokens.foreground,
-        }}
-      >
-        <Text style={{ color: tokens.foreground, fontSize: 14 }}>{name || t("Assistants")}</Text>
-      </Pressable>
-      {open ? (
-        <AssistantPickerModal
-          currentBotId={botId}
-          onClose={() => setOpen(false)}
-          onSwitch={(bot) => {
-            setOpen(false);
-            onSwitch(bot);
-          }}
-        />
-      ) : null}
-    </View>
   );
 }

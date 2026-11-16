@@ -1,9 +1,8 @@
 import { isRetryableError } from "@rakazo/core";
-import { useIsFocused, useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useIsFocused, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
+import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
-import { AssistantSwitcher } from "../components/single-chat/assistant-picker";
-import { StatusStrip } from "../components/single-chat/status-strip";
+import { SingleChatHeader } from "../components/single-chat/chat-header";
 import { Thread } from "../components/thread/thread-screen";
 import { currentApiBase, selectedSpaceId, selectSpace } from "../lib/api";
 import { t, useI18n } from "../lib/i18n";
@@ -65,6 +64,11 @@ export default function ThreadRoute() {
   const tokens = useMobileTokens();
   const { t } = useI18n();
   const router = useRouter();
+  const navigation = useNavigation();
+  // Single-chat draws its own header row, so the native one stays hidden. Runs after the chat's own effect.
+  useLayoutEffect(() => {
+    if (singleChatOnly()) navigation.setOptions({ headerShown: false });
+  }, [navigation]);
   const focused = useIsFocused();
   const { spaceId, botId, name } = useLocalSearchParams<{
     spaceId?: string | string[];
@@ -131,16 +135,15 @@ export default function ThreadRoute() {
         </View>
       </>
     );
-    // Single-chat mode: a header pill switches this chat to another assistant without changing the default.
+    // Single-chat mode: a header row with menu, assistant picker and status; the chat fills the rest.
     return singleChatOnly() ? (
-      <AssistantSwitcher
+      <SingleChatHeader
         botId={typeof botId === "string" ? botId : null}
         name={typeof name === "string" ? name : null}
         onSwitch={(bot) => router.setParams({ botId: bot.id, name: bot.name })}
       >
         {chat}
-        <StatusStrip />
-      </AssistantSwitcher>
+      </SingleChatHeader>
     ) : (
       chat
     );

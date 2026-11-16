@@ -1,7 +1,7 @@
 import type { AgentRow, RunActivityRow } from "@rakazo/contracts";
 import { afterEach, describe, expect, it } from "vitest";
 import { resetI18nForTests } from "./i18n";
-import { statusStripRows, summarizeStatus } from "./status-strip";
+import { statusChip, statusStripRows, summarizeStatus } from "./status-strip";
 
 afterEach(() => resetI18nForTests());
 
@@ -77,5 +77,24 @@ describe("statusStripRows", () => {
   });
   it("summarizes data when present", () => {
     expect(statusStripRows([agent("a", "working", "s")], [], null)).toHaveLength(1);
+  });
+});
+
+describe("statusChip", () => {
+  it("is idle with no active agents", () => {
+    expect(statusChip([agent("a", "idle")])).toEqual({ tone: "idle", label: "All idle" });
+    expect(statusChip(undefined)).toEqual({ tone: "idle", label: "All idle" });
+  });
+  it("counts working agents", () => {
+    expect(statusChip([agent("a", "working"), agent("b", "working")])).toEqual({
+      tone: "working",
+      label: "2 working",
+    });
+  });
+  it("blocked wins and counts only blocked", () => {
+    expect(statusChip([agent("a", "working"), agent("b", "blocked")])).toEqual({
+      tone: "blocked",
+      label: "1 blocked",
+    });
   });
 });
