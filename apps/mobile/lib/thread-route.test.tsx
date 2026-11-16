@@ -33,6 +33,9 @@ vi.mock("react-native", () => ({
   Text: element("span"),
   View: element("div"),
 }));
+vi.mock("react-native-safe-area-context", () => ({
+  useSafeAreaInsets: () => ({ top: 0, left: 0, right: 0, bottom: 0 }),
+}));
 vi.mock("../components/single-chat/chat-header", () => ({
   SingleChatHeader: ({ children }: { children?: ReactNode }) =>
     createElement("div", null, children),

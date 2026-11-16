@@ -2,6 +2,7 @@ import { isRetryableError } from "@rakazo/core";
 import { useIsFocused, useLocalSearchParams, useNavigation, useRouter } from "expo-router";
 import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { SingleChatHeader } from "../components/single-chat/chat-header";
 import { Thread } from "../components/thread/thread-screen";
 import { currentApiBase, selectedSpaceId, selectSpace } from "../lib/api";
@@ -64,6 +65,7 @@ export default function ThreadRoute() {
   const tokens = useMobileTokens();
   const { t } = useI18n();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const navigation = useNavigation();
   // Single-chat draws its own header row, so the native one stays hidden. Runs after the chat's own effect.
   useLayoutEffect(() => {
@@ -155,8 +157,29 @@ export default function ThreadRoute() {
         alignItems: "center",
         justifyContent: "center",
         backgroundColor: tokens.background,
+        // Single-chat hides the native header, so keep clear of the notch and offer the menu.
+        paddingTop: singleChatOnly() ? insets.top : 0,
       }}
     >
+      {singleChatOnly() ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={t("Menu")}
+          hitSlop={4}
+          onPress={() => router.push("/menu")}
+          style={{
+            position: "absolute",
+            top: insets.top,
+            left: Math.max(insets.left, 8),
+            width: 44,
+            height: 44,
+            alignItems: "center",
+            justifyContent: "center",
+          }}
+        >
+          <Text style={{ color: tokens.foreground, fontSize: 22 }}>☰</Text>
+        </Pressable>
+      ) : null}
       {request.action === "switch" && !focusSync.switchFailed ? (
         <ActivityIndicator color={tokens.foreground} />
       ) : (
