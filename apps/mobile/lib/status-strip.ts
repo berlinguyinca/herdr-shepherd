@@ -8,6 +8,17 @@ export type StatusRow = {
 };
 
 export const STATUS_STRIP_MAX_ROWS = 3;
+/** The server never clears a stale "working"/"blocked", so older agents are not counted. */
+export const STATUS_FRESH_MS = 6 * 60 * 60 * 1000;
+
+/** Working or blocked, and updated within the freshness window. One rule for chip and rows. */
+function activeAgents(agents: readonly AgentRow[], now: Date): AgentRow[] {
+  return agents.filter((a) => {
+    if (a.status !== "working" && a.status !== "blocked") return false;
+    const age = now.getTime() - new Date(a.updated_at).getTime();
+    return age <= STATUS_FRESH_MS;
+  });
+}
 const LINE_MAX = 60;
 
 function oneLine(text: string): string {
@@ -25,10 +36,12 @@ function oneLine(text: string): string {
 export function summarizeStatus(
   agents: readonly AgentRow[],
   runs: readonly RunActivityRow[],
+  now: Date = new Date(),
 ): StatusRow[] {
-  const active = agents
-    .filter((a) => a.status === "working" || a.status === "blocked")
-    .map((a) => ({ agent: a, blocked: a.status === "blocked" }));
+  const active = activeAgents(agents, now).map((a) => ({
+    agent: a,
+    blocked: a.status === "blocked",
+  }));
   const ordered = [...active.filter((a) => a.blocked), ...active.filter((a) => !a.blocked)];
   const rows = ordered.slice(0, STATUS_STRIP_MAX_ROWS).map(({ agent, blocked }): StatusRow => {
     const run = runs.find((r) => r.botName === agent.name);
@@ -48,16 +61,20 @@ export function statusStripRows(
   agents: readonly AgentRow[] | undefined,
   runs: readonly RunActivityRow[],
   _error?: unknown,
+  now: Date = new Date(),
 ): StatusRow[] {
   if (!agents) return [];
-  return summarizeStatus(agents, runs);
+  return summarizeStatus(agents, runs, now);
 }
 
 export type StatusChip = { tone: "idle" | "working" | "blocked"; label: string };
 
 /** One-line summary for the header chip: blocked agents first, then working, else idle. */
-export function statusChip(agents: readonly AgentRow[] | undefined): StatusChip {
-  const list = agents ?? [];
+export function statusChip(
+  agents: readonly AgentRow[] | undefined,
+  now: Date = new Date(),
+): StatusChip {
+  const list = activeAgents(agents ?? [], now);
   const blocked = list.filter((a) => a.status === "blocked").length;
   if (blocked > 0) return { tone: "blocked", label: t("{count} blocked", { count: blocked }) };
   const working = list.filter((a) => a.status === "working").length;
