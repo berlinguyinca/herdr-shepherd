@@ -1,4 +1,4 @@
-import type { Bot } from "@rakazo/contracts";
+import type { Bot, RunActivityRow } from "@rakazo/contracts";
 import { useRouter } from "expo-router";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { Pressable, Text, View } from "react-native";
@@ -34,9 +34,18 @@ export function SingleChatHeader({
   const [assigning, setAssigning] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [bots, setBots] = useState<Bot[]>([]);
+  const [runs, setRuns] = useState<RunActivityRow[]>([]);
   const loadBots = useCallback(() => {
-    void rpc("bots/list")
-      .then(setBots)
+    void Promise.all([
+      rpc("bots/list"),
+      rpc("runs/list", { filter: "recent" })
+        .then((r) => r.runs)
+        .catch(() => []),
+    ])
+      .then(([list, runs]) => {
+        setBots(list);
+        setRuns(runs);
+      })
       .catch(() => undefined);
   }, []);
   // Reloaded when the picker closes, since it can change the default.
@@ -44,7 +53,7 @@ export function SingleChatHeader({
     if (!picking) loadBots();
   }, [picking, loadBots]);
   const current = bots.find((b) => b.id === botId);
-  const defaultBot = pickDefaultBot(bots);
+  const defaultBot = pickDefaultBot(bots, runs);
   const label = { color: tokens.foreground, fontSize: 16 };
   return (
     <View style={{ flex: 1, backgroundColor: tokens.background }}>

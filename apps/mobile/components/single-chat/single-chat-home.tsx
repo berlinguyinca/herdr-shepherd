@@ -72,7 +72,11 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
         try {
           const list = await rpc("bots/list");
           lastFailure.current = null;
-          if (!cancelled) setBots({ kind: "loaded", bots: list });
+          // Recent runs reveal assistants bots/list omits; failing to read them is not fatal.
+          const runs = await rpc("runs/list", { filter: "recent" })
+            .then((r) => r.runs)
+            .catch(() => []);
+          if (!cancelled) setBots({ kind: "loaded", bots: list, runs });
           return;
         } catch (error) {
           if (cancelled) return;

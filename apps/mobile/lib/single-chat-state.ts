@@ -1,4 +1,4 @@
-import type { Bot } from "@rakazo/contracts";
+import type { Bot, RunActivityRow } from "@rakazo/contracts";
 import { pickDefaultBot } from "./default-assistant";
 
 /** What the single-chat home shows. */
@@ -20,7 +20,7 @@ export type FailureReason = "auth" | "other";
 
 export type BotsOutcome =
   | { kind: "pending" }
-  | { kind: "loaded"; bots: readonly Bot[] }
+  | { kind: "loaded"; bots: readonly Bot[]; runs?: readonly RunActivityRow[] }
   | { kind: "failed"; reason: FailureReason };
 
 export type SingleChatInputs = {
@@ -44,7 +44,7 @@ export function resolveSingleChat({
   if (hasSession === null) return { kind: "connecting" };
   if (open.kind === "failed" || bots.kind === "failed") return { kind: "offline", retry };
   if (bots.kind === "pending") return { kind: "connecting" };
-  const bot = pickDefaultBot(bots.bots);
+  const bot = pickDefaultBot(bots.bots, bots.runs);
   return bot ? { kind: "ready", bot } : { kind: "empty" };
 }
 

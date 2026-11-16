@@ -14,6 +14,7 @@ import {
 } from "react-native";
 import { rpc } from "../../lib/api";
 import { createAssistant, setDefaultAssistant } from "../../lib/assistant-actions";
+import { assistantCandidates } from "../../lib/default-assistant";
 import { t } from "../../lib/i18n";
 import { useMobileTokens } from "../../lib/native";
 import { errorText } from "../../lib/user-error";
@@ -145,7 +146,10 @@ export function AssistantPickerModal({
   const load = useCallback(async () => {
     try {
       const list = await rpc("bots/list");
-      setBots(list.filter((bot) => !bot.archivedAt));
+      const runs = await rpc("runs/list", { filter: "recent" })
+        .then((r) => r.runs)
+        .catch(() => []);
+      setBots(assistantCandidates(list, runs));
     } catch (error) {
       Alert.alert(t("Could not load bots"), errorText(error));
       setBots((prev) => prev ?? []);

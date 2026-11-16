@@ -1,4 +1,4 @@
-import type { Bot } from "@rakazo/contracts";
+import type { Bot, RunActivityRow } from "@rakazo/contracts";
 import { describe, expect, it } from "vitest";
 import { resolveSingleChat, type SingleChatInputs, shouldOpenSession } from "./single-chat-state";
 
@@ -56,6 +56,25 @@ describe("resolveSingleChat", () => {
   });
   it("is empty when the only bots are archived", () => {
     const bots = [bot("a", { isDefault: true, archivedAt: "2026-01-01" })];
+    expect(
+      resolveSingleChat(inputs({ hasSession: true, bots: { kind: "loaded", bots } })).kind,
+    ).toBe("empty");
+  });
+});
+
+describe("resolveSingleChat with run-only assistants", () => {
+  it("opens the assistant known only from recent runs", () => {
+    const runs = [
+      { botId: "h", botName: "Herdr", threadId: "thr_h", updatedAt: "2026-11-16T00:00:00Z" },
+    ] as RunActivityRow[];
+    const bots = [bot("agent1", { spawnKey: "agent_01" })];
+    const state = resolveSingleChat(
+      inputs({ hasSession: true, bots: { kind: "loaded", bots, runs } }),
+    );
+    expect(state).toMatchObject({ kind: "ready", bot: { id: "h", name: "Herdr" } });
+  });
+  it("is empty when only spawned bots exist", () => {
+    const bots = [bot("agent1", { spawnKey: "agent_01" })];
     expect(
       resolveSingleChat(inputs({ hasSession: true, bots: { kind: "loaded", bots } })).kind,
     ).toBe("empty");
