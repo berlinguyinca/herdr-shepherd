@@ -1,5 +1,7 @@
 appId: com.berlinguyinca.shepherd
 name: Shepherd single-chat smoke
+env:
+  RAKAZO_E2E_MESSAGE: maestro single-chat ping
 ---
 # Requires a build with EXPO_PUBLIC_SINGLE_CHAT=true,
 # EXPO_PUBLIC_PERSONAL_SERVER_ONLY=true and a reachable
@@ -15,6 +17,6 @@ name: Shepherd single-chat smoke
 - assertNotVisible: "Can't reach the assistant"
 
 - tapOn: "Message.*"
-- inputText: ${typeof RAKAZO_E2E_MESSAGE !== "undefined" ? RAKAZO_E2E_MESSAGE : "maestro single-chat ping"}
+- inputText: ${RAKAZO_E2E_MESSAGE}
 - pressKey: Enter
-- assertVisible: ${typeof RAKAZO_E2E_MESSAGE !== "undefined" ? RAKAZO_E2E_MESSAGE : "maestro single-chat ping"}
+- assertVisible: ${RAKAZO_E2E_MESSAGE}
