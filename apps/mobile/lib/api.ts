@@ -37,6 +37,7 @@ import {
   ensureAiDataConsent,
   isActive,
   isBackgroundRunTrigger,
+  isRetryableError,
   isRunTerminalEvent,
   isServerUnreachable,
   isUnreachableStatus,
@@ -96,6 +97,8 @@ import { authResponseErrorText, errorText, sessionSaveErrorText } from "./user-e
 const SPACE_KEY = "rakazo.space_id";
 const SPACE_ROLLBACK_KEY = "rakazo.space_rollback";
 const RPC_TIMEOUT_MS = 8_000;
+/** Only the open-owner bootstrap waits this long: the server's first /api/auth/open can take 4-12 s, rarely far more. */
+export const OPEN_OWNER_TIMEOUT_MS = 30_000;
 export const MAX_MOBILE_AUTH_RESPONSE_BYTES = 256 * 1024;
 export const MAX_MOBILE_RPC_RESPONSE_BYTES = 16 * 1024 * 1024;
 /** Inbox bootstrap reads safe to replay without a Space header during auth recovery. */
@@ -559,7 +562,11 @@ export async function captureApiRequestContext(
   return { apiBase, headers, sessionGeneration: generation };
 }
 
-async function postAuth(path: string, input: Record<string, string>) {
+async function postAuth(
+  path: string,
+  input: Record<string, string>,
+  timeoutMs: number = RPC_TIMEOUT_MS,
+) {
   return fetchMobileJson<unknown>(
     `${currentApiBase()}/api/auth/${path}`,
     {
@@ -568,6 +575,7 @@ async function postAuth(path: string, input: Record<string, string>) {
       body: JSON.stringify(input),
     },
     {},
+    timeoutMs,
   );
 }
 
@@ -575,10 +583,13 @@ async function authenticate(
   path: string,
   input: Record<string, string>,
   missingSession: string,
+  timeoutMs: number = RPC_TIMEOUT_MS,
 ): Promise<{ verificationRequired: boolean }> {
-  const { response, body, invalidJson } = await postAuth(path, input);
+  const { response, body, invalidJson } = await postAuth(path, input, timeoutMs);
   if (!response.ok || invalidJson) {
-    throw new Error(authResponseErrorText(response.status, body, invalidJson));
+    const error = new Error(authResponseErrorText(response.status, body, invalidJson));
+    // Only the open-owner bootstrap classifies refusals by status (to skip its retry).
+    throw path === "open" ? Object.assign(error, { status: response.status }) : error;
   }
   const token = tokenFromAuthResponse(response, body);
   if (path === "sign-up/email" && signupRequiresEmailVerification(body))
@@ -595,8 +606,15 @@ async function authenticate(
 }
 
 /** One-person servers (`rakazo_bridge.open_owner`): a session as the owner, with no credentials, from the owner's own network. */
-export function openOwnerSession() {
-  return authenticate("open", {}, t("Sign-in did not return a session"));
+export async function openOwnerSession(timeoutMs: number = OPEN_OWNER_TIMEOUT_MS) {
+  const open = () => authenticate("open", {}, t("Sign-in did not return a session"), timeoutMs);
+  try {
+    return await open();
+  } catch (error) {
+    // The server's first open can stall; one more try for a timeout or network failure, never for a refusal.
+    if (!isRetryableError(error)) throw error;
+    return open();
+  }
 }
 
 export function signIn(email: string, password: string) {
@@ -744,9 +762,10 @@ export async function fetchMobileJson<T>(
   input: Parameters<typeof fetch>[0],
   init: RequestInit,
   invalidJsonFallback?: T,
+  timeoutMs: number = RPC_TIMEOUT_MS,
 ): Promise<{ response: Response; body: T; invalidJson?: boolean }> {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(new Error("Request timed out")), RPC_TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(new Error("Request timed out")), timeoutMs);
   try {
     const response = await withAbort(
       fetchServer(

@@ -11,7 +11,7 @@ env:
 
 - extendedWaitUntil:
     visible: "Message.*"
-    timeout: 45000
+    timeout: 90000
 - assertNotVisible: "Sign up for Shepherd"
 - assertNotVisible: "Sign in to Shepherd"
 - assertNotVisible: "Can't reach the assistant"
