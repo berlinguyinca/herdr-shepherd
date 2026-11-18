@@ -19,7 +19,7 @@ name: Onboarding
     visible: "Create"
     timeout: 15000
 - tapOn: "Create"
-- tapOn: "New bot"
+- tapOn: "New assistant"
 - extendedWaitUntil:
     visible: "What do you want me on first\\?"
     timeout: 30000

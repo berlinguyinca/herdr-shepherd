@@ -34,7 +34,7 @@ export function InboxListFooter({
   const router = useRouter();
   return (
     <>
-      {createHint ? <Text style={styles.empty}>{t("Tap + to create a bot")}</Text> : null}
+      {createHint ? <Text style={styles.empty}>{t("Tap + to create an assistant")}</Text> : null}
       <ArchivedChatsRow count={archivedCount} onPress={() => router.push("/archived-bots")} />
     </>
   );

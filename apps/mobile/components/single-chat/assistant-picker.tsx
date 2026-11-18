@@ -75,7 +75,7 @@ export function CreateAssistantModal({
     try {
       bot = await createAssistant(name, role);
     } catch (error) {
-      Alert.alert(t("Could not create bot"), errorText(error));
+      Alert.alert(t("Could not create assistant"), errorText(error));
       setBusy(false);
       return;
     }
@@ -151,7 +151,7 @@ export function AssistantPickerModal({
         .catch(() => []);
       setBots(assistantCandidates(list, runs));
     } catch (error) {
-      Alert.alert(t("Could not load bots"), errorText(error));
+      Alert.alert(t("Could not load assistants"), errorText(error));
       setBots((prev) => prev ?? []);
     }
   }, []);

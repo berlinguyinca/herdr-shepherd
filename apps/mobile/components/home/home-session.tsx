@@ -287,7 +287,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
         return;
       setLoadFailure({
         kind: loadFailureKind(err),
-        message: errorText(err, t("Could not load bots")),
+        message: errorText(err, t("Could not load assistants")),
       });
       // False when the server refused rather than failed: asking again only polls it.
       return isRetryableError(err);
@@ -655,7 +655,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
     try {
       await createInboxBot({ refreshBots, openChat });
     } catch (err) {
-      setError(errorText(err, t("Could not create bot")));
+      setError(errorText(err, t("Could not create assistant")));
     } finally {
       creatingBotRef.current = false;
     }
@@ -718,7 +718,8 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
           isCurrent,
         );
       } catch (err) {
-        if (isCurrent()) Alert.alert(t("Could not load bots"), errorText(err, t("Try again.")));
+        if (isCurrent())
+          Alert.alert(t("Could not load assistants"), errorText(err, t("Try again.")));
         return;
       }
       if (!target) return;
@@ -855,7 +856,7 @@ function Home({ embedded, onSelectSpace, onShareSelect }: InboxPaneProps & { emb
                     />
                   ) : (
                     <Text style={styles.empty}>
-                      {me && !onShareSelect ? t("Tap + to create a bot") : null}
+                      {me && !onShareSelect ? t("Tap + to create an assistant") : null}
                     </Text>
                   )
                 }

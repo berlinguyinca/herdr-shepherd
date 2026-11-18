@@ -90,7 +90,7 @@ export default function RoutineDetail() {
               onPress={() =>
                 router.push({
                   pathname: "/thread",
-                  params: { botId: botId ?? "", name: botName ?? t("Bot") },
+                  params: { botId: botId ?? "", name: botName ?? t("Assistant") },
                 })
               }
             />

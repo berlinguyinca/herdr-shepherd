@@ -38,7 +38,7 @@ export function VoicePlayerBar({
     <GlassSurface style={[styles.bar, style]} fallbackStyle={styles.barFallback}>
       <NativeSymbol ios="waveform" android="pulse-outline" size={16} color={speakerColor} />
       <Text numberOfLines={1} style={[styles.name, { color: speakerColor }]}>
-        {playback.speaker?.name || t("Bot")}
+        {playback.speaker?.name || t("Assistant")}
       </Text>
       {paused ? (
         <VoiceControlButton

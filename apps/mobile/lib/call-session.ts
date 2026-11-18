@@ -712,7 +712,7 @@ async function recordClip(signal: AbortSignal): Promise<CallClip | null> {
   // The call can end while the microphone prompt is open.
   if (signal.aborted) return null;
   if (!permission.granted)
-    throw new ExpectedTurnFailure(t("Allow microphone access to call a bot."));
+    throw new ExpectedTurnFailure(t("Allow microphone access to call an assistant."));
   let recorder: AudioRecorder | undefined;
   let heardSpeech = false;
   try {

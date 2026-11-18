@@ -52,9 +52,9 @@ export function BotMemberPicker({
           <TextInput
             value={query}
             onChangeText={setQuery}
-            placeholder={t("Filter bots")}
+            placeholder={t("Filter assistants")}
             placeholderTextColor={tokens.faintForeground}
-            accessibilityLabel={t("Filter bots")}
+            accessibilityLabel={t("Filter assistants")}
             style={{
               marginTop: 8,
               backgroundColor: native.fill,
@@ -114,7 +114,7 @@ export function BotMemberPicker({
         })}
         {visible.length === 0 ? (
           <Text style={{ color: tokens.mutedForeground, fontSize: 14, paddingVertical: 10 }}>
-            {expanded ? t("No matching bots") : t("No members yet")}
+            {expanded ? t("No matching assistants") : t("No members yet")}
           </Text>
         ) : null}
       </View>

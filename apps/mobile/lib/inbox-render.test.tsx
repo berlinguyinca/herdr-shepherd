@@ -610,7 +610,7 @@ it("offers every space heading's Settings, and Delete only where the member may 
 });
 
 it("adds a bot made from the inbox's Create menu to the inbox roster before opening its chat", async () => {
-  const bot = { id: "bot-new", name: "New Bot", spaceId: "space-a" };
+  const bot = { id: "bot-new", name: "New assistant", spaceId: "space-a" };
   const askedIn = { generation: 7, apiBase: "http://api.test" };
   const calls: string[] = [];
   ui.rpc.mockReset().mockImplementation(async (method: string) => {

@@ -8,7 +8,7 @@ export function confirmDeleteSection(
 ) {
   Alert.alert(
     t("Delete {name}?", { name: section.name }),
-    t("Its bots and groups are kept and leave the section."),
+    t("Its assistants and groups are kept and leave the section."),
     [
       { text: t("Cancel"), style: "cancel" },
       { text: t("Delete"), style: "destructive", onPress: onDelete },

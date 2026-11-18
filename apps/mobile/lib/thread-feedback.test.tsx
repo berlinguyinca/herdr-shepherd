@@ -350,7 +350,7 @@ describe("scoped mobile outbox", () => {
       request.mock.calls.filter(([proc]) => proc === "threads/send").map(([, body]) => body.text),
     ).toEqual(["First", "Second"]);
   });
-  const fileNote = "The bot can use the file but won't see the picture.";
+  const fileNote = "The assistant can use the file but won't see the picture.";
   it("uploads distinct files after removal and reuses their artifacts on retry", async () => {
     const a = { name: "first.txt", mimeType: "text/plain", size: 4, contentBase64: "YWFhYQ==" };
     const b = { name: "same.txt", mimeType: "text/plain", size: 4, contentBase64: "YmJiYg==" };

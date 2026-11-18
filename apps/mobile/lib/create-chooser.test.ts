@@ -10,7 +10,7 @@ const t = (text: string) => `translated: ${text}`;
 describe("create menu", () => {
   it("uses SF Symbols on iOS", () => {
     expect(createMenuActions(t, "ios")).toEqual([
-      { id: "bot", title: "translated: New bot", image: "person.crop.circle.badge.plus" },
+      { id: "bot", title: "translated: New assistant", image: "person.crop.circle.badge.plus" },
       { id: "group", title: "translated: New group chat", image: "person.2" },
       { id: "space", title: "translated: New private space", image: "square.grid.2x2" },
     ]);

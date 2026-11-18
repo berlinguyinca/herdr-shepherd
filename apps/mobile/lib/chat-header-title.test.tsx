@@ -111,7 +111,7 @@ it("draws the inbox's bot from the route alone, before the chat publishes anythi
 it("reserves the avatar for an unknown bot and marks a missing name as a placeholder", () => {
   render({ botId: "bot-1" });
   expect(avatar()?.getAttribute("data-color")).toBe("slot");
-  expect(name()?.textContent).toBe("Bot");
+  expect(name()?.textContent).toBe("Assistant");
   expect(name()?.getAttribute("data-placeholder")).toBe("true");
 });
 

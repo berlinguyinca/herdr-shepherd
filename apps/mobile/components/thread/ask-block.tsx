@@ -207,7 +207,7 @@ export function AskBlock({
         </>
       ) : (
         <Text style={{ color: tokens.mutedForeground, ...typeScale.caption }}>
-          {t("Waiting for this bot’s response.")}
+          {t("Waiting for this assistant’s response.")}
         </Text>
       )}
       {error ? (

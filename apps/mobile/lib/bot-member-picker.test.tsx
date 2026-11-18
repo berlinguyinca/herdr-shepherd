@@ -151,7 +151,7 @@ async function click(label: string) {
 }
 async function filter(query: string) {
   await act(async () => {
-    const input = container.querySelector<HTMLInputElement>('[aria-label="Filter bots"]')!;
+    const input = container.querySelector<HTMLInputElement>('[aria-label="Filter assistants"]')!;
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!.call(input, query);
     input.dispatchEvent(new Event("input", { bubbles: true }));
   });
@@ -170,7 +170,7 @@ it("loads members before mounting the collapsed picker and saves reversible edit
   await filter("  RESEARCH ");
   expect(switches()).toHaveLength(1);
   await filter("zzz");
-  expect(container.textContent).toContain("No matching bots");
+  expect(container.textContent).toContain("No matching assistants");
   await click("Show selected");
   expect(switches()).toHaveLength(2);
   await click("Show all");

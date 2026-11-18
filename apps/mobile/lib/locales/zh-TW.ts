@@ -1,12 +1,12 @@
 export const ZH_TW_MESSAGES: Record<string, string> = {
-  "How other bots see it": "其他機器人如何瞭解它",
+  "How other assistants see it": "其他機器人如何瞭解它",
   "Share to": "分享到",
   "{count} files": "{count} 個檔案",
   "could not read": "無法讀取",
   "Not sent. Tap for options": "未傳送。點一下查看選項",
   "Image input is not configured for this model.": "此模型尚未設定圖片輸入。",
   "Send as file": "以檔案傳送",
-  "The bot can use the file but won't see the picture.":
+  "The assistant can use the file but won't see the picture.":
     "機器人可以使用這個檔案，但看不到圖片內容。",
   "This model cannot read images. Choose a model that supports images.":
     "此模型無法讀取圖片。請選擇支援圖片的模型。",
@@ -47,10 +47,10 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "To:": "收件人：",
   Next: "下一步",
   "Ex: Project Falcon": "例如：獵鷹計畫",
-  "Search bots": "搜尋機器人",
+  "Search assistants": "搜尋機器人",
   "About {label}": "關於 {label}",
-  "Manage the bots it creates": "管理它建立的機器人",
-  "Allow cross-space bot communication": "允許跨空間機器人通訊",
+  "Manage the assistants it creates": "管理它建立的機器人",
+  "Allow cross-space assistant communication": "允許跨空間機器人通訊",
   "Organize the sidebar and edit bots. Instruction, model, routine and group edits need approval.":
     "整理側邊欄並編輯機器人。更改群組、指令、模型和例行任務需要你的核准。",
 
@@ -255,8 +255,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Bearer token": "Bearer 權杖",
   "Back to sign in": "返回登入",
   Back: "返回",
-  Bot: "機器人",
-  "Bot actions": "機器人操作",
+  "Assistant actions": "機器人操作",
   "Calls need transcription": "通話需要語音轉文字",
   "Booting live desktop…": "正在啟動即時桌面…",
   Camera: "相機",
@@ -318,7 +317,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   More: "更多",
   "Could not add source": "無法新增來源",
   "Could not approve this server": "無法核准此伺服器",
-  "Could not archive bot": "無法封存機器人",
+  "Could not archive assistant": "無法封存機器人",
   "Could not authorize this app": "無法授權此應用程式",
   "Could not change language": "無法變更語言",
   "Could not change password": "無法更改密碼",
@@ -331,16 +330,16 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Could not connect this provider": "無法連接此供應商",
   "Could not continue": "無法繼續",
   "Could not disconnect": "無法中斷連線",
-  "Could not create bot": "無法建立機器人",
+  "Could not create assistant": "無法建立機器人",
   "Could not create group": "無法建立群組",
   "Could not create space": "無法建立空間",
   "Could not delete account": "無法刪除帳號",
-  "Could not delete bot": "無法刪除機器人",
+  "Could not delete assistant": "無法刪除機器人",
   "Could not delete group": "無法刪除群組",
   "Could not delete space": "無法刪除空間",
   "Could not finish sign-in": "無法完成登入",
-  "Could not load bot": "無法載入機器人",
-  "Could not load bots": "無法載入機器人清單",
+  "Could not load assistant": "無法載入機器人",
+  "Could not load assistants": "無法載入機器人清單",
   "Could not load earlier messages": "無法載入更早的訊息",
   "Could not load group": "無法載入群組",
   "Could not load integrations": "無法載入整合",
@@ -348,7 +347,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Could not load routine": "無法載入例行任務",
   "Could not load routines": "無法載入例行任務",
   "{count} on": "{count} 個已開啟",
-  "Ask this Bot in chat to set up a routine.": "在聊天中請此 Bot 設定一個例行任務。",
+  "Ask this assistant in chat to set up a routine.": "在聊天中請此 Bot 設定一個例行任務。",
   "{name}, On": "{name}，開啟",
   "{name}, Off": "{name}，關閉",
   "Active: {name}": "啟用：{name}",
@@ -358,7 +357,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
     "這將永久刪除該例行任務及其執行紀錄。",
   "Could not delete routine": "無法刪除例行任務",
   "Could not update routine": "無法更新例行任務",
-  "Get notified when this Bot finishes or needs input": "在此機器人完成或需要輸入時收到通知",
+  "Get notified when this assistant finishes or needs input": "在此機器人完成或需要輸入時收到通知",
   "Could not load the desktop. This device cannot reach the screen URL.":
     "無法載入桌面。此裝置無法存取螢幕地址。",
   "Could not load this file.": "無法載入此檔案。",
@@ -384,9 +383,9 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Could not reach this model server": "無法連線到此模型伺服器",
   "Could not remove source": "無法移除此來源",
   "Could not load chats": "無法載入聊天清單",
-  "Could not restore bot": "無法還原機器人",
+  "Could not restore assistant": "無法還原機器人",
   "Could not revoke connection": "無法撤銷連線授權",
-  "Could not save bot": "無法儲存機器人",
+  "Could not save assistant": "無法儲存機器人",
   "Could not save group": "無法儲存群組",
   "Could not save that speech model": "無法儲存該語音模型",
   "Could not save that voice": "無法儲存該語音",
@@ -441,7 +440,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Delete memories too": "同時刪除記憶",
   "Delete space": "刪除空間",
   "Delete {name}?": "要刪除 {name} 嗎？",
-  "Bots and their own chats stay.": "機器人和它們自己的聊天會保留。",
+  "Assistants and their own chats stay.": "機器人和它們自己的聊天會保留。",
   "Delete your account?": "要刪除你的帳號嗎？",
   "Delete…": "刪除…",
   Denied: "已拒絕",
@@ -537,19 +536,19 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Needs input": "等待輸入",
   "Needs takeover": "等待接管",
   "New password": "新密碼",
-  "New bot": "新增機器人",
   "New group": "新增群組",
   "New section": "新增分組",
   "Rename section": "重新命名分組",
   "Section actions for {name}": "{name} 的分組操作",
   "Could not delete section": "無法刪除分組",
   "Delete section": "刪除分組",
-  "Its bots and groups are kept and leave the section.": "其中的機器人和群組會保留，並移出該分組。",
+  "Its assistants and groups are kept and leave the section.":
+    "其中的機器人和群組會保留，並移出該分組。",
   "Save section name": "儲存分組名稱",
   "New space": "新增空間",
   "No apps match your search.": "沒有符合搜尋條件的應用程式。",
   "No tools available.": "尚無可用工具。",
-  "No matching bots": "沒有符合的機器人",
+  "No matching assistants": "沒有符合的機器人",
   "No matching models": "沒有符合的模型",
   "No messages yet": "還沒有訊息",
   "No results": "沒有結果",
@@ -672,14 +671,14 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   Stop: "停止",
   Submit: "提交",
   "Take control": "接管控制",
-  "Tap + to create a bot": "點按 + 建立機器人",
+  "Tap + to create an assistant": "點按 + 建立機器人",
   Team: "團隊",
   "Team Computer": "團隊電腦",
   "That doesn’t look like a URL": "這看起來不像 URL",
   "That URL did not look like a Shepherd server": "該地址看起來不是 Shepherd 伺服器",
   "That URL is missing a host": "該地址缺少主機名稱",
   "The server changed while starting the request": "請求開始時伺服器已更改",
-  "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.":
+  "This permanently deletes your account, assistants, conversations, memories, files, and saved connections. This cannot be undone.":
     "這將永久刪除你的帳號、機器人、對話、記憶、檔案和已儲存的連線。此操作無法復原。",
   "This routine no longer exists": "此例行任務已不存在",
   Thread: "對話",
@@ -705,9 +704,9 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   Voice: "語音",
   Webhook: "Webhook",
   "Waiting for sign-in…": "正在等待登入…",
-  "Waiting for this bot’s response.": "正在等待這個機器人的回覆。",
+  "Waiting for this assistant’s response.": "正在等待這個機器人的回覆。",
   "Waiting…": "等待中…",
-  "What this bot is for": "這個機器人的用途",
+  "What this assistant is for": "這個機器人的用途",
   Working: "工作中",
   "Working…": "處理中…",
   "Work stopped, but the thread could not refresh: {detail}":
@@ -735,7 +734,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   Agent: "代理程式",
   archived: "已封存",
   Attachment: "附件",
-  bot: "機器人",
+  assistant: "助理",
   "{from} messaged {to}": "{from} 已向 {to} 發訊息",
   "Bring your own key. ElevenLabs, OpenAI, Cartesia, and Fish Audio all plug into the same speak buttons.":
     "自帶金鑰。ElevenLabs、OpenAI、Cartesia 和 Fish Audio 都接入同一套朗讀按鈕。",
@@ -840,7 +839,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   Mute: "靜音",
   Unmute: "取消靜音",
   "Hang up": "結束通話",
-  "Allow microphone access to call a bot.": "請允許使用麥克風，以便與機器人通話。",
+  "Allow microphone access to call an assistant.": "請允許使用麥克風，以便與機器人通話。",
   "Could not hear that.": "沒有聽清。",
   "Could not transcribe that.": "無法轉錄。",
   "Could not speak that.": "無法朗讀。",
@@ -850,7 +849,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
 
   Artifact: "成品",
   Artifacts: "成品",
-  "All bots": "所有機器人",
+  "All assistants": "所有機器人",
   "Search artifacts…": "搜尋成品…",
   "No artifacts yet": "尚無成品",
   "No matching artifacts": "沒有符合的成品",
@@ -920,7 +919,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Members ({count})": "成員 ({count})",
   "Show all": "顯示全部",
   "Show selected": "顯示已選取項目",
-  "Filter bots": "篩選機器人",
+  "Filter assistants": "篩選機器人",
   "Pick {min}–{max}": "選擇 {min}–{max} 個",
   "No members yet": "尚無成員",
   Applied: "已套用",
@@ -953,29 +952,29 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Credential saved": "憑證已儲存",
   Authentication: "驗證方式",
   "No auth": "無驗證",
-  "The bot couldn't reply because its provider's daily limit was reached.":
+  "The assistant couldn't reply because its provider's daily limit was reached.":
     "機器人無法回覆，因為已達到其供應商的每日限額。",
-  "The bot couldn't reply because its provider's weekly limit was reached.":
+  "The assistant couldn't reply because its provider's weekly limit was reached.":
     "機器人無法回覆，因為已達到其供應商的每週限額。",
-  "The bot couldn't reply because its provider's monthly limit was reached.":
+  "The assistant couldn't reply because its provider's monthly limit was reached.":
     "機器人無法回覆，因為已達到其供應商的每月限額。",
-  "The bot couldn't reply because its provider's usage limit was reached.":
+  "The assistant couldn't reply because its provider's usage limit was reached.":
     "機器人無法回覆，因為已達到其供應商的使用限額。",
-  "The provider received too many requests to answer this bot.":
+  "The provider received too many requests to answer this assistant.":
     "供應商收到的請求過多，無法為此機器人提供回覆。",
-  "The provider refused the key this bot used for its reply.":
+  "The provider refused the key this assistant used for its reply.":
     "供應商拒絕了此機器人用於回覆的金鑰。",
-  "The provider couldn't serve the model selected for this bot.":
+  "The provider couldn't serve the model selected for this assistant.":
     "供應商無法提供為此機器人選擇的模型。",
-  "The bot couldn't finish its reply. Technical details includes the reported error.":
+  "The assistant couldn't finish its reply. Technical details includes the reported error.":
     "機器人未能完成回覆。技術詳細資訊包含報告的錯誤。",
-  "This bot's reply stopped at its key's daily limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's daily limit. Your own key has its own limits.":
     "此機器人的回覆因其金鑰達到每日限額而停止。你自己的金鑰有獨立的限額。",
-  "This bot's reply stopped at its key's weekly limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's weekly limit. Your own key has its own limits.":
     "此機器人的回覆因其金鑰達到每週限額而停止。你自己的金鑰有獨立的限額。",
-  "This bot's reply stopped at its key's monthly limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's monthly limit. Your own key has its own limits.":
     "此機器人的回覆因其金鑰達到每月限額而停止。你自己的金鑰有獨立的限額。",
-  "This bot's reply stopped at its key's usage limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's usage limit. Your own key has its own limits.":
     "此機器人的回覆因其金鑰達到使用限額而停止。你自己的金鑰有獨立的限額。",
   "Sign in with passkey": "使用通行金鑰登入",
   Passkeys: "通行金鑰",
@@ -1015,8 +1014,8 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   Ends: "結束於",
   Renews: "續訂日期",
   "Could not open billing": "無法開啟帳務",
-  "Put your bots to work": "讓你的機器人開始工作",
-  "Bots with their own computer": "擁有專屬電腦的機器人",
+  "Put your assistants to work": "讓你的機器人開始工作",
+  "Assistants with their own computer": "擁有專屬電腦的機器人",
   "Routines that run while you're away": "在你離線時執行的例行任務",
   "Web, desktop and mobile apps": "網頁、桌面與手機應用程式",
   "Start free trial": "開始免費試用",
@@ -1064,7 +1063,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Automated senders will appear after they post here.": "自動傳送者在這裡發文後就會顯示。",
   Block: "封鎖",
   "Add workspace": "新增工作區",
-  "Chat with your bot from Slack.": "在 Slack 與你的機器人聊天。",
+  "Chat with your assistant from Slack.": "在 Slack 與你的機器人聊天。",
   "Connect a chat app": "連結聊天應用程式",
   "Connected.": "已連線。",
   Conversations: "對話",
@@ -1073,8 +1072,8 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   Customize: "自訂",
   "Customize {setting}": "自訂{setting}",
   Decline: "拒絕",
-  "Delete {name} and its bot?": "要刪除 {name} 及其機器人嗎？",
-  "Delete {name} and its {count} bots?": "要刪除 {name} 及其 {count} 個機器人嗎？",
+  "Delete {name} and its assistant?": "要刪除 {name} 及其機器人嗎？",
+  "Delete {name} and its {count} assistants?": "要刪除 {name} 及其 {count} 個機器人嗎？",
   "Engage when... Ignore...": "在…時參與，忽略…",
   Every: "每",
   "External conversation": "外部對話",
@@ -1204,11 +1203,11 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Could not preview plugin": "無法預覽外掛程式",
   "Could not remove plugin": "無法移除外掛程式",
   "Could not sign in": "無法登入",
-  "In this bot": "已在此機器人中",
+  "In this assistant": "已在此機器人中",
   "Plugin GitHub URL": "外掛程式 GitHub 網址",
   Skills: "技能",
   "Some plugins could not be loaded.": "部分外掛程式無法載入。",
-  "Use in this bot": "在此機器人中使用",
+  "Use in this assistant": "在此機器人中使用",
   "View all": "查看全部",
   "View source": "查看原始碼",
   "{count} connectors": "{count} 個連接器",

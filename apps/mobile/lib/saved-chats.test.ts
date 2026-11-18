@@ -282,7 +282,7 @@ it("guards legacy names restored while offline", () => {
   legacy.current.bots[0]!.name = "__TestTok1__";
   legacy.current.groups[0]!.name = "c123456789012345678901234";
   writeSavedInbox(scope, legacy, me);
-  expect(readSavedInbox(scope)?.bots[0]?.name).toBe("Bot");
+  expect(readSavedInbox(scope)?.bots[0]?.name).toBe("Assistant");
   expect(readSavedInbox(scope)?.groups[0]?.name).toBe("Group");
 });
 
@@ -300,7 +300,7 @@ it("uses translated labels for legacy offline message metadata", () => {
     ];
     writeSavedThread(scope, "bot:bot-a", snapshot);
     expect(readSavedThread(scope, "bot:bot-a")?.messages[0]?.blocks[0]).toMatchObject({
-      fromBotName: "Бот",
+      fromBotName: "Ассистент",
       text: "Keep __TestTok1__ literal",
     });
   } finally {
@@ -346,7 +346,7 @@ it("stores source names and relocalizes inbox and thread fallbacks after an offl
         blocks: message.blocks.map((block) => ({ ...block })),
       })),
     });
-    expect([...state.files.values()].join("\n")).not.toContain("Бот");
+    expect([...state.files.values()].join("\n")).not.toContain("Ассистент");
     expect([...state.files.values()].join("\n")).not.toContain("Группа");
     resetI18nForTests("de");
     expect(readSavedInbox(scope)?.groups[0]?.name).toBe("Gruppe");

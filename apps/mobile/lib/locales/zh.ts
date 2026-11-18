@@ -1,12 +1,13 @@
 export const ZH_MESSAGES: Record<string, string> = {
-  "How other bots see it": "其他机器人如何了解它",
+  "How other assistants see it": "其他机器人如何了解它",
   "Share to": "分享到",
   "{count} files": "{count} 个文件",
   "could not read": "无法读取",
   "Not sent. Tap for options": "未发送。轻点查看选项",
   "Image input is not configured for this model.": "此模型尚未配置图片输入。",
   "Send as file": "作为文件发送",
-  "The bot can use the file but won't see the picture.": "Bot 可以使用该文件，但看不到图片内容。",
+  "The assistant can use the file but won't see the picture.":
+    "Bot 可以使用该文件，但看不到图片内容。",
   "This model cannot read images. Choose a model that supports images.":
     "此模型无法读取图片。请选择支持图片的模型。",
   "Could not connect to the computer screen": "无法连接到计算机屏幕",
@@ -55,11 +56,11 @@ export const ZH_MESSAGES: Record<string, string> = {
   "To:": "收件人：",
   Next: "下一步",
   "Ex: Project Falcon": "例如：猎鹰计划",
-  "Search bots": "搜索 Bot",
+  "Search assistants": "搜索 Bot",
   "{count} messages with {peer}": "与 {peer} 的 {count} 条消息",
   "About {label}": "关于{label}",
-  "Manage the bots it creates": "管理它创建的机器人",
-  "Allow cross-space bot communication": "允许跨空间机器人通信",
+  "Manage the assistants it creates": "管理它创建的机器人",
+  "Allow cross-space assistant communication": "允许跨空间机器人通信",
   "Organize the sidebar and edit bots. Instruction, model, routine and group edits need approval.":
     "整理侧边栏并编辑机器人。更改群组、指令、模型和例行任务需要你的批准。",
 
@@ -271,8 +272,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Bearer token": "Bearer 令牌",
   "Back to sign in": "返回登录",
   Back: "返回",
-  Bot: "Bot",
-  "Bot actions": "Bot 操作",
+  "Assistant actions": "Bot 操作",
   "Calls need transcription": "通话需要语音转文字",
   "Booting live desktop…": "正在启动实时桌面…",
   Camera: "相机",
@@ -335,7 +335,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   More: "更多",
   "Could not add source": "无法添加来源",
   "Could not approve this server": "无法批准此服务器",
-  "Could not archive bot": "无法归档 Bot",
+  "Could not archive assistant": "无法归档 Bot",
   "Could not authorize this app": "无法授权此应用",
   "Could not change language": "无法切换语言",
   "Could not change password": "无法更改密码",
@@ -348,16 +348,16 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not connect this provider": "无法连接此提供商",
   "Could not continue": "无法继续",
   "Could not disconnect": "无法断开连接",
-  "Could not create bot": "无法创建 Bot",
+  "Could not create assistant": "无法创建 Bot",
   "Could not create group": "无法创建群组",
   "Could not create space": "无法创建空间",
   "Could not delete account": "无法删除账户",
-  "Could not delete bot": "无法删除 Bot",
+  "Could not delete assistant": "无法删除 Bot",
   "Could not delete group": "无法删除群组",
   "Could not delete space": "无法删除空间",
   "Could not finish sign-in": "无法完成登录",
-  "Could not load bot": "无法加载 Bot",
-  "Could not load bots": "无法加载 Bot 列表",
+  "Could not load assistant": "无法加载 Bot",
+  "Could not load assistants": "无法加载 Bot 列表",
   "Could not load earlier messages": "无法加载更早的消息",
   "Could not load group": "无法加载群组",
   "Could not load integrations": "无法加载集成",
@@ -365,7 +365,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not load routine": "无法加载例行任务",
   "Could not load routines": "无法加载例行任务",
   "{count} on": "{count} 个已开启",
-  "Ask this Bot in chat to set up a routine.": "在聊天中让此 Bot 设置一个例行任务。",
+  "Ask this assistant in chat to set up a routine.": "在聊天中让此 Bot 设置一个例行任务。",
   "{name}, On": "{name}，开启",
   "{name}, Off": "{name}，关闭",
   "Active: {name}": "启用：{name}",
@@ -375,7 +375,7 @@ export const ZH_MESSAGES: Record<string, string> = {
     "这将永久删除该例行任务及其运行记录。",
   "Could not delete routine": "无法删除例行任务",
   "Could not update routine": "无法更新例行任务",
-  "Get notified when this Bot finishes or needs input": "在此机器人完成或需要输入时收到通知",
+  "Get notified when this assistant finishes or needs input": "在此机器人完成或需要输入时收到通知",
   "Could not load the desktop. This device cannot reach the screen URL.":
     "无法加载桌面。此设备无法访问屏幕地址。",
   "Could not load this file.": "无法加载此文件。",
@@ -401,9 +401,9 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not reach this model server": "无法连接到此模型服务器",
   "Could not remove source": "无法移除此来源",
   "Could not load chats": "无法加载聊天列表",
-  "Could not restore bot": "无法恢复 Bot",
+  "Could not restore assistant": "无法恢复 Bot",
   "Could not revoke connection": "无法撤销连接",
-  "Could not save bot": "无法保存 Bot",
+  "Could not save assistant": "无法保存 Bot",
   "Could not save group": "无法保存群组",
   "Could not save that speech model": "无法保存该语音模型",
   "Could not save that voice": "无法保存该语音",
@@ -458,7 +458,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Delete memories too": "同时删除记忆",
   "Delete space": "删除空间",
   "Delete {name}?": "要删除 {name} 吗？",
-  "Bots and their own chats stay.": "Bot 和它们自己的聊天会保留。",
+  "Assistants and their own chats stay.": "Bot 和它们自己的聊天会保留。",
   "Delete your account?": "要删除你的账户吗？",
   "Delete…": "删除…",
   Denied: "已拒绝",
@@ -558,7 +558,6 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Needs input": "等待输入",
   "Needs takeover": "等待接管",
   "New password": "新密码",
-  "New bot": "新建 Bot",
   "New group": "新建群组",
   "New group chat": "新建群聊",
   "New section": "新建分组",
@@ -566,13 +565,14 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Section actions for {name}": "{name} 的分组操作",
   "Could not delete section": "无法删除分组",
   "Delete section": "删除分组",
-  "Its bots and groups are kept and leave the section.": "其中的 Bot 和群组会保留，并移出该分组。",
+  "Its assistants and groups are kept and leave the section.":
+    "其中的 Bot 和群组会保留，并移出该分组。",
   "Save section name": "保存分组名称",
   "New space": "新建空间",
   "New private space": "新建私人空间",
   "No apps match your search.": "没有符合搜索条件的应用。",
   "No tools available.": "暂无可用工具。",
-  "No matching bots": "没有匹配的 Bot",
+  "No matching assistants": "没有匹配的 Bot",
   "No matching models": "没有匹配的模型",
   "No messages yet": "还没有消息",
   "No results": "没有结果",
@@ -681,8 +681,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   Customize: "自定义",
   "Customize {setting}": "自定义{setting}",
   "This removes the space for everyone.": "这将为所有人删除此空间。",
-  "Delete {name} and its bot?": "要删除 {name} 及其机器人吗？",
-  "Delete {name} and its {count} bots?": "要删除 {name} 及其 {count} 个机器人吗？",
+  "Delete {name} and its assistant?": "要删除 {name} 及其机器人吗？",
+  "Delete {name} and its {count} assistants?": "要删除 {name} 及其 {count} 个机器人吗？",
   "Space created": "空间已创建",
   "Space default": "空间默认",
   "Can't read images": "无法读取图像",
@@ -702,14 +702,14 @@ export const ZH_MESSAGES: Record<string, string> = {
   Stop: "停止",
   Submit: "提交",
   "Take control": "接管控制",
-  "Tap + to create a bot": "点按 + 创建 Bot",
+  "Tap + to create an assistant": "点按 + 创建 Bot",
   Team: "团队",
   "Team Computer": "团队电脑",
   "That doesn’t look like a URL": "这看起来不像 URL",
   "That URL did not look like a Shepherd server": "该地址看起来不是 Shepherd 服务器",
   "That URL is missing a host": "该地址缺少主机名",
   "The server changed while starting the request": "请求开始时服务器已更改",
-  "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.":
+  "This permanently deletes your account, assistants, conversations, memories, files, and saved connections. This cannot be undone.":
     "这将永久删除你的账户、Bot、对话、记忆、文件和已保存的连接。此操作无法撤销。",
   "This routine no longer exists": "此例行任务已不存在",
   Thread: "对话",
@@ -734,9 +734,9 @@ export const ZH_MESSAGES: Record<string, string> = {
   Voice: "语音",
   Webhook: "Webhook",
   "Waiting for sign-in…": "正在等待登录…",
-  "Waiting for this bot’s response.": "正在等待这个 Bot 的回复。",
+  "Waiting for this assistant’s response.": "正在等待这个 Bot 的回复。",
   "Waiting…": "等待中…",
-  "What this bot is for": "这个 Bot 的用途",
+  "What this assistant is for": "这个 Bot 的用途",
   Working: "工作中",
   "Working…": "处理中…",
   "Work stopped, but the thread could not refresh: {detail}":
@@ -764,7 +764,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   Agent: "智能体",
   archived: "已归档",
   Attachment: "附件",
-  bot: "Bot",
+  assistant: "助手",
   "{from} messaged {to}": "{from} 已向 {to} 发消息",
   "Bring your own key. ElevenLabs, OpenAI, Cartesia, and Fish Audio all plug into the same speak buttons.":
     "自带密钥。ElevenLabs、OpenAI、Cartesia 和 Fish Audio 都接入同一套朗读按钮。",
@@ -871,7 +871,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   Mute: "静音",
   Unmute: "取消静音",
   "Hang up": "挂断",
-  "Allow microphone access to call a bot.": "请允许使用麦克风，以便与 Bot 通话。",
+  "Allow microphone access to call an assistant.": "请允许使用麦克风，以便与 Bot 通话。",
   "Could not hear that.": "没有听清。",
   "Could not transcribe that.": "无法转写。",
   "Could not speak that.": "无法朗读。",
@@ -881,7 +881,7 @@ export const ZH_MESSAGES: Record<string, string> = {
 
   Artifact: "制品",
   Artifacts: "制品",
-  "All bots": "所有 Bot",
+  "All assistants": "所有 Bot",
   "Search artifacts…": "搜索制品…",
   "No artifacts yet": "暂无制品",
   "No matching artifacts": "没有匹配的制品",
@@ -951,7 +951,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Members ({count})": "成员 ({count})",
   "Show all": "显示全部",
   "Show selected": "显示已选",
-  "Filter bots": "筛选机器人",
+  "Filter assistants": "筛选机器人",
   "Pick {min}–{max}": "选择 {min}–{max} 个",
   "No members yet": "暂无成员",
   Applied: "已应用",
@@ -984,29 +984,29 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Credential saved": "凭据已保存",
   Authentication: "身份验证方式",
   "No auth": "无需身份验证",
-  "The bot couldn't reply because its provider's daily limit was reached.":
+  "The assistant couldn't reply because its provider's daily limit was reached.":
     "机器人无法回复，因为已达到其提供商的每日限额。",
-  "The bot couldn't reply because its provider's weekly limit was reached.":
+  "The assistant couldn't reply because its provider's weekly limit was reached.":
     "机器人无法回复，因为已达到其提供商的每周限额。",
-  "The bot couldn't reply because its provider's monthly limit was reached.":
+  "The assistant couldn't reply because its provider's monthly limit was reached.":
     "机器人无法回复，因为已达到其提供商的每月限额。",
-  "The bot couldn't reply because its provider's usage limit was reached.":
+  "The assistant couldn't reply because its provider's usage limit was reached.":
     "机器人无法回复，因为已达到其提供商的使用限额。",
-  "The provider received too many requests to answer this bot.":
+  "The provider received too many requests to answer this assistant.":
     "提供商收到的请求过多，无法为此机器人提供回复。",
-  "The provider refused the key this bot used for its reply.":
+  "The provider refused the key this assistant used for its reply.":
     "提供商拒绝了此机器人用于回复的密钥。",
-  "The provider couldn't serve the model selected for this bot.":
+  "The provider couldn't serve the model selected for this assistant.":
     "提供商无法提供为此机器人选择的模型。",
-  "The bot couldn't finish its reply. Technical details includes the reported error.":
+  "The assistant couldn't finish its reply. Technical details includes the reported error.":
     "机器人未能完成回复。技术详情包含报告的错误。",
-  "This bot's reply stopped at its key's daily limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's daily limit. Your own key has its own limits.":
     "此机器人的回复因其密钥达到每日限额而停止。你自己的密钥有独立的限额。",
-  "This bot's reply stopped at its key's weekly limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's weekly limit. Your own key has its own limits.":
     "此机器人的回复因其密钥达到每周限额而停止。你自己的密钥有独立的限额。",
-  "This bot's reply stopped at its key's monthly limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's monthly limit. Your own key has its own limits.":
     "此机器人的回复因其密钥达到每月限额而停止。你自己的密钥有独立的限额。",
-  "This bot's reply stopped at its key's usage limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's usage limit. Your own key has its own limits.":
     "此机器人的回复因其密钥达到使用限额而停止。你自己的密钥有独立的限额。",
   "Sign in with passkey": "使用通行密钥登录",
   Passkeys: "通行密钥",
@@ -1046,8 +1046,8 @@ export const ZH_MESSAGES: Record<string, string> = {
   Ends: "结束于",
   Renews: "续费日期",
   "Could not open billing": "无法打开账单",
-  "Put your bots to work": "让你的 Bot 开始工作",
-  "Bots with their own computer": "拥有专属电脑的 Bot",
+  "Put your assistants to work": "让你的 Bot 开始工作",
+  "Assistants with their own computer": "拥有专属电脑的 Bot",
   "Routines that run while you're away": "在你离开时运行的例行任务",
   "Web, desktop and mobile apps": "网页、桌面和手机应用",
   "Start free trial": "开始免费试用",
@@ -1115,7 +1115,7 @@ export const ZH_MESSAGES: Record<string, string> = {
   "{bot} will still respond to direct mentions.": "{bot} 仍会回应直接提及。",
   "{sender} rollup hours": "{sender} 合并间隔（小时）",
   "Add workspace": "添加工作区",
-  "Chat with your bot from Slack.": "在 Slack 中与你的机器人聊天。",
+  "Chat with your assistant from Slack.": "在 Slack 中与你的机器人聊天。",
   "Link DMs": "关联私信",
   "One-time": "一次性",
   "Every hour": "每小时",
@@ -1206,11 +1206,11 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not preview plugin": "无法预览插件",
   "Could not remove plugin": "无法移除插件",
   "Could not sign in": "无法登录",
-  "In this bot": "已在此机器人中",
+  "In this assistant": "已在此机器人中",
   "Plugin GitHub URL": "插件 GitHub 网址",
   Skills: "技能",
   "Some plugins could not be loaded.": "部分插件无法加载。",
-  "Use in this bot": "在此机器人中使用",
+  "Use in this assistant": "在此机器人中使用",
   "View all": "查看全部",
   "View source": "查看源代码",
   "{count} connectors": "{count} 个连接器",

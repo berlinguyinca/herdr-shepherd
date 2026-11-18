@@ -554,7 +554,7 @@ it.each([
     expect(container.querySelector("input")).toBeNull();
     expect(container.querySelectorAll("button")).toHaveLength(0);
     expect(container.textContent).toContain("Secret");
-    expect(container.textContent).not.toContain("Waiting for this bot’s response.");
+    expect(container.textContent).not.toContain("Waiting for this assistant’s response.");
 
     await render(true);
     expect(container.querySelectorAll("button").length).toBeGreaterThan(0);

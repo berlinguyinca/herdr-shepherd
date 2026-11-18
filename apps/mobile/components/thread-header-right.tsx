@@ -50,8 +50,8 @@ export function threadHeaderRight({
                 }
               : {
                   type: "menu" as const,
-                  label: t("Bot actions"),
-                  accessibilityLabel: t("Bot actions"),
+                  label: t("Assistant actions"),
+                  accessibilityLabel: t("Assistant actions"),
                   icon: { type: "sfSymbol" as const, name: "ellipsis" },
                   disabled: !hasBot,
                   menu: {
@@ -83,7 +83,7 @@ export function threadHeaderRight({
         <View style={rowStyle}>
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={t("Bot actions")}
+            accessibilityLabel={t("Assistant actions")}
             hitSlop={8}
             onPress={onBotActions}
           >

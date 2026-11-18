@@ -28,7 +28,7 @@ export default function BotProfile() {
   const stacked = useStackedSettings();
   const { botId = "", name: nameParam } = useLocalSearchParams<{ botId?: string; name?: string }>();
   const [bot, setBot] = useState<MobileBot | null>(null);
-  const name = displayName(bot?.name ?? nameParam, t("Bot"));
+  const name = displayName(bot?.name ?? nameParam, t("Assistant"));
   const { routines } = useBotRoutines(botId);
   // Counts switch saves as they start and end, so a reload can tell it overlapped one.
   const notifySaves = useRef(0);
@@ -153,7 +153,7 @@ export default function BotProfile() {
         />
       </SettingsGroup>
       {bot ? (
-        <SettingsGroup footer={t("Get notified when this Bot finishes or needs input")}>
+        <SettingsGroup footer={t("Get notified when this assistant finishes or needs input")}>
           <SettingsSwitch
             key="notifications"
             label={t("Notifications")}

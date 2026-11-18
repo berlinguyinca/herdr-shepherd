@@ -383,7 +383,7 @@ describe("bot profile", () => {
 });
 
 describe("bot profile notifications", () => {
-  const footer = "Get notified when this Bot finishes or needs input";
+  const footer = "Get notified when this assistant finishes or needs input";
   const notificationsSwitch = () =>
     container.querySelector<HTMLInputElement>('input[aria-label="Notifications"]');
 
@@ -642,7 +642,7 @@ describe("routines screen", () => {
 
     await act(async () => load([]));
     expect(container.querySelector("progress")).toBeNull();
-    expect(container.textContent).toBe("Ask this Bot in chat to set up a routine.");
+    expect(container.textContent).toBe("Ask this assistant in chat to set up a routine.");
     expect(container.querySelector("button")).toBeNull();
   });
 

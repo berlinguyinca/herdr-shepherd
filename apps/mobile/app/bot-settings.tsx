@@ -110,7 +110,7 @@ export default function BotSettingsScreen() {
           await rpc("bots/update", { botId, crossSpaceCommunication: value });
         },
         onChange: setCrossSpaceCommunication,
-        onError: (err) => setError(errorText(err, t("Could not save bot"))),
+        onError: (err) => setError(errorText(err, t("Could not save assistant"))),
       }),
     [botId, t],
   );
@@ -122,7 +122,7 @@ export default function BotSettingsScreen() {
           await rpc("bots/update", { botId, fleetManagement: value });
         },
         onChange: setFleetManagement,
-        onError: (err) => setError(errorText(err, t("Could not save bot"))),
+        onError: (err) => setError(errorText(err, t("Could not save assistant"))),
       }),
     [botId, t],
   );
@@ -179,7 +179,7 @@ export default function BotSettingsScreen() {
         setFleetManagement(next.fleetManagement);
         fleetSave.reset(next.fleetManagement);
       })
-      .catch((err) => setError(errorText(err, t("Could not load bot"))));
+      .catch((err) => setError(errorText(err, t("Could not load assistant"))));
   }, [botId, crossSpaceSave, fleetSave, notifySave, nameSave]);
 
   useEffect(() => {
@@ -416,7 +416,7 @@ export default function BotSettingsScreen() {
       ]);
       router.back();
     } catch (err) {
-      setError(errorText(err, t("Could not save bot")));
+      setError(errorText(err, t("Could not save assistant")));
     } finally {
       setPending(false);
     }
@@ -645,10 +645,10 @@ export default function BotSettingsScreen() {
             <SettingsGroup label={t("Permissions")}>
               <View style={styles.row}>
                 <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
-                  {t("Allow cross-space bot communication")}
+                  {t("Allow cross-space assistant communication")}
                 </Text>
                 <NativeSwitch
-                  accessibilityLabel={t("Allow cross-space bot communication")}
+                  accessibilityLabel={t("Allow cross-space assistant communication")}
                   value={crossSpaceCommunication}
                   onValueChange={(value) => {
                     if (!botId) return;
@@ -659,10 +659,10 @@ export default function BotSettingsScreen() {
               </View>
               <View style={styles.row}>
                 <Text style={[styles.rowLabel, { color: tokens.foreground }]}>
-                  {t("Manage the bots it creates")}
+                  {t("Manage the assistants it creates")}
                 </Text>
                 <NativeSwitch
-                  accessibilityLabel={t("Manage the bots it creates")}
+                  accessibilityLabel={t("Manage the assistants it creates")}
                   onValueChange={(value) => {
                     if (!botId) return;
                     setError(null);
@@ -748,13 +748,13 @@ export default function BotSettingsScreen() {
                 backgroundColor={native.fill}
               />
             </View>
-            <SettingsGroup label={t("How other bots see it")}>
+            <SettingsGroup label={t("How other assistants see it")}>
               <GrowingTextInput
-                label={t("How other bots see it")}
+                label={t("How other assistants see it")}
                 value={description}
                 maxLength={BOT_DESCRIPTION_MAX_LENGTH}
                 onChangeText={setDescription}
-                placeholder={t("What this bot is for")}
+                placeholder={t("What this assistant is for")}
                 inset={0}
               />
             </SettingsGroup>

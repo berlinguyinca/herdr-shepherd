@@ -80,7 +80,7 @@ export default function Computer() {
   const stacked = stacksAtTextScale(windowSize.fontScale);
   const folds = useFoldRegions();
   const { botId, name: nameParam } = useLocalSearchParams<{ botId?: string; name?: string }>();
-  const name = displayName(nameParam, t("Bot"));
+  const name = displayName(nameParam, t("Assistant"));
   const foreground = useAppForeground();
   const [computer, setComputer] = useState<ComputerStatus | null>(null);
   const [screenUrl, setScreenUrl] = useState<string | null>(null);

@@ -13,7 +13,7 @@ name: Compose
 - tapOn: "Cancel"
 - openLink: "rakazo:///new-group"
 - extendedWaitUntil:
-    visible: "Search bots"
+    visible: "Search assistants"
     timeout: 15000
 - tapOn: "Researcher"
 - tapOn: "Writer"

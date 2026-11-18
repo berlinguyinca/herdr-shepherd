@@ -138,7 +138,7 @@ export function useThreadHeader({
       notifyArchivedChatsChanged();
       router.setParams({ readOnly: "0" });
     } catch (cause) {
-      Alert.alert(t("Could not restore bot"), errorText(cause, t("Try again.")));
+      Alert.alert(t("Could not restore assistant"), errorText(cause, t("Try again.")));
     } finally {
       setRestoring(false);
     }
@@ -161,7 +161,7 @@ export function useThreadHeader({
   function openBotComputer() {
     router.push({
       pathname: "/computer",
-      params: { botId: botId ?? "", name: displayName ?? t("Bot") },
+      params: { botId: botId ?? "", name: displayName ?? t("Assistant") },
     });
   }
 
@@ -172,7 +172,7 @@ export function useThreadHeader({
       onPress: () =>
         router.push({
           pathname: "/bot-profile",
-          params: { botId: botId ?? "", name: displayName ?? t("Bot") },
+          params: { botId: botId ?? "", name: displayName ?? t("Assistant") },
         }),
     },
     {
@@ -208,14 +208,14 @@ export function useThreadHeader({
             leaveBot();
           })
           .catch((error) =>
-            Alert.alert(t("Could not archive bot"), errorText(error, t("Try again."))),
+            Alert.alert(t("Could not archive assistant"), errorText(error, t("Try again."))),
           ),
     },
     {
       text: t("Delete…"),
       destructive: true,
       onPress: () =>
-        confirmDeleteBot({ id: botId ?? "", name: displayName || t("Bot") }, () => {
+        confirmDeleteBot({ id: botId ?? "", name: displayName || t("Assistant") }, () => {
           notifyArchivedChatsChanged();
           leaveBot();
         }),

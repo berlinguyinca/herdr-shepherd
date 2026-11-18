@@ -293,7 +293,7 @@ it("adds and removes chips, hides picked and archived bots, and clears filters o
   expect(container.querySelector("input")?.placeholder).toBe("Add another");
   await click("Remove Writer");
   expect(button("Writer")).toBeDefined();
-  expect(container.querySelector("input")?.placeholder).toBe("Search bots");
+  expect(container.querySelector("input")?.placeholder).toBe("Search assistants");
   await type("research");
   expect(button("Researcher")).toBeDefined();
   expect(button("Support")).toBeUndefined();

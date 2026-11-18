@@ -70,42 +70,44 @@ export function runErrorWhatHappened(
     switch (error.period) {
       case "daily":
         return t(
-          "This bot's reply stopped at its key's daily limit. Your own key has its own limits.",
+          "This assistant's reply stopped at its key's daily limit. Your own key has its own limits.",
         );
       case "weekly":
         return t(
-          "This bot's reply stopped at its key's weekly limit. Your own key has its own limits.",
+          "This assistant's reply stopped at its key's weekly limit. Your own key has its own limits.",
         );
       case "monthly":
         return t(
-          "This bot's reply stopped at its key's monthly limit. Your own key has its own limits.",
+          "This assistant's reply stopped at its key's monthly limit. Your own key has its own limits.",
         );
       default:
         return t(
-          "This bot's reply stopped at its key's usage limit. Your own key has its own limits.",
+          "This assistant's reply stopped at its key's usage limit. Your own key has its own limits.",
         );
     }
   }
   if (error.kind === "credit" || error.kind === "spending") {
     switch (error.period) {
       case "daily":
-        return t("The bot couldn't reply because its provider's daily limit was reached.");
+        return t("The assistant couldn't reply because its provider's daily limit was reached.");
       case "weekly":
-        return t("The bot couldn't reply because its provider's weekly limit was reached.");
+        return t("The assistant couldn't reply because its provider's weekly limit was reached.");
       case "monthly":
-        return t("The bot couldn't reply because its provider's monthly limit was reached.");
+        return t("The assistant couldn't reply because its provider's monthly limit was reached.");
       default:
-        return t("The bot couldn't reply because its provider's usage limit was reached.");
+        return t("The assistant couldn't reply because its provider's usage limit was reached.");
     }
   }
   switch (error.kind) {
     case "rate":
-      return t("The provider received too many requests to answer this bot.");
+      return t("The provider received too many requests to answer this assistant.");
     case "auth":
-      return t("The provider refused the key this bot used for its reply.");
+      return t("The provider refused the key this assistant used for its reply.");
     case "model":
-      return t("The provider couldn't serve the model selected for this bot.");
+      return t("The provider couldn't serve the model selected for this assistant.");
     default:
-      return t("The bot couldn't finish its reply. Technical details includes the reported error.");
+      return t(
+        "The assistant couldn't finish its reply. Technical details includes the reported error.",
+      );
   }
 }
