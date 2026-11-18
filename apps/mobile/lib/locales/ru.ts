@@ -445,6 +445,8 @@ export const RU_MESSAGES: Record<string, string> = {
     "Этот сервер доступен только из вашей сети Tailscale.",
   "Open Tailscale": "Открыть Tailscale",
   "Update the app": "Обновите приложение",
+  "The server asked for an address this app cannot use":
+    "Сервер запросил адрес, который это приложение не может использовать",
   "Can't reach the assistant": "Не удаётся связаться с ассистентом",
   "Create assistant": "Создать ассистента",
   Assistants: "Ассистенты",

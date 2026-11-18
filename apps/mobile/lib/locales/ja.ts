@@ -221,6 +221,8 @@ export const JA_MESSAGES: Record<string, string> = {
     "このサーバーはTailscaleネットワークからのみ接続できます。",
   "Open Tailscale": "Tailscaleを開く",
   "Update the app": "アプリを更新してください",
+  "The server asked for an address this app cannot use":
+    "サーバーが指定したアドレスはこのアプリでは使えません",
   "Can't reach the assistant": "アシスタントに接続できません",
   "Create assistant": "アシスタントを作成",
   Assistants: "アシスタント",

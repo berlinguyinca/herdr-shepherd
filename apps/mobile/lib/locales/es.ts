@@ -223,6 +223,8 @@ export const ES_MESSAGES: Record<string, string> = {
     "Este servidor solo es accesible desde tu red de Tailscale.",
   "Open Tailscale": "Abrir Tailscale",
   "Update the app": "Actualiza la app",
+  "The server asked for an address this app cannot use":
+    "El servidor pidió una dirección que esta app no puede usar",
   "Can't reach the assistant": "No se puede conectar con el asistente",
   "Create assistant": "Crear asistente",
   Assistants: "Asistentes",

@@ -233,6 +233,8 @@ export const NL_MESSAGES: Record<string, string> = {
     "Deze server is alleen bereikbaar vanaf je Tailscale-netwerk.",
   "Open Tailscale": "Tailscale openen",
   "Update the app": "Werk de app bij",
+  "The server asked for an address this app cannot use":
+    "De server vroeg om een adres dat deze app niet kan gebruiken",
   "Can't reach the assistant": "Kan de assistent niet bereiken",
   "Create assistant": "Assistent maken",
   Assistants: "Assistenten",

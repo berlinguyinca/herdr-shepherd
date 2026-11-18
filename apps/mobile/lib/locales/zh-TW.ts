@@ -406,6 +406,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
     "此伺服器只能從你的 Tailscale 網路存取。",
   "Open Tailscale": "開啟 Tailscale",
   "Update the app": "請更新應用程式",
+  "The server asked for an address this app cannot use": "伺服器要求的位址此應用程式無法使用",
   "Can't reach the assistant": "無法連線到助理",
   "Create assistant": "建立助理",
   Assistants: "助理",

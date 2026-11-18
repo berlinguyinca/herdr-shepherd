@@ -424,6 +424,7 @@ export const ZH_MESSAGES: Record<string, string> = {
     "此服务器只能从你的 Tailscale 网络访问。",
   "Open Tailscale": "打开 Tailscale",
   "Update the app": "请更新应用",
+  "The server asked for an address this app cannot use": "服务器要求的地址此应用无法使用",
   "Can't reach the assistant": "无法连接到助手",
   "Create assistant": "创建助手",
   Assistants: "助手",
