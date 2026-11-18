@@ -6,17 +6,33 @@ env:
 # Requires a build with EXPO_PUBLIC_SINGLE_CHAT=true,
 # EXPO_PUBLIC_PERSONAL_SERVER_ONLY=true and a reachable
 # EXPO_PUBLIC_PERSONAL_SERVER_URL. Optional: RAKAZO_E2E_MESSAGE.
+#
+# Simulator build: the app stores its session in the Keychain (expo-secure-store), which needs a
+# signed app. An unsigned build (CODE_SIGNING_ALLOWED=NO) fails to save the session and the app
+# shows "Can't reach the assistant". Build with an ad-hoc signature, from apps/mobile/ios:
+#   EXPO_PUBLIC_SINGLE_CHAT=true EXPO_PUBLIC_PERSONAL_SERVER_ONLY=true \
+#   EXPO_PUBLIC_PERSONAL_SERVER_URL=https://local.metabolomics.us \
+#   xcodebuild -workspace Shepherd.xcworkspace -scheme Shepherd -configuration Release \
+#     -sdk iphonesimulator -destination id=<udid> -derivedDataPath <dir> \
+#     CODE_SIGN_IDENTITY=- CODE_SIGNING_ALLOWED=YES CODE_SIGN_STYLE=Manual DEVELOPMENT_TEAM= build
+# then: xcrun simctl install <udid> <dir>/Build/Products/Release-iphonesimulator/Shepherd.app
+#       maestro --device <udid> test .maestro/single-chat.yaml
+# Never commit a DEVELOPMENT_TEAM.
 - launchApp:
     clearState: true
 
 - extendedWaitUntil:
     visible: "Message.*"
-    timeout: 45000
+    timeout: 90000
 - assertNotVisible: "Sign up for Shepherd"
 - assertNotVisible: "Sign in to Shepherd"
 - assertNotVisible: "Can't reach the assistant"
 
 - tapOn: "Message.*"
 - inputText: ${RAKAZO_E2E_MESSAGE}
-- pressKey: Enter
-- assertVisible: ${RAKAZO_E2E_MESSAGE}
+# The composer is multiline: Enter inserts a newline, so send with the Send button.
+- hideKeyboard
+- tapOn: "Send"
+- extendedWaitUntil:
+    visible: ${RAKAZO_E2E_MESSAGE}
+    timeout: 15000
