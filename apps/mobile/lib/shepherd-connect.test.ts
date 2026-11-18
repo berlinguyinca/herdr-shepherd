@@ -119,7 +119,7 @@ describe("connectShepherd", () => {
   });
 
   it("shows Connect Tailscale without calling open when the server is off the tailnet", async () => {
-    discovery = wellKnown({ tailnet: false, auth_modes: ["password"] });
+    discovery = wellKnown({ tailnet: false, auth_modes: ["tailnet", "password"] });
     await expect(connectShepherd()).resolves.toEqual({ kind: "connect-tailscale" });
     expect(paths()).toEqual(["GET /.well-known/herdr-shepherd"]);
     expect(store.has("rakazo.session_token")).toBe(false);

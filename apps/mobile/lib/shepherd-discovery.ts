@@ -38,9 +38,11 @@ function httpOrigin(value: unknown): string | null {
 
 function interpret(body: WellKnown, probed: string): Discovery {
   if (body.api_version !== SUPPORTED_API_VERSION) return { kind: "update-app" };
-  if (body.tailnet !== true) return { kind: "off-tailnet" };
   const modes = Array.isArray(body.auth_modes) ? body.auth_modes : [];
+  // A server that never offers tailnet sign-in keeps the plain open; only one that does can send
+  // the person to Tailscale.
   if (!modes.includes("tailnet")) return { kind: "password" };
+  if (body.tailnet !== true) return { kind: "off-tailnet" };
   return { kind: "tailnet", bridgeUrl: httpOrigin(body.bridge_url) ?? probed };
 }
 

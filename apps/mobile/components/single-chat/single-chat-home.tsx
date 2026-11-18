@@ -91,7 +91,7 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
         try {
           const list = await rpc("bots/list");
           lastFailure.current = null;
-          // Recent runs reveal assistants bots/list omits; failing to read them is not fatal.
+          // Recent runs only rank the assistants bots/list returned; failing to read them is not fatal.
           const runs = await rpc("runs/list", { filter: "recent" })
             .then((r) => r.runs)
             .catch(() => []);
@@ -142,7 +142,12 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
       />
     );
 
-  const label = { color: tokens.foreground, fontSize: 16 };
+  const label = {
+    color: tokens.foreground,
+    fontSize: 16,
+    textAlign: "center" as const,
+    paddingHorizontal: 24,
+  };
   return (
     <View
       style={{

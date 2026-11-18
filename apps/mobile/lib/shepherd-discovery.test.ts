@@ -71,9 +71,17 @@ describe("probeShepherd", () => {
   it("shows Connect Tailscale when the request did not arrive over the tailnet", async () => {
     reply = {
       status: 200,
-      body: wellKnown({ tailnet: false, bridge_url: null, auth_modes: ["password"] }),
+      body: wellKnown({ tailnet: false, bridge_url: null, auth_modes: ["tailnet", "password"] }),
     };
     await expect(probeShepherd(base)).resolves.toEqual({ kind: "off-tailnet" });
+  });
+
+  it("keeps the plain open for a server that does not offer tailnet sign-in at all", async () => {
+    reply = {
+      status: 200,
+      body: wellKnown({ tailnet: false, bridge_url: null, auth_modes: ["password"] }),
+    };
+    await expect(probeShepherd(base)).resolves.toEqual({ kind: "password" });
   });
 
   it("asks for an app update on an api_version this app does not speak", async () => {
