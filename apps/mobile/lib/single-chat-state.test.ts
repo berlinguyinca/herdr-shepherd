@@ -39,6 +39,14 @@ describe("resolveSingleChat", () => {
     const state = resolveSingleChat(inputs({ open: { kind: "failed", reason: "network" } }));
     expect(state).toEqual({ kind: "offline", retry });
   });
+  it("asks for Tailscale, with retry, when the server is off the tailnet", () => {
+    const state = resolveSingleChat(inputs({ open: { kind: "failed", reason: "tailscale" } }));
+    expect(state).toEqual({ kind: "connect-tailscale", retry });
+  });
+  it("asks for an app update when the server is newer than the app", () => {
+    const state = resolveSingleChat(inputs({ open: { kind: "failed", reason: "update" } }));
+    expect(state).toEqual({ kind: "update-app" });
+  });
   it("is offline, never a sign-in, when the server refuses the open", () => {
     const state = resolveSingleChat(inputs({ open: { kind: "failed", reason: "refused" } }));
     expect(state.kind).toBe("offline");

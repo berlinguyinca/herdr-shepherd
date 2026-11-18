@@ -216,6 +216,11 @@ export const JA_MESSAGES: Record<string, string> = {
   "Could not load assistants": "ボットを読み込めませんでした",
   "Could not save the default space": "デフォルトのスペースを保存できませんでした",
   "Could not switch spaces": "スペースを切り替えられませんでした",
+  "Connect Tailscale": "Tailscaleに接続",
+  "This server is only reachable from your Tailscale network.":
+    "このサーバーはTailscaleネットワークからのみ接続できます。",
+  "Open Tailscale": "Tailscaleを開く",
+  "Update the app": "アプリを更新してください",
   "Can't reach the assistant": "アシスタントに接続できません",
   "Create assistant": "アシスタントを作成",
   Assistants: "アシスタント",

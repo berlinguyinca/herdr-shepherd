@@ -401,6 +401,11 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   "Could not submit answer": "無法提交回答",
   "Could not switch computer": "無法切換電腦",
   "Could not switch spaces": "無法切換空間",
+  "Connect Tailscale": "連接 Tailscale",
+  "This server is only reachable from your Tailscale network.":
+    "此伺服器只能從你的 Tailscale 網路存取。",
+  "Open Tailscale": "開啟 Tailscale",
+  "Update the app": "請更新應用程式",
   "Can't reach the assistant": "無法連線到助理",
   "Create assistant": "建立助理",
   Assistants: "助理",

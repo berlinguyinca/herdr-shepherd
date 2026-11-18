@@ -440,6 +440,11 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not submit answer": "Не удалось отправить ответ",
   "Could not switch computer": "Не удалось переключить компьютер",
   "Could not switch spaces": "Не удалось переключить пространства",
+  "Connect Tailscale": "Подключите Tailscale",
+  "This server is only reachable from your Tailscale network.":
+    "Этот сервер доступен только из вашей сети Tailscale.",
+  "Open Tailscale": "Открыть Tailscale",
+  "Update the app": "Обновите приложение",
   "Can't reach the assistant": "Не удаётся связаться с ассистентом",
   "Create assistant": "Создать ассистента",
   Assistants: "Ассистенты",

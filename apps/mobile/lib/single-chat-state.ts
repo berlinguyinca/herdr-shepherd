@@ -5,6 +5,8 @@ import { pickDefaultBot } from "./default-assistant";
 export type SingleChatState =
   | { kind: "connecting" }
   | { kind: "offline"; retry: () => void }
+  | { kind: "connect-tailscale"; retry: () => void }
+  | { kind: "update-app" }
   | { kind: "empty" }
   | { kind: "ready"; bot: Bot };
 
@@ -13,7 +15,7 @@ export type OpenOutcome =
   | { kind: "idle" }
   | { kind: "pending" }
   | { kind: "ok" }
-  | { kind: "failed"; reason: "network" | "refused" };
+  | { kind: "failed"; reason: "network" | "refused" | "tailscale" | "update" };
 
 /** `auth` is a rejected session (401); anything else is unreachable or a server fault. */
 export type FailureReason = "auth" | "other";
@@ -42,6 +44,9 @@ export function resolveSingleChat({
   retry,
 }: SingleChatInputs): SingleChatState {
   if (hasSession === null) return { kind: "connecting" };
+  if (open.kind === "failed" && open.reason === "tailscale")
+    return { kind: "connect-tailscale", retry };
+  if (open.kind === "failed" && open.reason === "update") return { kind: "update-app" };
   if (open.kind === "failed" || bots.kind === "failed") return { kind: "offline", retry };
   if (bots.kind === "pending") return { kind: "connecting" };
   const bot = pickDefaultBot(bots.bots, bots.runs);

@@ -233,6 +233,11 @@ export const DE_MESSAGES: Record<string, string> = {
   "Could not load assistants": "Bots konnten nicht geladen werden",
   "Could not save the default space": "Standard-Space konnte nicht gespeichert werden",
   "Could not switch spaces": "Space konnte nicht gewechselt werden",
+  "Connect Tailscale": "Tailscale verbinden",
+  "This server is only reachable from your Tailscale network.":
+    "Dieser Server ist nur in deinem Tailscale-Netzwerk erreichbar.",
+  "Open Tailscale": "Tailscale öffnen",
+  "Update the app": "App aktualisieren",
   "Can't reach the assistant": "Der Assistent ist nicht erreichbar",
   "Create assistant": "Assistent erstellen",
   Assistants: "Assistenten",

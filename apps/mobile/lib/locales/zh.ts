@@ -419,6 +419,11 @@ export const ZH_MESSAGES: Record<string, string> = {
   "Could not submit answer": "无法提交回答",
   "Could not switch computer": "无法切换电脑",
   "Could not switch spaces": "无法切换空间",
+  "Connect Tailscale": "连接 Tailscale",
+  "This server is only reachable from your Tailscale network.":
+    "此服务器只能从你的 Tailscale 网络访问。",
+  "Open Tailscale": "打开 Tailscale",
+  "Update the app": "请更新应用",
   "Can't reach the assistant": "无法连接到助手",
   "Create assistant": "创建助手",
   Assistants: "助手",

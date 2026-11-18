@@ -228,6 +228,11 @@ export const NL_MESSAGES: Record<string, string> = {
   "Could not load assistants": "Bots laden mislukt",
   "Could not save the default space": "De standaardspace opslaan mislukt",
   "Could not switch spaces": "Van space wisselen mislukt",
+  "Connect Tailscale": "Tailscale verbinden",
+  "This server is only reachable from your Tailscale network.":
+    "Deze server is alleen bereikbaar vanaf je Tailscale-netwerk.",
+  "Open Tailscale": "Tailscale openen",
+  "Update the app": "Werk de app bij",
   "Can't reach the assistant": "Kan de assistent niet bereiken",
   "Create assistant": "Assistent maken",
   Assistants: "Assistenten",
