@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { COMPOSER_RETURN_PROPS, insertNewline, returnKeyAction } from "./composer-return";
+import {
+  CLASSIC_RETURN_PROPS,
+  COMPOSER_RETURN_PROPS,
+  composerReturnProps,
+  insertNewline,
+  isComposingKeyEvent,
+  returnKeyAction,
+} from "./composer-return";
 
 describe("returnKeyAction", () => {
   it("sends on Return when there is something to send", () => {
@@ -46,5 +53,24 @@ describe("insertNewline", () => {
 
   it("clamps a stale selection to the text", () => {
     expect(insertNewline("hi", { start: 9, end: 12 })).toEqual({ text: "hi\n", caret: 3 });
+  });
+});
+
+describe("item C guards", () => {
+  it("ignores Return while composing or already in flight", () => {
+    expect(returnKeyAction({ canSend: true, sending: false, composing: true })).toBe("ignore");
+    expect(returnKeyAction({ canSend: true, sending: false, inFlight: true })).toBe("ignore");
+  });
+
+  it("detects composition from isComposing or keyCode 229 only", () => {
+    expect(isComposingKeyEvent({ isComposing: true })).toBe(true);
+    expect(isComposingKeyEvent({ keyCode: 229 })).toBe(true);
+    expect(isComposingKeyEvent({ keyCode: 13 })).toBe(false);
+    expect(isComposingKeyEvent({})).toBe(false);
+  });
+
+  it("picks submit props only for single-chat", () => {
+    expect(composerReturnProps(true)).toEqual(COMPOSER_RETURN_PROPS);
+    expect(composerReturnProps(false)).toEqual(CLASSIC_RETURN_PROPS);
   });
 });

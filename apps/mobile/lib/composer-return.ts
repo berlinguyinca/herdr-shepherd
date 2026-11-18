@@ -10,17 +10,43 @@ export const COMPOSER_RETURN_PROPS = {
   returnKeyType: "send",
 } as const satisfies TextInputProps;
 
+/** The classic app's field: Return inserts a line break, and a Send button sends. */
+export const CLASSIC_RETURN_PROPS = {
+  multiline: true,
+  blurOnSubmit: false,
+} as const satisfies TextInputProps;
+
+/** Return sends only in single-chat; every other build keeps its line-break Return. */
+export function composerReturnProps(singleChat: boolean): TextInputProps {
+  return singleChat ? COMPOSER_RETURN_PROPS : CLASSIC_RETURN_PROPS;
+}
+
+/**
+ * True when a key event comes from an IME that is still composing (react-native-web reports
+ * `isComposing`, and browsers send keyCode 229). Native iOS and Android give JavaScript no such
+ * signal; there the platform keyboard decides whether Return commits the composition or submits.
+ */
+export function isComposingKeyEvent(event: { isComposing?: boolean; keyCode?: number }): boolean {
+  return event.isComposing === true || event.keyCode === 229;
+}
+
 export type ReturnKeyAction = "send" | "ignore";
 
 /** What the Return key does for the current draft. */
 export function returnKeyAction({
   canSend,
   sending,
+  composing = false,
+  inFlight = false,
 }: {
   canSend: boolean;
   sending: boolean;
+  /** An IME is composing: Return commits the composition, it does not send. */
+  composing?: boolean;
+  /** A Return-triggered send has started and not yet settled (guards a double Return). */
+  inFlight?: boolean;
 }): ReturnKeyAction {
-  return canSend && !sending ? "send" : "ignore";
+  return canSend && !sending && !composing && !inFlight ? "send" : "ignore";
 }
 
 export type TextSelection = { start: number; end: number };
