@@ -44,4 +44,18 @@ describe("threadKeyboardAvoidance", () => {
       ).toEqual({ automaticOffset: true, keyboardVerticalOffset: 0 });
     },
   );
+
+  it("measures the view's window position when the screen draws its own header row", () => {
+    // The row sits in the layout above the chat, so a zero offset leaves the composer under the keyboard.
+    for (const os of ["ios", "android"]) {
+      expect(
+        threadKeyboardAvoidance({
+          os,
+          floatingHeader: os === "ios",
+          nativeHeaderHeight: 103,
+          inlineHeader: true,
+        }),
+      ).toEqual({ automaticOffset: true, keyboardVerticalOffset: 0 });
+    }
+  });
 });

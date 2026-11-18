@@ -28,6 +28,7 @@ import { cronLabels } from "../../lib/cron";
 import { useI18n } from "../../lib/i18n";
 import { useThemedStyles } from "../../lib/native";
 import { useInboxBot } from "../../lib/search-inbox";
+import { singleChatOnly } from "../../lib/server-config";
 import { useSplitView } from "../../lib/split-view";
 import { useIncomingShareImport, useThreadAttachments } from "../../lib/thread-attachments";
 import { useThreadBots } from "../../lib/thread-bots";
@@ -544,6 +545,7 @@ export function Thread({ sessionEpoch, userId }: { sessionEpoch: number; userId:
           os: Platform.OS,
           floatingHeader: threadHeaderFloats(),
           nativeHeaderHeight,
+          inlineHeader: singleChatOnly(),
         })}
         style={{
           flex: 1,

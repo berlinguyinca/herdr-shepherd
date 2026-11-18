@@ -10,11 +10,15 @@ export function threadKeyboardAvoidance({
   os,
   floatingHeader,
   nativeHeaderHeight,
+  inlineHeader = false,
 }: {
   os: string;
   floatingHeader: boolean;
   nativeHeaderHeight: number;
+  /** The screen draws its own header row above the chat, in the layout (single-chat). */
+  inlineHeader?: boolean;
 }): { automaticOffset: boolean; keyboardVerticalOffset: number } {
+  if (inlineHeader) return { automaticOffset: true, keyboardVerticalOffset: 0 };
   if (os === "android") return { automaticOffset: true, keyboardVerticalOffset: 0 };
   return {
     automaticOffset: false,
