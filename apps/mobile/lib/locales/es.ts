@@ -382,6 +382,7 @@ export const ES_MESSAGES: Record<string, string> = {
     "El trabajo se detuvo, pero el hilo no se pudo actualizar: {detail}",
   archived: "archivado",
   assistant: "asistente",
+  "New line": "Nueva línea",
   cancelled: "cancelado",
   deleted: "eliminado",
   expired: "caducado",

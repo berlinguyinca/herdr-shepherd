@@ -397,6 +397,7 @@ export const NL_MESSAGES: Record<string, string> = {
     "Werk gestopt, maar de thread kon niet worden vernieuwd: {detail}",
   archived: "gearchiveerd",
   assistant: "assistent",
+  "New line": "Nieuwe regel",
   cancelled: "geannuleerd",
   deleted: "verwijderd",
   expired: "verlopen",

@@ -30,9 +30,15 @@ env:
 
 - tapOn: "Message.*"
 - inputText: ${RAKAZO_E2E_MESSAGE}
-# The composer is multiline: Enter inserts a newline, so send with the Send button.
-- hideKeyboard
-- tapOn: "Send"
+# With the keyboard still open, the typed text and the Send button must be on screen.
+- assertVisible: ${RAKAZO_E2E_MESSAGE}
+- assertVisible: "Send"
+- takeScreenshot: single-chat-typing
+# Return sends: it must not add a line break. A sent message empties the field, so the placeholder returns.
+- pressKey: Enter
+- extendedWaitUntil:
+    visible: "Message.*"
+    timeout: 15000
 - extendedWaitUntil:
     visible: ${RAKAZO_E2E_MESSAGE}
     timeout: 15000

@@ -37,6 +37,7 @@ import {
 } from "react-native";
 import type { ComposerDraftScope } from "../lib/composer-draft";
 import { readComposerDraft, writeComposerDraft } from "../lib/composer-draft";
+import { COMPOSER_RETURN_PROPS, insertNewline, returnKeyAction } from "../lib/composer-return";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
 import type { ComposerSnapshot } from "../lib/thread-feedback";
@@ -331,6 +332,14 @@ export function ThreadComposer({
   } as const;
 
   const canSend = Boolean(draft.trim()) || selectedSkill !== null || attachmentIds.length > 0;
+  // Return sends, so a line break is its own action: the Send button's long press, or the field's
+  // accessibility action. Shift+Return is not reported to JavaScript by React Native on iOS or Android.
+  function addNewline() {
+    const next = insertNewline(draftRef.current, nativeSelection.current);
+    updateDraft(next.text);
+    nativeSelection.current = { start: next.caret, end: next.caret };
+    setSelection(nativeSelection.current);
+  }
 
   return (
     <>
@@ -617,10 +626,16 @@ export function ThreadComposer({
                   }
                 }}
                 keyboardAppearance={colorScheme}
-                multiline
+                {...COMPOSER_RETURN_PROPS}
+                onSubmitEditing={() => {
+                  if (returnKeyAction({ canSend, sending }) === "send") void send();
+                }}
+                accessibilityActions={[{ name: "newline", label: t("New line") }]}
+                onAccessibilityAction={(event) => {
+                  if (event.nativeEvent.actionName === "newline") addNewline();
+                }}
                 scrollEnabled
                 textAlignVertical="top"
-                blurOnSubmit={false}
                 style={{
                   color: tokens.foreground,
                   fontSize: 17,
@@ -671,6 +686,7 @@ export function ThreadComposer({
               disabled={sending || !canSend}
               hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
               onPress={() => void send()}
+              onLongPress={addNewline}
               style={{ marginBottom: 8, opacity: sending || !canSend ? 0.5 : 1 }}
             >
               <GlassSurface

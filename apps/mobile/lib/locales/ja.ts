@@ -383,6 +383,7 @@ export const JA_MESSAGES: Record<string, string> = {
     "作業は停止しましたが、スレッドを更新できませんでした: {detail}",
   archived: "アーカイブ済み",
   assistant: "アシスタント",
+  "New line": "改行",
   cancelled: "キャンセル済み",
   deleted: "削除済み",
   expired: "期限切れ",

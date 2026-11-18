@@ -735,6 +735,7 @@ export const ZH_TW_MESSAGES: Record<string, string> = {
   archived: "已封存",
   Attachment: "附件",
   assistant: "助理",
+  "New line": "換行",
   "{from} messaged {to}": "{from} 已向 {to} 發訊息",
   "Bring your own key. ElevenLabs, OpenAI, Cartesia, and Fish Audio all plug into the same speak buttons.":
     "自帶金鑰。ElevenLabs、OpenAI、Cartesia 和 Fish Audio 都接入同一套朗讀按鈕。",

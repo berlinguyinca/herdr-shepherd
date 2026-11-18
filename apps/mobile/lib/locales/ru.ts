@@ -782,6 +782,7 @@ export const RU_MESSAGES: Record<string, string> = {
   archived: "в архиве",
   Attachment: "Вложение",
   assistant: "ассистент",
+  "New line": "Новая строка",
   "{from} messaged {to}": "{from} отправил сообщение {to}",
   "Bring your own key. ElevenLabs, OpenAI, and Cartesia all plug into the same speak buttons.":
     "Используйте собственный ключ. ElevenLabs, OpenAI и Cartesia подключаются к одним и тем же кнопкам озвучивания.",

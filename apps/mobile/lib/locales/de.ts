@@ -401,6 +401,7 @@ export const DE_MESSAGES: Record<string, string> = {
     "Arbeit gestoppt, aber der Thread konnte nicht aktualisiert werden: {detail}",
   archived: "archiviert",
   assistant: "Assistent",
+  "New line": "Neue Zeile",
   cancelled: "abgebrochen",
   deleted: "gelöscht",
   expired: "abgelaufen",
