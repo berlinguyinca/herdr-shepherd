@@ -6,9 +6,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Native secure storage has no host implementation; an in-memory store stands in for the device keychain only.
 const store = new Map<string, string>();
+let failKeychainWrites = false;
 vi.mock("expo-secure-store", () => ({
   getItemAsync: async (k: string) => store.get(k) ?? null,
-  setItemAsync: async (k: string, v: string) => void store.set(k, v),
+  setItemAsync: async (k: string, v: string) => {
+    if (failKeychainWrites) throw new Error("setValueWithKeyAsync has failed");
+    store.set(k, v);
+  },
   deleteItemAsync: async (k: string) => void store.delete(k),
 }));
 vi.mock("./live-notifications.js", () => ({
@@ -20,13 +24,14 @@ vi.mock("./ai-consent", () => ({ promptAiConsent: async () => undefined }));
 
 import { openOwnerSession, saveApiBase } from "./api.js";
 
-type Reply = { status: number; body: unknown; delayMs?: number };
+type Reply = { status: number; body: unknown; delayMs?: number; headers?: Record<string, string> };
 let server: Server;
 let replies: Reply[];
 let hits: number;
 
 beforeEach(async () => {
   store.clear();
+  failKeychainWrites = false;
   hits = 0;
   replies = [];
   server = createServer((req, res) => {
@@ -34,7 +39,7 @@ beforeEach(async () => {
     hits += 1;
     req.resume();
     setTimeout(() => {
-      res.writeHead(reply.status, { "content-type": "application/json" });
+      res.writeHead(reply.status, { "content-type": "application/json", ...reply.headers });
       res.end(JSON.stringify(reply.body));
     }, reply.delayMs ?? 0);
   });
@@ -75,6 +80,32 @@ describe("openOwnerSession", () => {
     replies = [{ status, body: { message: "no" } }];
     await expect(openOwnerSession(100)).rejects.toThrow();
     expect(hits).toBe(1);
+  });
+
+  it("does not call open again when the session cannot be saved on the device", async () => {
+    replies = [OK];
+    failKeychainWrites = true;
+    await expect(openOwnerSession(1_000)).rejects.toThrow();
+    expect(hits).toBe(1);
+  });
+
+  it("waits out a 429 Retry-After once and then retries", async () => {
+    replies = [
+      { status: 429, body: { message: "Try again in a moment." }, headers: { "retry-after": "1" } },
+      OK,
+    ];
+    const started = Date.now();
+    await expect(openOwnerSession(1_000)).resolves.toEqual({ verificationRequired: false });
+    expect(hits).toBe(2);
+    expect(Date.now() - started).toBeGreaterThanOrEqual(900);
+  });
+
+  it("gives up after a second 429 without a third call", async () => {
+    replies = [
+      { status: 429, body: { message: "Try again in a moment." }, headers: { "retry-after": "1" } },
+    ];
+    await expect(openOwnerSession(1_000)).rejects.toThrow();
+    expect(hits).toBe(2);
   });
 
   it("waits longer than the default RPC timeout by default", async () => {

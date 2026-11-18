@@ -99,6 +99,8 @@ const SPACE_ROLLBACK_KEY = "rakazo.space_rollback";
 const RPC_TIMEOUT_MS = 8_000;
 /** Only the open-owner bootstrap waits this long: the server's first /api/auth/open can take 4-12 s, rarely far more. */
 export const OPEN_OWNER_TIMEOUT_MS = 30_000;
+/** The longest a 429 Retry-After is honoured before the open is retried. */
+const OPEN_OWNER_MAX_RETRY_WAIT_MS = 35_000;
 export const MAX_MOBILE_AUTH_RESPONSE_BYTES = 256 * 1024;
 export const MAX_MOBILE_RPC_RESPONSE_BYTES = 16 * 1024 * 1024;
 /** Inbox bootstrap reads safe to replay without a Space header during auth recovery. */
@@ -588,8 +590,13 @@ async function authenticate(
   const { response, body, invalidJson } = await postAuth(path, input, timeoutMs);
   if (!response.ok || invalidJson) {
     const error = new Error(authResponseErrorText(response.status, body, invalidJson));
-    // Only the open-owner bootstrap classifies refusals by status (to skip its retry).
-    throw path === "open" ? Object.assign(error, { status: response.status }) : error;
+    // Only the open-owner bootstrap classifies refusals by status (to skip its retry) and honours Retry-After.
+    throw path === "open"
+      ? Object.assign(error, {
+          status: response.status,
+          retryAfterMs: parseRetryAfter(response.headers.get("retry-after")),
+        })
+      : error;
   }
   const token = tokenFromAuthResponse(response, body);
   if (path === "sign-up/email" && signupRequiresEmailVerification(body))
@@ -600,7 +607,8 @@ async function authenticate(
       throw new Error(t("Could not save your sign-in on this device. Try again."));
     await saveSessionToken(token);
   } catch (error) {
-    throw new Error(sessionSaveErrorText(error));
+    // A device keychain failure is local: asking the server again cannot fix it.
+    throw Object.assign(new Error(sessionSaveErrorText(error)), { sessionSaveFailed: true });
   }
   return { verificationRequired: false };
 }
@@ -611,8 +619,15 @@ export async function openOwnerSession(timeoutMs: number = OPEN_OWNER_TIMEOUT_MS
   try {
     return await open();
   } catch (error) {
-    // The server's first open can stall; one more try for a timeout or network failure, never for a refusal.
+    // The server's first open can stall; one more try for a timeout or network failure, never for a refusal
+    // or for a session this device could not save. A rate limit waits its Retry-After (capped) first.
+    if ((error as { sessionSaveFailed?: boolean }).sessionSaveFailed) throw error;
     if (!isRetryableError(error)) throw error;
+    const { retryAfterMs } = error as { retryAfterMs?: number };
+    if (retryAfterMs)
+      await new Promise((done) =>
+        setTimeout(done, Math.min(retryAfterMs, OPEN_OWNER_MAX_RETRY_WAIT_MS)),
+      );
     return open();
   }
 }
