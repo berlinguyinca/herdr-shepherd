@@ -81,8 +81,8 @@ export function deleteSpaceTitle(space: Pick<InboxSpace, "name" | "botCount" | "
   // Servers before botCount only listed the member's active bots.
   const bots = space.botCount ?? space.bots.length;
   if (bots === 0) return t("Delete {name}?", { name: space.name });
-  if (bots === 1) return t("Delete {name} and its bot?", { name: space.name });
-  return t("Delete {name} and its {count} bots?", { name: space.name, count: bots });
+  if (bots === 1) return t("Delete {name} and its assistant?", { name: space.name });
+  return t("Delete {name} and its {count} assistants?", { name: space.name, count: bots });
 }
 
 /** Only headings with no chats under them, counting chats in collapsed sections. */

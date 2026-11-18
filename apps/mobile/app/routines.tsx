@@ -75,7 +75,7 @@ export default function Routines() {
     <View style={[styles.empty, sideInsets]}>
       {routines ? (
         // There is no add button here: routines are set up by asking the bot.
-        <Text style={styles.message}>{t("Ask this Bot in chat to set up a routine.")}</Text>
+        <Text style={styles.message}>{t("Ask this assistant in chat to set up a routine.")}</Text>
       ) : error ? (
         <>
           <Text style={styles.message}>{t("Could not load routines")}</Text>

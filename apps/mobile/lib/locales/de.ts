@@ -1,5 +1,5 @@
 export const DE_MESSAGES: Record<string, string> = {
-  "How other bots see it": "So sehen andere Bots ihn",
+  "How other assistants see it": "So sehen andere Bots ihn",
   "Share to": "Teilen mit",
   "{count} files": "{count} Dateien",
   "could not read": "konnte nicht gelesen werden",
@@ -7,7 +7,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Image input is not configured for this model.":
     "Bildeingabe ist für dieses Modell nicht konfiguriert.",
   "Send as file": "Als Datei senden",
-  "The bot can use the file but won't see the picture.":
+  "The assistant can use the file but won't see the picture.":
     "Der Bot kann die Datei nutzen, sieht das Bild aber nicht.",
   "This model cannot read images. Choose a model that supports images.":
     "Dieses Modell kann keine Bilder lesen. Wähle ein Modell, das Bilder unterstützt.",
@@ -59,11 +59,11 @@ export const DE_MESSAGES: Record<string, string> = {
   "To:": "An:",
   Next: "Weiter",
   "Ex: Project Falcon": "Z. B. Projekt Falcon",
-  "Search bots": "Bots suchen",
+  "Search assistants": "Bots suchen",
   "{count} messages with {peer}": "{count} Nachrichten mit {peer}",
   "About {label}": "Über {label}",
-  "Manage the bots it creates": "Die von ihm erstellten Bots verwalten",
-  "Allow cross-space bot communication":
+  "Manage the assistants it creates": "Die von ihm erstellten Bots verwalten",
+  "Allow cross-space assistant communication":
     "Kommunikation zwischen Bots in verschiedenen Spaces erlauben",
   "Organize the sidebar and edit bots. Instruction, model, routine and group edits need approval.":
     "Ordne die Seitenleiste und bearbeite Bots. Änderungen an Gruppen, Anweisungen, Modellen und Routinen brauchen deine Zustimmung.",
@@ -192,7 +192,6 @@ export const DE_MESSAGES: Record<string, string> = {
   "Group settings": "Gruppeneinstellungen",
   Integrations: "Integrationen",
   Models: "Modelle",
-  "New bot": "Neuer Bot",
   "New group chat": "Neuer Gruppenchat",
   "New private space": "Neuer privater Space",
   Routine: "Routine",
@@ -229,11 +228,18 @@ export const DE_MESSAGES: Record<string, string> = {
   "Use default server": "Standardserver verwenden",
   Activity: "Aktivität",
   "Collapse {name}": "{name} einklappen",
-  "Could not create bot": "Bot konnte nicht erstellt werden",
+  "Could not create assistant": "Bot konnte nicht erstellt werden",
   "Could not delete space": "Space konnte nicht gelöscht werden",
-  "Could not load bots": "Bots konnten nicht geladen werden",
+  "Could not load assistants": "Bots konnten nicht geladen werden",
   "Could not save the default space": "Standard-Space konnte nicht gespeichert werden",
   "Could not switch spaces": "Space konnte nicht gewechselt werden",
+  "Connect Tailscale": "Tailscale verbinden",
+  "This server is only reachable from your Tailscale network.":
+    "Dieser Server ist nur in deinem Tailscale-Netzwerk erreichbar.",
+  "Open Tailscale": "Tailscale öffnen",
+  "Update the app": "App aktualisieren",
+  "The server asked for an address this app cannot use":
+    "Der Server hat eine Adresse angegeben, die diese App nicht verwenden kann",
   "Can't reach the assistant": "Der Assistent ist nicht erreichbar",
   "Create assistant": "Assistent erstellen",
   Assistants: "Assistenten",
@@ -265,7 +271,7 @@ export const DE_MESSAGES: Record<string, string> = {
     "Lange drücken, um anzuheften oder in einen Abschnitt zu verschieben",
   "Long press to pin, move, or silence notifications":
     "Lange drücken, um anzuheften, zu verschieben oder Benachrichtigungen stummzuschalten",
-  "No matching bots": "Keine passenden Bots",
+  "No matching assistants": "Keine passenden Bots",
   "No messages yet": "Noch keine Nachrichten",
   "No results": "Keine Ergebnisse",
   Now: "Jetzt",
@@ -277,10 +283,10 @@ export const DE_MESSAGES: Record<string, string> = {
   "Space actions for {name}": "Space-Aktionen für {name}",
   Customize: "Anpassen",
   "Customize {setting}": "{setting} anpassen",
-  "Tap + to create a bot": "Tippe auf +, um einen Bot zu erstellen",
+  "Tap + to create an assistant": "Tippe auf +, um einen Bot zu erstellen",
   "This removes the space for everyone.": "Das entfernt den Space für alle.",
-  "Delete {name} and its bot?": "{name} und seinen Bot löschen?",
-  "Delete {name} and its {count} bots?": "{name} und seine {count} Bots löschen?",
+  "Delete {name} and its assistant?": "{name} und seinen Bot löschen?",
+  "Delete {name} and its {count} assistants?": "{name} und seine {count} Bots löschen?",
   "notifications silenced": "Benachrichtigungen stumm",
   unread: "ungelesen",
   "@{name}": "@{name}",
@@ -298,7 +304,7 @@ export const DE_MESSAGES: Record<string, string> = {
   Attach: "Anhängen",
   "Attach file": "Datei anhängen",
   Attachment: "Anhang",
-  "Bot actions": "Bot-Aktionen",
+  "Assistant actions": "Bot-Aktionen",
   Camera: "Kamera",
   "Cancel reply": "Antwort abbrechen",
   Cancelled: "Abgebrochen",
@@ -311,7 +317,7 @@ export const DE_MESSAGES: Record<string, string> = {
   Complete: "Abschließen",
   Completed: "Abgeschlossen",
   Copy: "Kopieren",
-  "Could not archive bot": "Bot konnte nicht archiviert werden",
+  "Could not archive assistant": "Bot konnte nicht archiviert werden",
   "Could not clear conversation": "Unterhaltung konnte nicht geleert werden",
   "Could not load earlier messages": "Frühere Nachrichten konnten nicht geladen werden",
   "Could not open file": "Datei konnte nicht geöffnet werden",
@@ -373,7 +379,7 @@ export const DE_MESSAGES: Record<string, string> = {
   Play: "Abspielen",
   Pause: "Pause",
   "Select text": "Text auswählen",
-  "All bots": "Alle Bots",
+  "All assistants": "Alle Bots",
   Artifact: "Artefakt",
   Artifacts: "Artefakte",
   "Could not delete this artifact": "Dieses Artefakt konnte nicht gelöscht werden",
@@ -397,11 +403,12 @@ export const DE_MESSAGES: Record<string, string> = {
     "Das entfernt alle Nachrichten und stoppt die laufende Arbeit. Bot, Computer, Erinnerungen und Routinen bleiben erhalten.",
   "Type your answer": "Gib deine Antwort ein",
   Username: "Benutzername",
-  "Waiting for this bot’s response.": "Warten auf die Antwort dieses Bots.",
+  "Waiting for this assistant’s response.": "Warten auf die Antwort dieses Bots.",
   "Work stopped, but the thread could not refresh: {detail}":
     "Arbeit gestoppt, aber der Thread konnte nicht aktualisiert werden: {detail}",
   archived: "archiviert",
-  bot: "Bot",
+  assistant: "Assistent",
+  "New line": "Neue Zeile",
   cancelled: "abgebrochen",
   deleted: "gelöscht",
   expired: "abgelaufen",
@@ -419,9 +426,9 @@ export const DE_MESSAGES: Record<string, string> = {
   Advanced: "Erweitert",
   Color: "Farbe",
   "Color {number}": "Farbe {number}",
-  "Could not load bot": "Bot konnte nicht geladen werden",
+  "Could not load assistant": "Bot konnte nicht geladen werden",
   "Could not load model settings": "Modelleinstellungen konnten nicht geladen werden",
-  "Could not save bot": "Bot konnte nicht gespeichert werden",
+  "Could not save assistant": "Bot konnte nicht gespeichert werden",
   "Default (medium)": "Standard (mittel)",
   Description: "Beschreibung",
   "Extra high": "Sehr hoch",
@@ -439,12 +446,12 @@ export const DE_MESSAGES: Record<string, string> = {
   "Can't read images": "Kann keine Bilder lesen",
   Thinking: "Denkmodus",
   Title: "Titel",
-  "What this bot is for": "Wofür dieser Bot gedacht ist",
+  "What this assistant is for": "Wofür dieser Bot gedacht ist",
   "Could not delete group": "Gruppe konnte nicht gelöscht werden",
   "Could not load group": "Gruppe konnte nicht geladen werden",
   "Could not save group": "Gruppe konnte nicht gespeichert werden",
   "Delete group": "Gruppe löschen",
-  "Bots and their own chats stay.": "Bots und ihre eigenen Chats bleiben erhalten.",
+  "Assistants and their own chats stay.": "Bots und ihre eigenen Chats bleiben erhalten.",
   "Group name": "Gruppenname",
   "Group not found": "Gruppe nicht gefunden",
   Members: "Mitglieder",
@@ -473,7 +480,7 @@ export const DE_MESSAGES: Record<string, string> = {
   Routines: "Routinen",
   "Could not load routines": "Routinen konnten nicht geladen werden",
   "{count} on": "{count} aktiv",
-  "Ask this Bot in chat to set up a routine.":
+  "Ask this assistant in chat to set up a routine.":
     "Bitte diesen Bot im Chat, eine Routine einzurichten.",
   "{name}, On": "{name}, Ein",
   "{name}, Off": "{name}, Aus",
@@ -484,9 +491,8 @@ export const DE_MESSAGES: Record<string, string> = {
     "Die Routine und ihr Ausführungsverlauf werden endgültig gelöscht.",
   "Could not delete routine": "Routine konnte nicht gelöscht werden",
   "Could not update routine": "Routine konnte nicht aktualisiert werden",
-  "Get notified when this Bot finishes or needs input":
+  "Get notified when this assistant finishes or needs input":
     "Benachrichtigung, wenn dieser Bot fertig ist oder Eingabe braucht",
-  Bot: "Bot",
   "Close computer": "Computer schließen",
   "Computer keyboard": "Computertastatur",
   Control: "Strg",
@@ -670,7 +676,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Could not change language": "Sprache konnte nicht geändert werden",
   "Could not delete account": "Konto konnte nicht gelöscht werden",
   "Could not load chats": "Chats konnten nicht geladen werden",
-  "Could not restore bot": "Bot konnte nicht wiederhergestellt werden",
+  "Could not restore assistant": "Bot konnte nicht wiederhergestellt werden",
   "Could not sign out": "Abmeldung fehlgeschlagen",
   "Could not update notifications": "Benachrichtigungen konnten nicht aktualisiert werden",
   "Current password": "Aktuelles Passwort",
@@ -694,7 +700,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Stream replies": "Antworten streamen",
   "Load web images automatically": "Webbilder automatisch laden",
   System: "System",
-  "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.":
+  "This permanently deletes your account, assistants, conversations, memories, files, and saved connections. This cannot be undone.":
     "Das löscht dein Konto, deine Bots, Unterhaltungen, Erinnerungen, Dateien und gespeicherten Verbindungen endgültig. Das lässt sich nicht rückgängig machen.",
   "Try again.": "Versuche es erneut.",
   Usage: "Nutzung",
@@ -729,7 +735,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Section actions for {name}": "Abschnittsaktionen für {name}",
   "Could not delete section": "Abschnitt konnte nicht gelöscht werden",
   "Delete section": "Abschnitt löschen",
-  "Its bots and groups are kept and leave the section.":
+  "Its assistants and groups are kept and leave the section.":
     "Seine Bots und Gruppen bleiben erhalten und verlassen den Abschnitt.",
   "Resume notifications": "Benachrichtigungen wieder einschalten",
   "Save section name": "Abschnittsnamen speichern",
@@ -812,7 +818,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "{channel} {id}": "{channel} {id}",
   "{channel} {id}, {date}": "{channel} {id}, {date}",
   "Saved {name} locally": "{name} lokal gespeichert",
-  "Could not delete bot": "Bot konnte nicht gelöscht werden",
+  "Could not delete assistant": "Bot konnte nicht gelöscht werden",
   "Delete memories too": "Erinnerungen ebenfalls löschen",
   "Its conversation, files, and routines will be permanently deleted. What should happen to its memories?":
     "Unterhaltung, Dateien und Routinen werden endgültig gelöscht. Was soll mit den Erinnerungen geschehen?",
@@ -867,7 +873,8 @@ export const DE_MESSAGES: Record<string, string> = {
     "Warte auf Anmeldung — der Code läuft in etwa {minutes} Minuten ab.",
   "Waiting for sign-in — the link expires in about {minutes} minutes.":
     "Warte auf Anmeldung — der Link läuft in etwa {minutes} Minuten ab.",
-  "Allow microphone access to call a bot.": "Erlaube den Mikrofonzugriff, um einen Bot anzurufen.",
+  "Allow microphone access to call an assistant.":
+    "Erlaube den Mikrofonzugriff, um einen Bot anzurufen.",
   "Allow speech recognition in Settings, or connect ElevenLabs, OpenAI, or Fish Audio.":
     "Erlaube die Spracherkennung in den Einstellungen oder verbinde ElevenLabs, OpenAI oder Fish Audio.",
   Call: "Anrufen",
@@ -938,7 +945,7 @@ export const DE_MESSAGES: Record<string, string> = {
   "Members ({count})": "Mitglieder ({count})",
   "Show all": "Alle anzeigen",
   "Show selected": "Ausgewählte anzeigen",
-  "Filter bots": "Bots filtern",
+  "Filter assistants": "Bots filtern",
   "Pick {min}–{max}": "{min}–{max} auswählen",
   "No members yet": "Noch keine Mitglieder",
   Applied: "Angewendet",
@@ -972,29 +979,29 @@ export const DE_MESSAGES: Record<string, string> = {
   "Credential saved": "Zugangsdaten gespeichert",
   Authentication: "Authentifizierungsmethode",
   "No auth": "Keine Authentifizierung",
-  "The bot couldn't reply because its provider's daily limit was reached.":
+  "The assistant couldn't reply because its provider's daily limit was reached.":
     "Der Bot konnte nicht antworten, weil das Tageslimit seines Anbieters erreicht wurde.",
-  "The bot couldn't reply because its provider's weekly limit was reached.":
+  "The assistant couldn't reply because its provider's weekly limit was reached.":
     "Der Bot konnte nicht antworten, weil das Wochenlimit seines Anbieters erreicht wurde.",
-  "The bot couldn't reply because its provider's monthly limit was reached.":
+  "The assistant couldn't reply because its provider's monthly limit was reached.":
     "Der Bot konnte nicht antworten, weil das Monatslimit seines Anbieters erreicht wurde.",
-  "The bot couldn't reply because its provider's usage limit was reached.":
+  "The assistant couldn't reply because its provider's usage limit was reached.":
     "Der Bot konnte nicht antworten, weil das Nutzungslimit seines Anbieters erreicht wurde.",
-  "The provider received too many requests to answer this bot.":
+  "The provider received too many requests to answer this assistant.":
     "Der Anbieter hat zu viele Anfragen erhalten, um diesem Bot zu antworten.",
-  "The provider refused the key this bot used for its reply.":
+  "The provider refused the key this assistant used for its reply.":
     "Der Anbieter hat den Schlüssel abgelehnt, den dieser Bot für seine Antwort verwendet hat.",
-  "The provider couldn't serve the model selected for this bot.":
+  "The provider couldn't serve the model selected for this assistant.":
     "Der Anbieter konnte das für diesen Bot ausgewählte Modell nicht bereitstellen.",
-  "The bot couldn't finish its reply. Technical details includes the reported error.":
+  "The assistant couldn't finish its reply. Technical details includes the reported error.":
     "Der Bot konnte seine Antwort nicht abschließen. Die technischen Details enthalten den gemeldeten Fehler.",
-  "This bot's reply stopped at its key's daily limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's daily limit. Your own key has its own limits.":
     "Die Antwort dieses Bots stoppte am Tageslimit seines Schlüssels. Dein eigener Schlüssel hat eigene Limits.",
-  "This bot's reply stopped at its key's weekly limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's weekly limit. Your own key has its own limits.":
     "Die Antwort dieses Bots stoppte am Wochenlimit seines Schlüssels. Dein eigener Schlüssel hat eigene Limits.",
-  "This bot's reply stopped at its key's monthly limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's monthly limit. Your own key has its own limits.":
     "Die Antwort dieses Bots stoppte am Monatslimit seines Schlüssels. Dein eigener Schlüssel hat eigene Limits.",
-  "This bot's reply stopped at its key's usage limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's usage limit. Your own key has its own limits.":
     "Die Antwort dieses Bots stoppte am Nutzungslimit seines Schlüssels. Dein eigener Schlüssel hat eigene Limits.",
   "Sign in with passkey": "Mit Passkey anmelden",
   Passkeys: "Passkeys",
@@ -1035,8 +1042,8 @@ export const DE_MESSAGES: Record<string, string> = {
   Ends: "Endet am",
   Renews: "Verlängert sich am",
   "Could not open billing": "Abrechnung konnte nicht geöffnet werden",
-  "Put your bots to work": "Lass deine Bots arbeiten",
-  "Bots with their own computer": "Bots mit eigenem Computer",
+  "Put your assistants to work": "Lass deine Bots arbeiten",
+  "Assistants with their own computer": "Bots mit eigenem Computer",
   "Routines that run while you're away": "Routinen, die laufen, während du weg bist",
   "Web, desktop and mobile apps": "Apps für Web, Desktop und Mobilgeräte",
   "Start free trial": "Kostenlos testen",
@@ -1107,7 +1114,7 @@ export const DE_MESSAGES: Record<string, string> = {
     "{bot} antwortet weiterhin auf direkte Erwähnungen.",
   "{sender} rollup hours": "{sender}: Bündelung in Stunden",
   "Add workspace": "Workspace hinzufügen",
-  "Chat with your bot from Slack.": "Chatte über Slack mit deinem Bot.",
+  "Chat with your assistant from Slack.": "Chatte über Slack mit deinem Bot.",
   "Link DMs": "DMs verknüpfen",
   "One-time": "Einmalig",
   "Every hour": "Jede Stunde",
@@ -1200,11 +1207,11 @@ export const DE_MESSAGES: Record<string, string> = {
   "Could not preview plugin": "Plugin-Vorschau konnte nicht geladen werden",
   "Could not remove plugin": "Plugin konnte nicht entfernt werden",
   "Could not sign in": "Anmeldung fehlgeschlagen",
-  "In this bot": "In diesem Bot",
+  "In this assistant": "In diesem Bot",
   "Plugin GitHub URL": "GitHub-URL des Plugins",
   Skills: "Skills",
   "Some plugins could not be loaded.": "Einige Plugins konnten nicht geladen werden.",
-  "Use in this bot": "In diesem Bot verwenden",
+  "Use in this assistant": "In diesem Bot verwenden",
   "View all": "Alle anzeigen",
   "View source": "Quelle ansehen",
   "{count} connectors": "{count} Connectoren",

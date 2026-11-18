@@ -1,5 +1,5 @@
 export const ES_MESSAGES: Record<string, string> = {
-  "How other bots see it": "Cómo lo ven otros bots",
+  "How other assistants see it": "Cómo lo ven otros bots",
   "Share to": "Compartir en",
   "{count} files": "{count} archivos",
   "could not read": "no se pudo leer",
@@ -7,7 +7,7 @@ export const ES_MESSAGES: Record<string, string> = {
   "Image input is not configured for this model.":
     "La entrada de imágenes no está configurada para este modelo.",
   "Send as file": "Enviar como archivo",
-  "The bot can use the file but won't see the picture.":
+  "The assistant can use the file but won't see the picture.":
     "El bot puede usar el archivo, pero no verá la imagen.",
   "This model cannot read images. Choose a model that supports images.":
     "Este modelo no puede leer imágenes. Elige un modelo que admita imágenes.",
@@ -65,10 +65,10 @@ export const ES_MESSAGES: Record<string, string> = {
   "To:": "Para:",
   Next: "Siguiente",
   "Ex: Project Falcon": "Ej.: Proyecto Halcón",
-  "Search bots": "Buscar bots",
+  "Search assistants": "Buscar bots",
   "About {label}": "Acerca de {label}",
-  "Manage the bots it creates": "Gestionar los bots que crea",
-  "Allow cross-space bot communication":
+  "Manage the assistants it creates": "Gestionar los bots que crea",
+  "Allow cross-space assistant communication":
     "Permitir la comunicación entre bots de distintos espacios",
   Headers: "Encabezados",
   "Add header": "Agregar encabezado",
@@ -177,7 +177,6 @@ export const ES_MESSAGES: Record<string, string> = {
   "Group settings": "Configuración del grupo",
   Integrations: "Integraciones",
   Models: "Modelos",
-  "New bot": "Nuevo bot",
   "New group chat": "Nuevo chat grupal",
   "New private space": "Nuevo espacio privado",
   Routine: "Rutina",
@@ -214,11 +213,18 @@ export const ES_MESSAGES: Record<string, string> = {
   "Use default server": "Usar el servidor predeterminado",
   Activity: "Actividad",
   "Collapse {name}": "Contraer {name}",
-  "Could not create bot": "No se pudo crear el bot",
+  "Could not create assistant": "No se pudo crear el bot",
   "Could not delete space": "No se pudo eliminar el espacio",
-  "Could not load bots": "No se pudieron cargar los bots",
+  "Could not load assistants": "No se pudieron cargar los bots",
   "Could not save the default space": "No se pudo guardar el espacio predeterminado",
   "Could not switch spaces": "No se pudo cambiar de espacio",
+  "Connect Tailscale": "Conectar Tailscale",
+  "This server is only reachable from your Tailscale network.":
+    "Este servidor solo es accesible desde tu red de Tailscale.",
+  "Open Tailscale": "Abrir Tailscale",
+  "Update the app": "Actualiza la app",
+  "The server asked for an address this app cannot use":
+    "El servidor pidió una dirección que esta app no puede usar",
   "Can't reach the assistant": "No se puede conectar con el asistente",
   "Create assistant": "Crear asistente",
   Assistants: "Asistentes",
@@ -249,7 +255,7 @@ export const ES_MESSAGES: Record<string, string> = {
   "Long press to pin or move to a section": "Mantén pulsado para fijar o mover a una sección",
   "Long press to pin, move, or silence notifications":
     "Mantén pulsado para fijar, mover o silenciar notificaciones",
-  "No matching bots": "No hay bots que coincidan",
+  "No matching assistants": "No hay bots que coincidan",
   "No messages yet": "Aún no hay mensajes",
   "No results": "Sin resultados",
   Now: "Ahora",
@@ -260,10 +266,10 @@ export const ES_MESSAGES: Record<string, string> = {
   "Space actions for {name}": "Acciones del espacio {name}",
   Customize: "Personalizar",
   "Customize {setting}": "Personalizar {setting}",
-  "Tap + to create a bot": "Toca + para crear un bot",
+  "Tap + to create an assistant": "Toca + para crear un bot",
   "This removes the space for everyone.": "Esto elimina el espacio para todos.",
-  "Delete {name} and its bot?": "¿Eliminar {name} y su bot?",
-  "Delete {name} and its {count} bots?": "¿Eliminar {name} y sus {count} bots?",
+  "Delete {name} and its assistant?": "¿Eliminar {name} y su bot?",
+  "Delete {name} and its {count} assistants?": "¿Eliminar {name} y sus {count} bots?",
   "notifications silenced": "notificaciones silenciadas",
   unread: "sin leer",
   "@{name}": "@{name}",
@@ -281,7 +287,7 @@ export const ES_MESSAGES: Record<string, string> = {
   Archive: "Archivar",
   "Attach file": "Adjuntar archivo",
   Attachment: "Archivo adjunto",
-  "Bot actions": "Acciones del bot",
+  "Assistant actions": "Acciones del bot",
   Camera: "Cámara",
   "Cancel reply": "Cancelar respuesta",
   Cancelled: "Cancelado",
@@ -294,7 +300,7 @@ export const ES_MESSAGES: Record<string, string> = {
   Complete: "Completado",
   Completed: "Completado",
   Copy: "Copiar",
-  "Could not archive bot": "No se pudo archivar el bot",
+  "Could not archive assistant": "No se pudo archivar el bot",
   "Could not clear conversation": "No se pudo borrar la conversación",
   "Could not load earlier messages": "No se pudieron cargar los mensajes anteriores",
   "Could not open file": "No se pudo abrir el archivo",
@@ -355,7 +361,7 @@ export const ES_MESSAGES: Record<string, string> = {
   Play: "Reproducir",
   Pause: "Pausar",
   "Select text": "Seleccionar texto",
-  "All bots": "Todos los bots",
+  "All assistants": "Todos los bots",
   Artifact: "Artefacto",
   Artifacts: "Artefactos",
   "Could not delete this artifact": "No se pudo eliminar este artefacto",
@@ -378,11 +384,12 @@ export const ES_MESSAGES: Record<string, string> = {
     "Esto elimina todos los mensajes y detiene el trabajo en curso. Se conservan el bot, la computadora, la memoria y las rutinas.",
   "Type your answer": "Escribe tu respuesta",
   Username: "Nombre de usuario",
-  "Waiting for this bot’s response.": "Esperando la respuesta de este bot.",
+  "Waiting for this assistant’s response.": "Esperando la respuesta de este bot.",
   "Work stopped, but the thread could not refresh: {detail}":
     "El trabajo se detuvo, pero el hilo no se pudo actualizar: {detail}",
   archived: "archivado",
-  bot: "bot",
+  assistant: "asistente",
+  "New line": "Nueva línea",
   cancelled: "cancelado",
   deleted: "eliminado",
   expired: "caducado",
@@ -400,9 +407,9 @@ export const ES_MESSAGES: Record<string, string> = {
   Advanced: "Avanzado",
   Color: "Color",
   "Color {number}": "Color {number}",
-  "Could not load bot": "No se pudo cargar el bot",
+  "Could not load assistant": "No se pudo cargar el bot",
   "Could not load model settings": "No se pudo cargar la configuración de modelos",
-  "Could not save bot": "No se pudo guardar el bot",
+  "Could not save assistant": "No se pudo guardar el bot",
   "Extra high": "Extra alto",
   High: "Alto",
   Low: "Bajo",
@@ -418,12 +425,12 @@ export const ES_MESSAGES: Record<string, string> = {
   "Space default": "Predeterminado del espacio",
   "Can't read images": "No puede leer imágenes",
   Thinking: "Pensando",
-  "What this bot is for": "Para qué es este bot",
+  "What this assistant is for": "Para qué es este bot",
   "Could not delete group": "No se pudo eliminar el grupo",
   "Could not load group": "No se pudo cargar el grupo",
   "Could not save group": "No se pudo guardar el grupo",
   "Delete group": "Eliminar grupo",
-  "Bots and their own chats stay.": "Los bots y sus propios chats se conservan.",
+  "Assistants and their own chats stay.": "Los bots y sus propios chats se conservan.",
   "Group name": "Nombre del grupo",
   "Group not found": "No se encontró el grupo",
   "Could not create group": "No se pudo crear el grupo",
@@ -451,7 +458,7 @@ export const ES_MESSAGES: Record<string, string> = {
   Routines: "Rutinas",
   "Could not load routines": "No se pudieron cargar las rutinas",
   "{count} on": "{count} activas",
-  "Ask this Bot in chat to set up a routine.":
+  "Ask this assistant in chat to set up a routine.":
     "Pídele a este bot en el chat que configure una rutina.",
   "{name}, On": "{name}, activada",
   "{name}, Off": "{name}, desactivada",
@@ -462,7 +469,6 @@ export const ES_MESSAGES: Record<string, string> = {
     "Esto elimina de forma permanente la rutina y su historial de ejecuciones.",
   "Could not delete routine": "No se pudo eliminar la rutina",
   "Could not update routine": "No se pudo actualizar la rutina",
-  Bot: "Bot",
   "Close computer": "Cerrar computadora",
   "Computer keyboard": "Teclado de la computadora",
   Control: "Control",
@@ -629,7 +635,7 @@ export const ES_MESSAGES: Record<string, string> = {
   "Could not change language": "No se pudo cambiar el idioma",
   "Could not delete account": "No se pudo eliminar la cuenta",
   "Could not load chats": "No se pudieron cargar los chats",
-  "Could not restore bot": "No se pudo restaurar el bot",
+  "Could not restore assistant": "No se pudo restaurar el bot",
   "Could not sign out": "No se pudo cerrar sesión",
   "Could not update notifications": "No se pudieron actualizar las notificaciones",
   "Current password": "Contraseña actual",
@@ -645,7 +651,7 @@ export const ES_MESSAGES: Record<string, string> = {
   More: "Más",
   "Needs attention": "Requiere atención",
   "Notification settings": "Configuración de notificaciones",
-  "Get notified when this Bot finishes or needs input":
+  "Get notified when this assistant finishes or needs input":
     "Recibe un aviso cuando este bot termine o necesite una respuesta",
   Notifications: "Notificaciones",
   "Questions, approvals, takeover": "Preguntas, aprobaciones, toma de control",
@@ -656,7 +662,7 @@ export const ES_MESSAGES: Record<string, string> = {
   "Stream replies": "Transmitir respuestas",
   "Load web images automatically": "Cargar imágenes web automáticamente",
   System: "Sistema",
-  "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.":
+  "This permanently deletes your account, assistants, conversations, memories, files, and saved connections. This cannot be undone.":
     "Esto elimina de forma permanente tu cuenta, bots, conversaciones, memorias, archivos y conexiones guardadas. No se puede deshacer.",
   "Try again.": "Inténtalo de nuevo.",
   Usage: "Uso",
@@ -691,7 +697,7 @@ export const ES_MESSAGES: Record<string, string> = {
   "Section actions for {name}": "Acciones de la sección {name}",
   "Could not delete section": "No se pudo eliminar la sección",
   "Delete section": "Eliminar sección",
-  "Its bots and groups are kept and leave the section.":
+  "Its assistants and groups are kept and leave the section.":
     "Sus bots y grupos se conservan y salen de la sección.",
   "Resume notifications": "Reanudar notificaciones",
   "Save section name": "Guardar nombre de la sección",
@@ -763,7 +769,7 @@ export const ES_MESSAGES: Record<string, string> = {
   "{channel} {id}": "{channel} {id}",
   "{channel} {id}, {date}": "{channel} {id}, {date}",
   "Saved {name} locally": "{name} se guardó en el dispositivo",
-  "Could not delete bot": "No se pudo eliminar el bot",
+  "Could not delete assistant": "No se pudo eliminar el bot",
   "Delete memories too": "Eliminar también las memorias",
   "Its conversation, files, and routines will be permanently deleted. What should happen to its memories?":
     "Su conversación, archivos y rutinas se eliminarán de forma permanente. ¿Qué debe pasar con sus memorias?",
@@ -809,7 +815,8 @@ export const ES_MESSAGES: Record<string, string> = {
     "Esperando el inicio de sesión. El código vence en unos {minutes} minutos.",
   "Waiting for sign-in — the link expires in about {minutes} minutes.":
     "Esperando el inicio de sesión. El enlace vence en unos {minutes} minutos.",
-  "Allow microphone access to call a bot.": "Permite el acceso al micrófono para llamar a un bot.",
+  "Allow microphone access to call an assistant.":
+    "Permite el acceso al micrófono para llamar a un bot.",
   "Allow speech recognition in Settings, or connect ElevenLabs, OpenAI, or Fish Audio.":
     "Permite el reconocimiento de voz en Configuración o conecta ElevenLabs, OpenAI o Fish Audio.",
   Call: "Llamar",
@@ -880,7 +887,7 @@ export const ES_MESSAGES: Record<string, string> = {
   "Members ({count})": "Miembros ({count})",
   "Show all": "Mostrar todos",
   "Show selected": "Mostrar seleccionados",
-  "Filter bots": "Filtrar bots",
+  "Filter assistants": "Filtrar bots",
   "Pick {min}–{max}": "Elige de {min} a {max}",
   "No members yet": "Aún no hay miembros",
   Apply: "Aplicar",
@@ -911,29 +918,29 @@ export const ES_MESSAGES: Record<string, string> = {
   "Credential saved": "Credencial guardada",
   Authentication: "Autenticación",
   "No auth": "Sin autenticación",
-  "The bot couldn't reply because its provider's daily limit was reached.":
+  "The assistant couldn't reply because its provider's daily limit was reached.":
     "El bot no pudo responder porque se alcanzó el límite diario de su proveedor.",
-  "The bot couldn't reply because its provider's weekly limit was reached.":
+  "The assistant couldn't reply because its provider's weekly limit was reached.":
     "El bot no pudo responder porque se alcanzó el límite semanal de su proveedor.",
-  "The bot couldn't reply because its provider's monthly limit was reached.":
+  "The assistant couldn't reply because its provider's monthly limit was reached.":
     "El bot no pudo responder porque se alcanzó el límite mensual de su proveedor.",
-  "The bot couldn't reply because its provider's usage limit was reached.":
+  "The assistant couldn't reply because its provider's usage limit was reached.":
     "El bot no pudo responder porque se alcanzó el límite de uso de su proveedor.",
-  "The provider received too many requests to answer this bot.":
+  "The provider received too many requests to answer this assistant.":
     "El proveedor recibió demasiadas solicitudes para responder a este bot.",
-  "The provider refused the key this bot used for its reply.":
+  "The provider refused the key this assistant used for its reply.":
     "El proveedor rechazó la clave que este bot usó para responder.",
-  "The provider couldn't serve the model selected for this bot.":
+  "The provider couldn't serve the model selected for this assistant.":
     "El proveedor no pudo ofrecer el modelo seleccionado para este bot.",
-  "The bot couldn't finish its reply. Technical details includes the reported error.":
+  "The assistant couldn't finish its reply. Technical details includes the reported error.":
     "El bot no pudo terminar su respuesta. Detalles técnicos incluye el error informado.",
-  "This bot's reply stopped at its key's daily limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's daily limit. Your own key has its own limits.":
     "La respuesta de este bot se detuvo al llegar al límite diario de su clave. Tu propia clave tiene sus propios límites.",
-  "This bot's reply stopped at its key's weekly limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's weekly limit. Your own key has its own limits.":
     "La respuesta de este bot se detuvo al llegar al límite semanal de su clave. Tu propia clave tiene sus propios límites.",
-  "This bot's reply stopped at its key's monthly limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's monthly limit. Your own key has its own limits.":
     "La respuesta de este bot se detuvo al llegar al límite mensual de su clave. Tu propia clave tiene sus propios límites.",
-  "This bot's reply stopped at its key's usage limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's usage limit. Your own key has its own limits.":
     "La respuesta de este bot se detuvo al llegar al límite de uso de su clave. Tu propia clave tiene sus propios límites.",
   "Sign in with passkey": "Iniciar sesión con llave de acceso",
   Passkeys: "Llaves de acceso",
@@ -974,8 +981,8 @@ export const ES_MESSAGES: Record<string, string> = {
   Ends: "Termina",
   Renews: "Se renueva",
   "Could not open billing": "No se pudo abrir la facturación",
-  "Put your bots to work": "Pon a trabajar a tus bots",
-  "Bots with their own computer": "Bots con su propia computadora",
+  "Put your assistants to work": "Pon a trabajar a tus bots",
+  "Assistants with their own computer": "Bots con su propia computadora",
   "Routines that run while you're away": "Rutinas que se ejecutan mientras no estás",
   "Web, desktop and mobile apps": "Apps web, de escritorio y móviles",
   "Start free trial": "Empezar prueba gratuita",
@@ -1049,7 +1056,7 @@ export const ES_MESSAGES: Record<string, string> = {
     "{bot} seguirá respondiendo a las menciones directas.",
   "{sender} rollup hours": "Horas de agrupación de {sender}",
   "Add workspace": "Agregar espacio de trabajo",
-  "Chat with your bot from Slack.": "Chatea con tu bot desde Slack.",
+  "Chat with your assistant from Slack.": "Chatea con tu bot desde Slack.",
   "Link DMs": "Vincular mensajes privados",
   "One-time": "Una vez",
   "Every hour": "Cada hora",
@@ -1138,11 +1145,11 @@ export const ES_MESSAGES: Record<string, string> = {
   "Could not preview plugin": "No se pudo previsualizar el plugin",
   "Could not remove plugin": "No se pudo quitar el plugin",
   "Could not sign in": "No se pudo iniciar sesión",
-  "In this bot": "En este bot",
+  "In this assistant": "En este bot",
   "Plugin GitHub URL": "URL de GitHub del plugin",
   Skills: "Habilidades",
   "Some plugins could not be loaded.": "No se pudieron cargar algunos plugins.",
-  "Use in this bot": "Usar en este bot",
+  "Use in this assistant": "Usar en este bot",
   "View all": "Ver todo",
   "View source": "Ver código fuente",
   "{count} connectors": "{count} conectores",

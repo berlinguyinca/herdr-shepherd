@@ -180,7 +180,7 @@ export function useInboxChatActions({
         } catch (err) {
           settle();
           Alert.alert(
-            kind === "bot" ? t("Could not archive bot") : t("Could not update chat"),
+            kind === "bot" ? t("Could not archive assistant") : t("Could not update chat"),
             errorText(err, t("Try again.")),
           );
         }

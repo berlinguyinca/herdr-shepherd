@@ -321,7 +321,7 @@ it("puts a chat back in its place when the archive fails", async () => {
     "b2",
   ]);
   expect(notifyArchivedChatsChanged).not.toHaveBeenCalled();
-  expect(session.alert).toHaveBeenCalledWith("Could not archive bot", "Try again.");
+  expect(session.alert).toHaveBeenCalledWith("Could not archive assistant", "Try again.");
   expect(h.loadBots).toHaveBeenCalledTimes(1);
 });
 
@@ -368,7 +368,7 @@ it("names the archive failure for bots", async () => {
   await h.runRowAction("bot", { id: "x" }, "archive");
   await h.runRowAction("group", { id: "x" }, "pin");
   expect(session.alert.mock.calls.map(([title]) => title)).toEqual([
-    "Could not archive bot",
+    "Could not archive assistant",
     "Could not update chat",
   ]);
   expect(notifyArchivedChatsChanged).not.toHaveBeenCalled();

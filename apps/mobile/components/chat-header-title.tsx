@@ -93,7 +93,7 @@ export function ChatHeaderTitle({
   };
   // A group seats its members from the inbox's copy until the chat has loaded its own.
   const members = inGroup ? (title.members ?? inboxGroup?.members) : undefined;
-  const label = safeDisplayName(title.name, inGroup ? t("Group") : t("Bot")) || t("Thread");
+  const label = safeDisplayName(title.name, inGroup ? t("Group") : t("Assistant")) || t("Thread");
   const opens = title.opens;
   return (
     <Pressable

@@ -61,20 +61,12 @@ describe("pickDefaultBot", () => {
     const runs = [run("a", "2026-02-01T00:00:00Z")];
     expect(pickDefaultBot([bot("a"), bot("d", { isDefault: true })], runs)?.id).toBe("d");
   });
-  it("picks a bot known only from runs, with a minimal bot", () => {
-    const picked = pickDefaultBot(
-      [bot("s", { spawnKey: "agent_1" })],
-      [run("h", "2026-02-01T00:00:00Z", "Herdr")],
-    );
-    expect(picked).toMatchObject({ id: "h", name: "Herdr", threadId: "thr_h" });
-  });
-  it("de-duplicates run bots against the list and each other", () => {
-    const runs = [
-      run("a", "2026-01-01T00:00:00Z"),
-      run("h", "2026-01-01T00:00:00Z"),
-      run("h", "2026-01-02T00:00:00Z"),
-    ];
-    expect(assistantCandidates([bot("a")], runs).map((b) => b.id)).toEqual(["a", "h"]);
+  it("never turns a bot known only from a run into an assistant", () => {
+    const bots = [bot("a")];
+    const runs = [run("agent", "2026-03-01T00:00:00Z", "Agent run")];
+    expect(assistantCandidates(bots).map((b) => b.id)).toEqual(["a"]);
+    expect(pickDefaultBot([], runs)).toBeNull();
+    expect(pickDefaultBot(bots, runs)?.id).toBe("a");
   });
   it("returns null when empty", () => {
     expect(pickDefaultBot([])).toBeNull();

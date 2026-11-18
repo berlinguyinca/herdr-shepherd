@@ -6,7 +6,7 @@ export type CreateAction = "bot" | "group" | "space";
 export const createMenuItems = [
   {
     id: "bot",
-    label: "New bot",
+    label: "New assistant",
     sfSymbol: "person.crop.circle.badge.plus",
     materialIcon: "person_add",
   },

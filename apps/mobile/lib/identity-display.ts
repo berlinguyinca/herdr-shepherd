@@ -3,7 +3,7 @@ import { t } from "./i18n";
 
 export function identityLabels(): IdentityLabels {
   return {
-    bot: t("Bot"),
+    bot: t("Assistant"),
     group: t("Group"),
     space: t("Space"),
     chats: t("Chats"),

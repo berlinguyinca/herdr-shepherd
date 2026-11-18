@@ -1,5 +1,5 @@
 export const NL_MESSAGES: Record<string, string> = {
-  "How other bots see it": "Hoe andere bots deze zien",
+  "How other assistants see it": "Hoe andere bots deze zien",
   "Share to": "Delen met",
   "{count} files": "{count} bestanden",
   "could not read": "kon niet worden gelezen",
@@ -7,7 +7,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Image input is not configured for this model.":
     "Afbeeldingsinvoer is niet ingesteld voor dit model.",
   "Send as file": "Als bestand verzenden",
-  "The bot can use the file but won't see the picture.":
+  "The assistant can use the file but won't see the picture.":
     "De bot kan het bestand gebruiken, maar ziet de afbeelding niet.",
   "This model cannot read images. Choose a model that supports images.":
     "Dit model kan geen afbeeldingen lezen. Kies een model dat afbeeldingen ondersteunt.",
@@ -56,11 +56,11 @@ export const NL_MESSAGES: Record<string, string> = {
   "To:": "Aan:",
   Next: "Volgende",
   "Ex: Project Falcon": "Bijv. Project Falcon",
-  "Search bots": "Bots zoeken",
+  "Search assistants": "Bots zoeken",
   "{count} messages with {peer}": "{count} berichten met {peer}",
   "About {label}": "Over {label}",
-  "Manage the bots it creates": "De bots beheren die deze bot maakt",
-  "Allow cross-space bot communication":
+  "Manage the assistants it creates": "De bots beheren die deze bot maakt",
+  "Allow cross-space assistant communication":
     "Communicatie tussen bots in verschillende ruimtes toestaan",
   "Organize the sidebar and edit bots. Instruction, model, routine and group edits need approval.":
     "Orden de zijbalk en bewerk bots. Wijzigingen aan groepen, instructies, modellen en routines vereisen je goedkeuring.",
@@ -187,7 +187,6 @@ export const NL_MESSAGES: Record<string, string> = {
   "Group settings": "Groepsinstellingen",
   Integrations: "Integraties",
   Models: "Modellen",
-  "New bot": "Nieuwe bot",
   "New group chat": "Nieuwe groepschat",
   "New private space": "Nieuwe privéspace",
   Routine: "Routine",
@@ -224,11 +223,18 @@ export const NL_MESSAGES: Record<string, string> = {
   "Use default server": "Gebruik de standaardserver",
   Activity: "Activiteit",
   "Collapse {name}": "{name} inklappen",
-  "Could not create bot": "Bot aanmaken mislukt",
+  "Could not create assistant": "Bot aanmaken mislukt",
   "Could not delete space": "Space verwijderen mislukt",
-  "Could not load bots": "Bots laden mislukt",
+  "Could not load assistants": "Bots laden mislukt",
   "Could not save the default space": "De standaardspace opslaan mislukt",
   "Could not switch spaces": "Van space wisselen mislukt",
+  "Connect Tailscale": "Tailscale verbinden",
+  "This server is only reachable from your Tailscale network.":
+    "Deze server is alleen bereikbaar vanaf je Tailscale-netwerk.",
+  "Open Tailscale": "Tailscale openen",
+  "Update the app": "Werk de app bij",
+  "The server asked for an address this app cannot use":
+    "De server vroeg om een adres dat deze app niet kan gebruiken",
   "Can't reach the assistant": "Kan de assistent niet bereiken",
   "Create assistant": "Assistent maken",
   Assistants: "Assistenten",
@@ -260,7 +266,7 @@ export const NL_MESSAGES: Record<string, string> = {
     "Lang indrukken om vast te zetten of naar een sectie te verplaatsen",
   "Long press to pin, move, or silence notifications":
     "Lang indrukken om vast te zetten, te verplaatsen of meldingen te dempen",
-  "No matching bots": "Geen overeenkomende bots",
+  "No matching assistants": "Geen overeenkomende bots",
   "No messages yet": "Nog geen berichten",
   "No results": "Geen resultaten",
   Now: "Nu",
@@ -272,10 +278,11 @@ export const NL_MESSAGES: Record<string, string> = {
   "Space actions for {name}": "Space-acties voor {name}",
   Customize: "Aanpassen",
   "Customize {setting}": "{setting} aanpassen",
-  "Tap + to create a bot": "Tik op + om een bot te maken",
+  "Tap + to create an assistant": "Tik op + om een bot te maken",
   "This removes the space for everyone.": "Hiermee wordt de space voor iedereen verwijderd.",
-  "Delete {name} and its bot?": "{name} en de bijbehorende bot verwijderen?",
-  "Delete {name} and its {count} bots?": "{name} en de {count} bijbehorende bots verwijderen?",
+  "Delete {name} and its assistant?": "{name} en de bijbehorende bot verwijderen?",
+  "Delete {name} and its {count} assistants?":
+    "{name} en de {count} bijbehorende bots verwijderen?",
   "notifications silenced": "meldingen gedempt",
   unread: "ongelezen",
   "@{name}": "@{name}",
@@ -293,7 +300,7 @@ export const NL_MESSAGES: Record<string, string> = {
   Attach: "Bijvoegen",
   "Attach file": "Bestand bijvoegen",
   Attachment: "Bijlage",
-  "Bot actions": "Bot-acties",
+  "Assistant actions": "Bot-acties",
   Camera: "Camera",
   "Cancel reply": "Antwoord annuleren",
   Cancelled: "Geannuleerd",
@@ -306,7 +313,7 @@ export const NL_MESSAGES: Record<string, string> = {
   Complete: "Voltooien",
   Completed: "Voltooid",
   Copy: "Kopiëren",
-  "Could not archive bot": "Bot archiveren mislukt",
+  "Could not archive assistant": "Bot archiveren mislukt",
   "Could not clear conversation": "Gesprek wissen mislukt",
   "Could not load earlier messages": "Eerdere berichten laden mislukt",
   "Could not open file": "Bestand openen mislukt",
@@ -368,7 +375,7 @@ export const NL_MESSAGES: Record<string, string> = {
   Play: "Afspelen",
   Pause: "Pauzeren",
   "Select text": "Tekst selecteren",
-  "All bots": "Alle bots",
+  "All assistants": "Alle bots",
   Artifact: "Artefact",
   Artifacts: "Artefacten",
   "Could not delete this artifact": "Dit artefact verwijderen mislukt",
@@ -392,11 +399,12 @@ export const NL_MESSAGES: Record<string, string> = {
     "Hiermee worden alle berichten verwijderd en lopend werk gestopt. De bot, computer, het geheugen en de routines blijven behouden.",
   "Type your answer": "Typ je antwoord",
   Username: "Gebruikersnaam",
-  "Waiting for this bot’s response.": "Wachten op het antwoord van deze bot.",
+  "Waiting for this assistant’s response.": "Wachten op het antwoord van deze bot.",
   "Work stopped, but the thread could not refresh: {detail}":
     "Werk gestopt, maar de thread kon niet worden vernieuwd: {detail}",
   archived: "gearchiveerd",
-  bot: "bot",
+  assistant: "assistent",
+  "New line": "Nieuwe regel",
   cancelled: "geannuleerd",
   deleted: "verwijderd",
   expired: "verlopen",
@@ -414,9 +422,9 @@ export const NL_MESSAGES: Record<string, string> = {
   Advanced: "Geavanceerd",
   Color: "Kleur",
   "Color {number}": "Kleur {number}",
-  "Could not load bot": "Bot laden mislukt",
+  "Could not load assistant": "Bot laden mislukt",
   "Could not load model settings": "Modelinstellingen laden mislukt",
-  "Could not save bot": "Bot opslaan mislukt",
+  "Could not save assistant": "Bot opslaan mislukt",
   "Default (medium)": "Standaard (gemiddeld)",
   Description: "Beschrijving",
   "Extra high": "Extra hoog",
@@ -434,12 +442,12 @@ export const NL_MESSAGES: Record<string, string> = {
   "Can't read images": "Kan afbeeldingen niet lezen",
   Thinking: "Denkt",
   Title: "Titel",
-  "What this bot is for": "Waarvoor deze bot is",
+  "What this assistant is for": "Waarvoor deze bot is",
   "Could not delete group": "Groep verwijderen mislukt",
   "Could not load group": "Groep laden mislukt",
   "Could not save group": "Groep opslaan mislukt",
   "Delete group": "Groep verwijderen",
-  "Bots and their own chats stay.": "Bots en hun eigen chats blijven behouden.",
+  "Assistants and their own chats stay.": "Bots en hun eigen chats blijven behouden.",
   "Group name": "Groepsnaam",
   "Group not found": "Groep niet gevonden",
   Members: "Leden",
@@ -468,7 +476,7 @@ export const NL_MESSAGES: Record<string, string> = {
   Routines: "Routines",
   "Could not load routines": "Routines laden mislukt",
   "{count} on": "{count} aan",
-  "Ask this Bot in chat to set up a routine.":
+  "Ask this assistant in chat to set up a routine.":
     "Vraag deze Bot in de chat om een routine in te stellen.",
   "{name}, On": "{name}, aan",
   "{name}, Off": "{name}, uit",
@@ -479,7 +487,6 @@ export const NL_MESSAGES: Record<string, string> = {
     "Hiermee worden de routine en de uitvoergeschiedenis definitief verwijderd.",
   "Could not delete routine": "Routine verwijderen mislukt",
   "Could not update routine": "Routine bijwerken mislukt",
-  Bot: "Bot",
   "Close computer": "Computer sluiten",
   "Computer keyboard": "Computertoetsenbord",
   Control: "Ctrl",
@@ -664,7 +671,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Could not change language": "Taal wijzigen mislukt",
   "Could not delete account": "Account verwijderen mislukt",
   "Could not load chats": "Chats laden mislukt",
-  "Could not restore bot": "Bot herstellen mislukt",
+  "Could not restore assistant": "Bot herstellen mislukt",
   "Could not sign out": "Uitloggen mislukt",
   "Could not update notifications": "Meldingen bijwerken mislukt",
   "Current password": "Huidig wachtwoord",
@@ -680,7 +687,7 @@ export const NL_MESSAGES: Record<string, string> = {
   More: "Meer",
   "Needs attention": "Heeft aandacht nodig",
   "Notification settings": "Meldingsinstellingen",
-  "Get notified when this Bot finishes or needs input":
+  "Get notified when this assistant finishes or needs input":
     "Ontvang een melding wanneer deze bot klaar is of invoer nodig heeft",
   Notifications: "Meldingen",
   "Questions, approvals, takeover": "Vragen, goedkeuringen, overname",
@@ -691,7 +698,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Stream replies": "Antwoorden streamen",
   "Load web images automatically": "Webafbeeldingen automatisch laden",
   System: "Systeem",
-  "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.":
+  "This permanently deletes your account, assistants, conversations, memories, files, and saved connections. This cannot be undone.":
     "Hiermee worden je account, bots, gesprekken, herinneringen, bestanden en opgeslagen verbindingen definitief verwijderd. Dit kan niet ongedaan worden gemaakt.",
   "Try again.": "Probeer het opnieuw.",
   Usage: "Gebruik",
@@ -725,7 +732,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Section actions for {name}": "Sectie-acties voor {name}",
   "Could not delete section": "Sectie verwijderen mislukt",
   "Delete section": "Sectie verwijderen",
-  "Its bots and groups are kept and leave the section.":
+  "Its assistants and groups are kept and leave the section.":
     "De bots en groepen blijven behouden en verlaten de sectie.",
   "Resume notifications": "Meldingen hervatten",
   "Save section name": "Sectienaam opslaan",
@@ -806,7 +813,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "{channel} {id}": "{channel} {id}",
   "{channel} {id}, {date}": "{channel} {id}, {date}",
   "Saved {name} locally": "{name} lokaal opgeslagen",
-  "Could not delete bot": "Bot verwijderen mislukt",
+  "Could not delete assistant": "Bot verwijderen mislukt",
   "Delete memories too": "Herinneringen ook verwijderen",
   "Its conversation, files, and routines will be permanently deleted. What should happen to its memories?":
     "Het gesprek, de bestanden en de routines worden definitief verwijderd. Wat moet er met de herinneringen gebeuren?",
@@ -860,7 +867,7 @@ export const NL_MESSAGES: Record<string, string> = {
     "Wachten op aanmelding — de code verloopt over ongeveer {minutes} minuten.",
   "Waiting for sign-in — the link expires in about {minutes} minutes.":
     "Wachten op aanmelding — de link verloopt over ongeveer {minutes} minuten.",
-  "Allow microphone access to call a bot.": "Sta microfoontoegang toe om een bot te bellen.",
+  "Allow microphone access to call an assistant.": "Sta microfoontoegang toe om een bot te bellen.",
   "Allow speech recognition in Settings, or connect ElevenLabs, OpenAI, or Fish Audio.":
     "Sta spraakherkenning toe in Instellingen, of koppel ElevenLabs, OpenAI of Fish Audio.",
   Call: "Bellen",
@@ -931,7 +938,7 @@ export const NL_MESSAGES: Record<string, string> = {
   "Members ({count})": "Leden ({count})",
   "Show all": "Alles tonen",
   "Show selected": "Selectie tonen",
-  "Filter bots": "Bots filteren",
+  "Filter assistants": "Bots filteren",
   "Pick {min}–{max}": "Kies {min}–{max}",
   "No members yet": "Nog geen leden",
   Applied: "Toegepast",
@@ -964,29 +971,29 @@ export const NL_MESSAGES: Record<string, string> = {
   "Credential saved": "Inloggegevens opgeslagen",
   Authentication: "Authenticatiemethode",
   "No auth": "Geen authenticatie",
-  "The bot couldn't reply because its provider's daily limit was reached.":
+  "The assistant couldn't reply because its provider's daily limit was reached.":
     "De bot kon niet antwoorden omdat de daglimiet van zijn provider is bereikt.",
-  "The bot couldn't reply because its provider's weekly limit was reached.":
+  "The assistant couldn't reply because its provider's weekly limit was reached.":
     "De bot kon niet antwoorden omdat de weeklimiet van zijn provider is bereikt.",
-  "The bot couldn't reply because its provider's monthly limit was reached.":
+  "The assistant couldn't reply because its provider's monthly limit was reached.":
     "De bot kon niet antwoorden omdat de maandlimiet van zijn provider is bereikt.",
-  "The bot couldn't reply because its provider's usage limit was reached.":
+  "The assistant couldn't reply because its provider's usage limit was reached.":
     "De bot kon niet antwoorden omdat de gebruikslimiet van zijn provider is bereikt.",
-  "The provider received too many requests to answer this bot.":
+  "The provider received too many requests to answer this assistant.":
     "De provider heeft te veel verzoeken ontvangen om deze bot te antwoorden.",
-  "The provider refused the key this bot used for its reply.":
+  "The provider refused the key this assistant used for its reply.":
     "De provider heeft de sleutel geweigerd die deze bot voor zijn antwoord gebruikte.",
-  "The provider couldn't serve the model selected for this bot.":
+  "The provider couldn't serve the model selected for this assistant.":
     "De provider kon het voor deze bot gekozen model niet aanbieden.",
-  "The bot couldn't finish its reply. Technical details includes the reported error.":
+  "The assistant couldn't finish its reply. Technical details includes the reported error.":
     "De bot kon zijn antwoord niet afronden. De technische details bevatten de gemelde fout.",
-  "This bot's reply stopped at its key's daily limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's daily limit. Your own key has its own limits.":
     "Het antwoord van deze bot stopte bij de daglimiet van zijn sleutel. Je eigen sleutel heeft eigen limieten.",
-  "This bot's reply stopped at its key's weekly limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's weekly limit. Your own key has its own limits.":
     "Het antwoord van deze bot stopte bij de weeklimiet van zijn sleutel. Je eigen sleutel heeft eigen limieten.",
-  "This bot's reply stopped at its key's monthly limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's monthly limit. Your own key has its own limits.":
     "Het antwoord van deze bot stopte bij de maandlimiet van zijn sleutel. Je eigen sleutel heeft eigen limieten.",
-  "This bot's reply stopped at its key's usage limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's usage limit. Your own key has its own limits.":
     "Het antwoord van deze bot stopte bij de gebruikslimiet van zijn sleutel. Je eigen sleutel heeft eigen limieten.",
   "Sign in with passkey": "Aanmelden met passkey",
   Passkeys: "Passkeys",
@@ -1027,8 +1034,8 @@ export const NL_MESSAGES: Record<string, string> = {
   Ends: "Eindigt op",
   Renews: "Verlengt op",
   "Could not open billing": "Kan facturering niet openen",
-  "Put your bots to work": "Zet je bots aan het werk",
-  "Bots with their own computer": "Bots met een eigen computer",
+  "Put your assistants to work": "Zet je bots aan het werk",
+  "Assistants with their own computer": "Bots met een eigen computer",
   "Routines that run while you're away": "Routines die draaien terwijl je weg bent",
   "Web, desktop and mobile apps": "Web-, desktop- en mobiele apps",
   "Start free trial": "Start gratis proefperiode",
@@ -1099,7 +1106,7 @@ export const NL_MESSAGES: Record<string, string> = {
     "{bot} reageert nog steeds op directe vermeldingen.",
   "{sender} rollup hours": "Bundeluren voor {sender}",
   "Add workspace": "Werkruimte toevoegen",
-  "Chat with your bot from Slack.": "Chat vanuit Slack met je bot.",
+  "Chat with your assistant from Slack.": "Chat vanuit Slack met je bot.",
   "Link DMs": "DM’s koppelen",
   "One-time": "Eenmalig",
   "Every hour": "Elk uur",
@@ -1192,11 +1199,11 @@ export const NL_MESSAGES: Record<string, string> = {
   "Could not preview plugin": "Kon geen voorbeeld van de plug-in laden",
   "Could not remove plugin": "Kon plug-in niet verwijderen",
   "Could not sign in": "Kon niet inloggen",
-  "In this bot": "In deze bot",
+  "In this assistant": "In deze bot",
   "Plugin GitHub URL": "GitHub-URL van plug-in",
   Skills: "Skills",
   "Some plugins could not be loaded.": "Sommige plug-ins konden niet worden geladen.",
-  "Use in this bot": "Gebruiken in deze bot",
+  "Use in this assistant": "Gebruiken in deze bot",
   "View all": "Alles bekijken",
   "View source": "Bron bekijken",
   "{count} connectors": "{count} connectors",

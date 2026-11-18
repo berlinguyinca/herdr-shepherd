@@ -1,12 +1,24 @@
 import { isRetryableError, isUnauthorizedError } from "@rakazo/core";
 import { Redirect, useNavigation } from "expo-router";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { ActivityIndicator, Alert, Pressable, Text, View } from "react-native";
-import { openOwnerSession, rpc } from "../../lib/api";
+import {
+  ActivityIndicator,
+  Alert,
+  AppState,
+  Linking,
+  Platform,
+  Pressable,
+  Text,
+  View,
+} from "react-native";
+import { rpc } from "../../lib/api";
 import { setDefaultAssistant } from "../../lib/assistant-actions";
+import { reprobeOnActive } from "../../lib/foreground-reprobe";
 import { t } from "../../lib/i18n";
 import { useMobileTokens } from "../../lib/native";
+import { openTailscale } from "../../lib/open-tailscale";
 import { loadSessionToken } from "../../lib/session";
+import { connectShepherd } from "../../lib/shepherd-connect";
 import {
   type BotsOutcome,
   type FailureReason,
@@ -37,8 +49,13 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
   // Each attempt reads the saved session, opens one if missing or refused by the last attempt, then lists the bots.
   // A saved session the list refuses is stale: it is reopened once, then the list is tried again.
   const lastFailure = useRef<FailureReason | null>(null);
+  // True from the start of an attempt until it ends: a foreground event must not start another.
+  const attemptBusy = useRef(false);
   useEffect(() => {
     let cancelled = false;
+    // A cancelled attempt aborts its probe and open, so none outlives it.
+    const controller = new AbortController();
+    attemptBusy.current = true;
     let openedThisAttempt = false;
     setOpen({ kind: "idle" });
     setBots({ kind: "pending" });
@@ -46,7 +63,15 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
       openedThisAttempt = true;
       setOpen({ kind: "pending" });
       try {
-        await openOwnerSession();
+        const result = await connectShepherd({ signal: controller.signal });
+        if (result.kind !== "connected") {
+          if (!cancelled)
+            setOpen({
+              kind: "failed",
+              reason: result.kind === "connect-tailscale" ? "tailscale" : "update",
+            });
+          return false;
+        }
       } catch (error) {
         if (!cancelled)
           setOpen({ kind: "failed", reason: isRetryableError(error) ? "network" : "refused" });
@@ -57,6 +82,13 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
       return true;
     };
     void (async () => {
+      try {
+        await run();
+      } finally {
+        if (!cancelled) attemptBusy.current = false;
+      }
+    })();
+    async function run() {
       const saved = Boolean(await loadSessionToken());
       if (cancelled) return;
       setHasSession(saved);
@@ -72,7 +104,7 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
         try {
           const list = await rpc("bots/list");
           lastFailure.current = null;
-          // Recent runs reveal assistants bots/list omits; failing to read them is not fatal.
+          // Recent runs only rank the assistants bots/list returned; failing to read them is not fatal.
           const runs = await rpc("runs/list", { filter: "recent" })
             .then((r) => r.runs)
             .catch(() => []);
@@ -89,9 +121,10 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
           if (!(await openSession())) return;
         }
       }
-    })();
+    }
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [attempt]);
 
@@ -101,6 +134,16 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
     bots,
     retry: () => setAttempt((n) => n + 1),
   });
+
+  // Coming back from Tailscale re-checks on its own, so the person never has to find Try again.
+  const needsTailscale = state.kind === "connect-tailscale";
+  useEffect(() => {
+    if (!needsTailscale) return;
+    const sub = AppState.addEventListener("change", (next) =>
+      reprobeOnActive({ next, busy: attemptBusy, retry: () => setAttempt((n) => n + 1) }),
+    );
+    return () => sub.remove();
+  }, [needsTailscale]);
 
   // The existing thread route reads its bot from route params, so it is opened rather than re-hosted.
   if (state.kind === "ready")
@@ -113,7 +156,12 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
       />
     );
 
-  const label = { color: tokens.foreground, fontSize: 16 };
+  const label = {
+    color: tokens.foreground,
+    fontSize: 16,
+    textAlign: "center" as const,
+    paddingHorizontal: 24,
+  };
   return (
     <View
       style={{
@@ -133,6 +181,29 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
           </Pressable>
         </>
       ) : null}
+      {state.kind === "connect-tailscale" ? (
+        <>
+          <Text style={label}>{t("Connect Tailscale")}</Text>
+          <Text style={label}>
+            {t("This server is only reachable from your Tailscale network.")}
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() =>
+              void openTailscale(
+                (url) => Linking.openURL(url),
+                Platform.OS === "android" ? "android" : "ios",
+              ).catch(() => undefined)
+            }
+          >
+            <Text style={label}>{t("Open Tailscale")}</Text>
+          </Pressable>
+          <Pressable accessibilityRole="button" onPress={state.retry}>
+            <Text style={label}>{t("Try again")}</Text>
+          </Pressable>
+        </>
+      ) : null}
+      {state.kind === "update-app" ? <Text style={label}>{t("Update the app")}</Text> : null}
       {state.kind === "empty" ? (
         <Pressable
           accessibilityRole="button"

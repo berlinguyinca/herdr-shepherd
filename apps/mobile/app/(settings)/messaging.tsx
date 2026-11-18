@@ -248,7 +248,7 @@ export default function MessagingSettings() {
           {slackInstallations.length === 0 ? (
             <SettingsRow
               title={messagingProviderName("slack")}
-              detail={t("Chat with your bot from Slack.")}
+              detail={t("Chat with your assistant from Slack.")}
               trailing={
                 <View style={styles.actions}>
                   {memberLink ? memberLinkButton : null}
@@ -328,7 +328,7 @@ export default function MessagingSettings() {
       <SettingsGroup>
         {bots.length > 1 && (connectChoices.length || memberLink) ? (
           <MenuPicker
-            label={t("Bot")}
+            label={t("Assistant")}
             choices={bots.map((bot) => ({ key: bot.id, label: bot.name }))}
             value={botId}
             onChange={(id) => {

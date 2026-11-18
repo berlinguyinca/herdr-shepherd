@@ -215,7 +215,7 @@ describe("archived chats row", () => {
   it("sits at the very end of the inbox list and opens the existing Archived screen", () => {
     act(() => root.render(<InboxListFooter createHint archivedCount={3} />));
     expect(Array.from(container.children, (child) => child.textContent)).toEqual([
-      "Tap + to create a bot",
+      "Tap + to create an assistant",
       "Archived3",
     ]);
     act(() => container.querySelector("button")!.click());
@@ -342,7 +342,7 @@ describe("thread menu archive notifications", () => {
     await flush();
     expect(listener).toHaveBeenCalledOnce();
     expect(mocks.removeFromSearchInbox).toHaveBeenCalledOnce();
-    expect(mocks.alert).toHaveBeenCalledExactlyOnceWith("Could not archive bot", "failure");
+    expect(mocks.alert).toHaveBeenCalledExactlyOnceWith("Could not archive assistant", "failure");
     stop();
   });
 

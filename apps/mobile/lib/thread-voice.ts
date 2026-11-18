@@ -228,7 +228,7 @@ export function useThreadVoiceCall({
         );
         return;
       }
-      const botName = displayName ?? t("Bot");
+      const botName = displayName ?? t("Assistant");
       const startedCallId = startCall({
         botId: targetBotId,
         botName,

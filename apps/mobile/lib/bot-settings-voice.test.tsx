@@ -376,7 +376,7 @@ describe("bot settings device voice menu", () => {
     mocks.crossSpaceCommunication = enabled;
     await render();
     const toggle = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Allow cross-space bot communication"]',
+      '[aria-label="Allow cross-space assistant communication"]',
     )!;
     expect(toggle.getAttribute("aria-checked")).toBe(String(enabled));
     await act(async () => toggle.click());
@@ -644,7 +644,7 @@ describe("bot settings device voice menu", () => {
     mocks.instructions = "First line\nSecond line\nThird line\nFourth line\nFifth line";
     mocks.description = mocks.instructions;
     await render();
-    for (const label of ["Instructions", "How other bots see it"]) {
+    for (const label of ["Instructions", "How other assistants see it"]) {
       const input = container.querySelector<HTMLElement>(`[aria-label="${label}"]`)!;
       const style = Object.assign({}, ...JSON.parse(input.dataset.style!).flat(Infinity));
       expect(style).toMatchObject({ position: "absolute", top: 0, bottom: 0, lineHeight: 22 });
@@ -679,7 +679,7 @@ describe("bot settings device voice menu", () => {
       "Computer",
       "Read replies aloud",
       "Device voice",
-      "Manage the bots it creates",
+      "Manage the assistants it creates",
       "Instructions",
     ]) {
       expect(container.textContent).not.toContain(label);
@@ -706,8 +706,8 @@ describe("bot settings device voice menu", () => {
       model: "Model",
       readAloud: "Read replies aloud",
       voice: "Device voice",
-      crossSpaceCommunication: "Allow cross-space bot communication",
-      fleetManagement: "Manage the bots it creates",
+      crossSpaceCommunication: "Allow cross-space assistant communication",
+      fleetManagement: "Manage the assistants it creates",
     };
     const actual = [...container.querySelectorAll("span")].flatMap((span) =>
       Object.entries(labels)
@@ -840,7 +840,7 @@ describe("bot settings device voice menu", () => {
     mocks.rpc.mockResolvedValue(undefined);
     await render();
     const toggle = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Manage the bots it creates"]',
+      '[aria-label="Manage the assistants it creates"]',
     );
     if (!toggle) throw new Error("Missing bot management switch");
     await act(async () => {
@@ -871,7 +871,7 @@ describe("bot settings device voice menu", () => {
     mocks.rpc.mockReturnValueOnce(first.promise).mockReturnValueOnce(last.promise);
     await render();
     const toggle = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Manage the bots it creates"]',
+      '[aria-label="Manage the assistants it creates"]',
     )!;
     const save = [...container.querySelectorAll("button")].find(
       (button) => button.textContent === "Save",
@@ -912,7 +912,7 @@ describe("bot settings device voice menu", () => {
       );
       await render();
       const toggle = container.querySelector<HTMLButtonElement>(
-        '[aria-label="Manage the bots it creates"]',
+        '[aria-label="Manage the assistants it creates"]',
       )!;
       await act(async () =>
         container.querySelector<HTMLButtonElement>('[aria-label="Read replies aloud"]')!.click(),
@@ -948,7 +948,7 @@ describe("bot settings device voice menu", () => {
     await render();
     await act(async () =>
       container
-        .querySelector<HTMLButtonElement>('[aria-label="Manage the bots it creates"]')!
+        .querySelector<HTMLButtonElement>('[aria-label="Manage the assistants it creates"]')!
         .click(),
     );
     expect(
@@ -970,7 +970,7 @@ describe("bot settings device voice menu", () => {
     await render();
     expect(container.querySelector('[data-menu="Instruction history"]')).toBeNull();
     const toggle = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Manage the bots it creates"]',
+      '[aria-label="Manage the assistants it creates"]',
     )!;
     await act(async () => toggle.click());
     await act(async () =>
@@ -1000,7 +1000,7 @@ describe("bot settings device voice menu", () => {
     mocks.rpc.mockReturnValueOnce(first.promise);
     await render();
     const toggle = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Manage the bots it creates"]',
+      '[aria-label="Manage the assistants it creates"]',
     )!;
     await act(async () => toggle.click());
     await act(async () => toggle.click());
@@ -1014,7 +1014,7 @@ describe("bot settings device voice menu", () => {
     mocks.rpc.mockRejectedValueOnce(new Error("offline"));
     await render();
     const toggle = container.querySelector<HTMLButtonElement>(
-      '[aria-label="Manage the bots it creates"]',
+      '[aria-label="Manage the assistants it creates"]',
     );
     if (!toggle) throw new Error("Missing bot management switch");
     await act(async () => {

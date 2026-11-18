@@ -16,8 +16,11 @@ const dimensions = vi.hoisted(() => ({ fontScale: 1 }));
 
 const input = vi.hoisted(() => ({
   change: (_value: string) => {},
-  key: (_event: { nativeEvent: { key: string } }) => {},
+  key: (_event: { nativeEvent: { key: string; isComposing?: boolean; keyCode?: number } }) => {},
   select: (_event: { nativeEvent: { selection: { start: number; end: number } } }) => {},
+  submit: () => {},
+  accessibility: (_event: { nativeEvent: { actionName: string } }) => {},
+  props: {} as Record<string, unknown>,
 }));
 const mentionApi = vi.hoisted(() => ({ rpc: vi.fn(), capture: vi.fn(), generation: 1 }));
 vi.mock("./api", () => ({
@@ -112,6 +115,7 @@ vi.mock("react-native", () => {
     Pressable: ({
       children,
       onPress,
+      onLongPress,
       accessibilityLabel,
       accessible,
       disabled,
@@ -119,6 +123,7 @@ vi.mock("react-native", () => {
     }: {
       children?: ReactNode;
       onPress: () => void;
+      onLongPress?: () => void;
       accessibilityLabel?: string;
       accessible?: boolean;
       disabled?: boolean;
@@ -129,6 +134,8 @@ vi.mock("react-native", () => {
         {
           type: "button",
           onClick: onPress,
+          // jsdom has no long press; a contextmenu event stands in for it.
+          onContextMenu: onLongPress,
           "aria-label": accessibilityLabel,
           "data-accessible": accessible,
           disabled,
@@ -142,10 +149,22 @@ vi.mock("react-native", () => {
       onChangeText,
       onKeyPress,
       onSelectionChange,
+      onSubmitEditing,
+      onAccessibilityAction,
       selection,
       style,
       scrollEnabled,
+      multiline,
+      submitBehavior,
+      returnKeyType,
+      blurOnSubmit,
     }: {
+      onSubmitEditing?: typeof input.submit;
+      onAccessibilityAction?: typeof input.accessibility;
+      multiline?: boolean;
+      submitBehavior?: string;
+      returnKeyType?: string;
+      blurOnSubmit?: boolean;
       ref?: Ref<HTMLInputElement>;
       children?: ReactNode;
       onChangeText: typeof input.change;
@@ -158,6 +177,9 @@ vi.mock("react-native", () => {
       input.change = onChangeText;
       input.key = onKeyPress;
       input.select = onSelectionChange ?? (() => {});
+      input.submit = onSubmitEditing ?? (() => {});
+      input.accessibility = onAccessibilityAction ?? (() => {});
+      input.props = { multiline, submitBehavior, returnKeyType, blurOnSubmit };
       const segments = Children.toArray(children).filter(isValidElement);
       return createElement("input", {
         ref,
@@ -1027,5 +1049,132 @@ describe("thread composer isolation", () => {
       const capsule = style(button.closest('[data-glass="roundedRectangle"]')!);
       expect(capsule.gap).toBe(capsule.paddingEnd);
     }
+  });
+
+  describe("classic app (not single-chat)", () => {
+    it("keeps Return as a line break: no submit behaviour, no Return handler, no extra gestures", () => {
+      expect(input.props).toEqual({ multiline: true, blurOnSubmit: false });
+      type("hello");
+      act(() => input.submit());
+      expect(props.send).not.toHaveBeenCalled();
+      act(() => input.accessibility({ nativeEvent: { actionName: "newline" } }));
+      expect(composer.current!.snapshot().promptText).toBe("hello");
+      act(() => {
+        container
+          .querySelector<HTMLButtonElement>('button[aria-label="Send"]')!
+          .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+      });
+      expect(composer.current!.snapshot().promptText).toBe("hello");
+    });
+  });
+
+  describe("Return sends (single-chat)", () => {
+    beforeEach(() => {
+      process.env.EXPO_PUBLIC_SINGLE_CHAT = "true";
+      render();
+    });
+    afterEach(() => {
+      delete process.env.EXPO_PUBLIC_SINGLE_CHAT;
+    });
+
+    it("is multiline with a submitting Return key, so Return cannot insert a line break", () => {
+      expect(input.props).toEqual({
+        multiline: true,
+        submitBehavior: "submit",
+        returnKeyType: "send",
+        blurOnSubmit: undefined,
+      });
+    });
+
+    it("sends once for two Returns in the same tick", () => {
+      type("hello");
+      act(() => {
+        input.submit();
+        input.submit();
+      });
+      expect(props.send).toHaveBeenCalledOnce();
+    });
+
+    it("allows another send once the first has settled", async () => {
+      type("hello");
+      await act(async () => {
+        input.submit();
+      });
+      await act(async () => {
+        input.submit();
+      });
+      expect(props.send).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([
+      ["isComposing", { isComposing: true }],
+      ["keyCode 229", { keyCode: 229 }],
+    ])("does not send while an IME is composing (%s), then sends after it commits", (_n, flag) => {
+      type("こん");
+      act(() => input.key({ nativeEvent: { key: "Enter", ...flag } }));
+      act(() => input.submit());
+      expect(props.send).not.toHaveBeenCalled();
+      act(() => input.key({ nativeEvent: { key: "Enter" } }));
+      act(() => input.submit());
+      expect(props.send).toHaveBeenCalledOnce();
+    });
+
+    it("sends the draft on Return", () => {
+      type("hello");
+      act(() => input.submit());
+      expect(props.send).toHaveBeenCalledOnce();
+    });
+
+    it("ignores Return for an empty or whitespace draft", () => {
+      act(() => input.submit());
+      type("   ");
+      act(() => input.submit());
+      expect(props.send).not.toHaveBeenCalled();
+    });
+
+    it("ignores Return while a send is in flight", () => {
+      render({ sending: true });
+      type("hello");
+      act(() => input.submit());
+      expect(props.send).not.toHaveBeenCalled();
+    });
+
+    it("sends an attachment-only draft on Return", () => {
+      render({ attachmentIds: ["file-1"] });
+      act(() => input.submit());
+      expect(props.send).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("line breaks (single-chat)", () => {
+    beforeEach(() => {
+      process.env.EXPO_PUBLIC_SINGLE_CHAT = "true";
+      render();
+    });
+    afterEach(() => {
+      delete process.env.EXPO_PUBLIC_SINGLE_CHAT;
+    });
+
+    it("a long press on Send inserts a line break at the caret", () => {
+      type("hello world");
+      select(5);
+      act(() => {
+        container
+          .querySelector<HTMLButtonElement>('button[aria-label="Send"]')!
+          .dispatchEvent(new MouseEvent("contextmenu", { bubbles: true }));
+      });
+      expect(composer.current!.snapshot().promptText).toBe("hello\n world");
+      expect(props.send).not.toHaveBeenCalled();
+      expect(JSON.parse(field().dataset.selection!)).toEqual({ start: 6, end: 6 });
+    });
+
+    it("the field offers a New line accessibility action", () => {
+      type("ab");
+      select(1);
+      act(() => input.accessibility({ nativeEvent: { actionName: "newline" } }));
+      expect(composer.current!.snapshot().promptText).toBe("a\nb");
+      act(() => input.accessibility({ nativeEvent: { actionName: "other" } }));
+      expect(composer.current!.snapshot().promptText).toBe("a\nb");
+    });
   });
 });

@@ -23,7 +23,7 @@ name: Shepherd mobile smoke
     visible: "Create"
     timeout: 30000
 - tapOn: "Create"
-- tapOn: "New bot"
+- tapOn: "New assistant"
 
 - extendedWaitUntil:
     visible: "Message…"
@@ -33,7 +33,7 @@ name: Shepherd mobile smoke
 - pressKey: Enter
 - assertVisible: ${RAKAZO_E2E_MESSAGE}
 
-- tapOn: "Bot actions"
+- tapOn: "Assistant actions"
 - tapOn: "Open computer"
 - extendedWaitUntil:
     visible: "Open computer"

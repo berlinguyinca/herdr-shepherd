@@ -39,6 +39,14 @@ describe("resolveSingleChat", () => {
     const state = resolveSingleChat(inputs({ open: { kind: "failed", reason: "network" } }));
     expect(state).toEqual({ kind: "offline", retry });
   });
+  it("asks for Tailscale, with retry, when the server is off the tailnet", () => {
+    const state = resolveSingleChat(inputs({ open: { kind: "failed", reason: "tailscale" } }));
+    expect(state).toEqual({ kind: "connect-tailscale", retry });
+  });
+  it("asks for an app update when the server is newer than the app", () => {
+    const state = resolveSingleChat(inputs({ open: { kind: "failed", reason: "update" } }));
+    expect(state).toEqual({ kind: "update-app" });
+  });
   it("is offline, never a sign-in, when the server refuses the open", () => {
     const state = resolveSingleChat(inputs({ open: { kind: "failed", reason: "refused" } }));
     expect(state.kind).toBe("offline");
@@ -62,8 +70,8 @@ describe("resolveSingleChat", () => {
   });
 });
 
-describe("resolveSingleChat with run-only assistants", () => {
-  it("opens the assistant known only from recent runs", () => {
+describe("resolveSingleChat with runs from unlisted bots", () => {
+  it("does not open a bot known only from recent runs", () => {
     const runs = [
       { botId: "h", botName: "Herdr", threadId: "thr_h", updatedAt: "2026-11-16T00:00:00Z" },
     ] as RunActivityRow[];
@@ -71,7 +79,7 @@ describe("resolveSingleChat with run-only assistants", () => {
     const state = resolveSingleChat(
       inputs({ hasSession: true, bots: { kind: "loaded", bots, runs } }),
     );
-    expect(state).toMatchObject({ kind: "ready", bot: { id: "h", name: "Herdr" } });
+    expect(state.kind).toBe("empty");
   });
   it("is empty when only spawned bots exist", () => {
     const bots = [bot("agent1", { spawnKey: "agent_01" })];

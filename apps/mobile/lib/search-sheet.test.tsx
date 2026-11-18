@@ -204,7 +204,7 @@ async function type(text: string) {
   });
 }
 it("renders inbox chats before typing and closes with the close button", async () => {
-  expect(row("Scout, Bot").textContent).toContain("Latest reply");
+  expect(row("Scout, Assistant").textContent).toContain("Latest reply");
   expect(row("Team, Group").textContent).toContain("Team reply");
   expect(state.search).not.toHaveBeenCalled();
   await act(async () =>
@@ -213,7 +213,7 @@ it("renders inbox chats before typing and closes with the close button", async (
   expect(state.back).toHaveBeenCalledOnce();
 });
 it("leaves out an archived bot that is only in the roster while its chat opens", () => {
-  expect(row("Old helper, Bot")).toBeNull();
+  expect(row("Old helper, Assistant")).toBeNull();
 });
 it("debounces typing, renders server hits and preserves the message jump destination", async () => {
   state.search.mockResolvedValue([message, message]);
@@ -240,7 +240,7 @@ it("keeps local name matching and does not duplicate conversation hits", async (
   state.search.mockResolvedValue([{ ...message, kind: "conversation", title: "Scout" }]);
   await type("Scout");
   await act(async () => vi.advanceTimersByTime(200));
-  expect(container.querySelectorAll('button[aria-label="Scout, Bot"]')).toHaveLength(1);
+  expect(container.querySelectorAll('button[aria-label="Scout, Assistant"]')).toHaveLength(1);
   expect(row("Team, Group")).toBeNull();
 });
 it("opens a group after switching spaces and keeps the sheet on switch failure", async () => {
@@ -271,10 +271,10 @@ it("ignores stale server responses and restores chats when cleared", async () =>
   await act(async () => resolve([message]));
   expect(row("Found note, Message")).toBeNull();
   await type("");
-  expect(row("Scout, Bot")).not.toBeNull();
+  expect(row("Scout, Assistant")).not.toBeNull();
 });
 it.each([
-  ["conversation", "Bot"],
+  ["conversation", "Assistant"],
   ["message", "Message"],
   ["file", "File"],
   ["link", "Link"],
@@ -300,7 +300,7 @@ it("retries focus after the sheet attaches and keeps the native search keyboard 
 });
 
 it("opens an inbox bot with the home thread destination", async () => {
-  await act(async () => row("Scout, Bot").click());
+  await act(async () => row("Scout, Assistant").click());
   expect(state.selectSpace).toHaveBeenCalledWith("space-a");
   expect(state.replace).toHaveBeenCalledWith({
     pathname: "/thread",
@@ -313,7 +313,7 @@ it("clears the Android field and restores inbox chats", async () => {
   await type("no match");
   await act(async () => row("Clear").click());
   expect(container.querySelector("input")!.value).toBe("");
-  expect(row("Scout, Bot")).not.toBeNull();
+  expect(row("Scout, Assistant")).not.toBeNull();
 });
 
 it.each(["space switch", "keyboard dismiss"] as const)(
@@ -336,7 +336,7 @@ it.each(["space switch", "keyboard dismiss"] as const)(
     const focus = vi.spyOn(container.querySelector("input")!, "focus");
     await act(async () => row("Team, Group").click());
     // A second tap must not start another attempt while the first is pending.
-    await act(async () => row("Scout, Bot").click());
+    await act(async () => row("Scout, Assistant").click());
     expect(state.selectSpace).toHaveBeenCalledOnce();
     await act(async () =>
       container.querySelector<HTMLButtonElement>('[data-testid="search-sheet-close"]')!.click(),

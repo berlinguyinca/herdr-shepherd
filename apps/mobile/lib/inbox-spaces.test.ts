@@ -311,12 +311,14 @@ describe("spaceInboxItems", () => {
 
   it("names every bot deletion removes, not only the visible ones", () => {
     expect(deleteSpaceTitle(space({ bots: [bot], botCount: 3 }))).toBe(
-      "Delete Work and its 3 bots?",
+      "Delete Work and its 3 assistants?",
     );
-    expect(deleteSpaceTitle(space({ bots: [], botCount: 1 }))).toBe("Delete Work and its bot?");
+    expect(deleteSpaceTitle(space({ bots: [], botCount: 1 }))).toBe(
+      "Delete Work and its assistant?",
+    );
     expect(deleteSpaceTitle(space({ bots: [bot], botCount: 0 }))).toBe("Delete Work?");
-    // Older servers send no count; fall back to the listed bots.
-    expect(deleteSpaceTitle(space({ bots: [bot] }))).toBe("Delete Work and its bot?");
+    // Older servers send no count; fall back to the listed assistants.
+    expect(deleteSpaceTitle(space({ bots: [bot] }))).toBe("Delete Work and its assistant?");
   });
 
   it("never offers deletion for the default space", () => {

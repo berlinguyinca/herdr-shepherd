@@ -37,8 +37,15 @@ import {
 } from "react-native";
 import type { ComposerDraftScope } from "../lib/composer-draft";
 import { readComposerDraft, writeComposerDraft } from "../lib/composer-draft";
+import {
+  composerReturnProps,
+  insertNewline,
+  isComposingKeyEvent,
+  returnKeyAction,
+} from "../lib/composer-return";
 import { useI18n } from "../lib/i18n";
 import { useMobileTokens, useResolvedAppearance } from "../lib/native";
+import { singleChatOnly } from "../lib/server-config";
 import type { ComposerSnapshot } from "../lib/thread-feedback";
 import { GlassSurface } from "./glass-surface";
 import { NativeSymbol } from "./native-symbol";
@@ -331,6 +338,31 @@ export function ThreadComposer({
   } as const;
 
   const canSend = Boolean(draft.trim()) || selectedSkill !== null || attachmentIds.length > 0;
+  // Return sends, so a line break is its own action: the Send button's long press, or the field's
+  // accessibility action. Shift+Return is not reported to JavaScript by React Native on iOS or Android.
+  const singleChat = singleChatOnly();
+  const returnInFlight = useRef(false);
+  const imeComposing = useRef(false);
+  function sendOnReturn() {
+    const action = returnKeyAction({
+      canSend,
+      sending,
+      composing: imeComposing.current,
+      inFlight: returnInFlight.current,
+    });
+    if (action !== "send") return;
+    // Set before the send starts, so a second Return in the same tick cannot slip past `sending`.
+    returnInFlight.current = true;
+    void Promise.resolve(send()).finally(() => {
+      returnInFlight.current = false;
+    });
+  }
+  function addNewline() {
+    const next = insertNewline(draftRef.current, nativeSelection.current);
+    updateDraft(next.text);
+    nativeSelection.current = { start: next.caret, end: next.caret };
+    setSelection(nativeSelection.current);
+  }
 
   return (
     <>
@@ -608,6 +640,9 @@ export function ThreadComposer({
                 }}
                 accessibilityLabel={composerPrompt}
                 onKeyPress={(event) => {
+                  imeComposing.current = isComposingKeyEvent(
+                    event.nativeEvent as { isComposing?: boolean; keyCode?: number },
+                  );
                   if (
                     event.nativeEvent.key === "Backspace" &&
                     draft.length === 0 &&
@@ -617,10 +652,18 @@ export function ThreadComposer({
                   }
                 }}
                 keyboardAppearance={colorScheme}
-                multiline
+                {...composerReturnProps(singleChat)}
+                {...(singleChat
+                  ? {
+                      onSubmitEditing: sendOnReturn,
+                      accessibilityActions: [{ name: "newline", label: t("New line") }],
+                      onAccessibilityAction: (event: { nativeEvent: { actionName: string } }) => {
+                        if (event.nativeEvent.actionName === "newline") addNewline();
+                      },
+                    }
+                  : {})}
                 scrollEnabled
                 textAlignVertical="top"
-                blurOnSubmit={false}
                 style={{
                   color: tokens.foreground,
                   fontSize: 17,
@@ -671,6 +714,7 @@ export function ThreadComposer({
               disabled={sending || !canSend}
               hitSlop={{ top: 8, bottom: 8, left: 4, right: 4 }}
               onPress={() => void send()}
+              onLongPress={singleChat ? addNewline : undefined}
               style={{ marginBottom: 8, opacity: sending || !canSend ? 0.5 : 1 }}
             >
               <GlassSurface

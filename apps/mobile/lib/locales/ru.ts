@@ -1,12 +1,12 @@
 export const RU_MESSAGES: Record<string, string> = {
-  "How other bots see it": "Как его видят другие боты",
+  "How other assistants see it": "Как его видят другие боты",
   "Share to": "Отправить в",
   "{count} files": "Файлов: {count}",
   "could not read": "не удалось прочитать",
   "Not sent. Tap for options": "Не отправлено. Нажмите для выбора действий",
   "Image input is not configured for this model.": "Ввод изображений не настроен для этой модели.",
   "Send as file": "Отправить как файл",
-  "The bot can use the file but won't see the picture.":
+  "The assistant can use the file but won't see the picture.":
     "Бот сможет использовать файл, но не увидит изображение.",
   "This model cannot read images. Choose a model that supports images.":
     "Эта модель не может читать изображения. Выберите модель с поддержкой изображений.",
@@ -56,11 +56,11 @@ export const RU_MESSAGES: Record<string, string> = {
   "To:": "Кому:",
   Next: "Далее",
   "Ex: Project Falcon": "Например: проект «Сокол»",
-  "Search bots": "Поиск ботов",
+  "Search assistants": "Поиск ботов",
   "{count} messages with {peer}": "{count} сообщения с {peer}",
   "About {label}": "О настройке «{label}»",
-  "Manage the bots it creates": "Управлять созданными им ботами",
-  "Allow cross-space bot communication": "Разрешить общение ботов из разных пространств",
+  "Manage the assistants it creates": "Управлять созданными им ботами",
+  "Allow cross-space assistant communication": "Разрешить общение ботов из разных пространств",
   "Organize the sidebar and edit bots. Instruction, model, routine and group edits need approval.":
     "Упорядочивайте боковую панель и редактируйте ботов. Изменения групп, инструкций, моделей и процедур требуют вашего одобрения.",
 
@@ -293,8 +293,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Bearer token": "Bearer-токен",
   "Back to sign in": "Вернуться ко входу",
   Back: "Назад",
-  Bot: "Бот",
-  "Bot actions": "Действия бота",
+  "Assistant actions": "Действия бота",
   "Calls need transcription": "Для звонков нужна транскрипция",
   "Booting live desktop…": "Запуск рабочего стола…",
   Camera: "Камера",
@@ -354,7 +353,7 @@ export const RU_MESSAGES: Record<string, string> = {
   More: "Ещё",
   "Could not add source": "Не удалось добавить источник",
   "Could not approve this server": "Не удалось одобрить этот сервер",
-  "Could not archive bot": "Не удалось заархивировать бота",
+  "Could not archive assistant": "Не удалось заархивировать бота",
   "Could not authorize this app": "Не удалось авторизовать это приложение",
   "Could not change language": "Не удалось изменить язык",
   "Could not change password": "Не удалось изменить пароль",
@@ -368,16 +367,16 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not connect this provider": "Не удалось подключить этого провайдера",
   "Could not continue": "Не удалось продолжить",
   "Could not disconnect": "Не удалось отключить",
-  "Could not create bot": "Не удалось создать бота",
+  "Could not create assistant": "Не удалось создать бота",
   "Could not create group": "Не удалось создать группу",
   "Could not create space": "Не удалось создать пространство",
   "Could not delete account": "Не удалось удалить аккаунт",
-  "Could not delete bot": "Не удалось удалить бота",
+  "Could not delete assistant": "Не удалось удалить бота",
   "Could not delete group": "Не удалось удалить группу",
   "Could not delete space": "Не удалось удалить пространство",
   "Could not finish sign-in": "Не удалось завершить вход",
-  "Could not load bot": "Не удалось загрузить бота",
-  "Could not load bots": "Не удалось загрузить ботов",
+  "Could not load assistant": "Не удалось загрузить бота",
+  "Could not load assistants": "Не удалось загрузить ботов",
   "Could not load earlier messages": "Не удалось загрузить предыдущие сообщения",
   "Could not load group": "Не удалось загрузить группу",
   "Could not load integrations": "Не удалось загрузить интеграции",
@@ -385,7 +384,8 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not load routine": "Не удалось загрузить программу",
   "Could not load routines": "Не удалось загрузить задачи",
   "{count} on": "Вкл.: {count}",
-  "Ask this Bot in chat to set up a routine.": "Попросите этого бота в чате настроить задачу.",
+  "Ask this assistant in chat to set up a routine.":
+    "Попросите этого бота в чате настроить задачу.",
   "{name}, On": "{name}, вкл.",
   "{name}, Off": "{name}, выкл.",
   "Active: {name}": "Активна: {name}",
@@ -395,7 +395,7 @@ export const RU_MESSAGES: Record<string, string> = {
     "Задача и история её запусков будут удалены безвозвратно.",
   "Could not delete routine": "Не удалось удалить задачу",
   "Could not update routine": "Не удалось обновить задачу",
-  "Get notified when this Bot finishes or needs input":
+  "Get notified when this assistant finishes or needs input":
     "Получать уведомления, когда этот бот завершает работу или ждёт ввода",
   "Could not load the desktop. This device cannot reach the screen URL.":
     "Не удалось загрузить рабочий стол. Это устройство не может получить доступ к URL-адресу экрана.",
@@ -422,9 +422,9 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not reach this model server": "Не удалось связаться с сервером этой модели.",
   "Could not remove source": "Не удалось удалить источник",
   "Could not load chats": "Не удалось загрузить чаты",
-  "Could not restore bot": "Не удалось восстановить бота",
+  "Could not restore assistant": "Не удалось восстановить бота",
   "Could not revoke connection": "Не удалось отменить соединение",
-  "Could not save bot": "Не удалось сохранить бота",
+  "Could not save assistant": "Не удалось сохранить бота",
   "Could not save group": "Не удалось сохранить группу",
   "Could not save that speech model": "Не удалось сохранить речевую модель",
   "Could not save that voice": "Не удалось сохранить этот голос",
@@ -440,6 +440,13 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not submit answer": "Не удалось отправить ответ",
   "Could not switch computer": "Не удалось переключить компьютер",
   "Could not switch spaces": "Не удалось переключить пространства",
+  "Connect Tailscale": "Подключите Tailscale",
+  "This server is only reachable from your Tailscale network.":
+    "Этот сервер доступен только из вашей сети Tailscale.",
+  "Open Tailscale": "Открыть Tailscale",
+  "Update the app": "Обновите приложение",
+  "The server asked for an address this app cannot use":
+    "Сервер запросил адрес, который это приложение не может использовать",
   "Can't reach the assistant": "Не удаётся связаться с ассистентом",
   "Create assistant": "Создать ассистента",
   Assistants: "Ассистенты",
@@ -479,7 +486,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Delete space": "Удалить пространство",
   "Delete memories too": "Удалить также память",
   "Delete {name}?": "Удалить {name}?",
-  "Bots and their own chats stay.": "Боты и их собственные чаты сохранятся.",
+  "Assistants and their own chats stay.": "Боты и их собственные чаты сохранятся.",
   "Delete your account?": "Удалить аккаунт?",
   "Delete…": "Удалить…",
   Denied: "Запрещено",
@@ -576,20 +583,19 @@ export const RU_MESSAGES: Record<string, string> = {
   "Needs input": "Требуется ввод данных",
   "Needs takeover": "Ожидает передачи управления",
   "New password": "Новый пароль",
-  "New bot": "Новый бот",
   "New group chat": "Новый групповой чат",
   "New section": "Новый раздел",
   "Rename section": "Переименовать раздел",
   "Section actions for {name}": "Действия с разделом {name}",
   "Could not delete section": "Не удалось удалить раздел",
   "Delete section": "Удалить раздел",
-  "Its bots and groups are kept and leave the section.":
+  "Its assistants and groups are kept and leave the section.":
     "Боты и группы из него сохранятся и выйдут из раздела.",
   "Save section name": "Сохранить название раздела",
   "New private space": "Новое личное пространство",
   "No apps match your search.": "Нет приложений, соответствующих вашему запросу.",
   "No tools available.": "Нет доступных инструментов.",
-  "No matching bots": "Нет подходящих ботов",
+  "No matching assistants": "Нет подходящих ботов",
   "No matching models": "Нет подходящих моделей",
   "No messages yet": "Сообщений пока нет",
   "No results": "Нет результатов",
@@ -715,14 +721,14 @@ export const RU_MESSAGES: Record<string, string> = {
   Stop: "Остановить",
   Submit: "Отправить",
   "Take control": "Взять управление",
-  "Tap + to create a bot": "Нажмите +, чтобы создать бота",
+  "Tap + to create an assistant": "Нажмите +, чтобы создать бота",
   Team: "Команда",
   "Team Computer": "Командный компьютер",
   "That doesn’t look like a URL": "Это не похоже на URL",
   "That URL did not look like a Shepherd server": "Этот адрес не похож на сервер Shepherd",
   "That URL is missing a host": "Для этого URL-адреса отсутствует хост",
   "The server changed while starting the request": "Сервер изменился при запуске запроса",
-  "This permanently deletes your account, bots, conversations, memories, files, and saved connections. This cannot be undone.":
+  "This permanently deletes your account, assistants, conversations, memories, files, and saved connections. This cannot be undone.":
     "Это навсегда удалит аккаунт, ботов, диалоги, память, файлы и сохранённые подключения. Отменить это действие нельзя.",
   "This routine no longer exists": "Эта задача больше не существует",
   Thread: "Диалог",
@@ -749,9 +755,9 @@ export const RU_MESSAGES: Record<string, string> = {
   Voice: "Голос",
   Webhook: "Вебхук",
   "Waiting for sign-in…": "Ожидание входа в систему…",
-  "Waiting for this bot’s response.": "Ожидание ответа этого бота.",
+  "Waiting for this assistant’s response.": "Ожидание ответа этого бота.",
   "Waiting…": "Ожидание…",
-  "What this bot is for": "Для чего нужен этот бот",
+  "What this assistant is for": "Для чего нужен этот бот",
   Working: "Выполняется",
   "Working…": "Выполняется…",
   "Work stopped, but the thread could not refresh: {detail}":
@@ -782,7 +788,8 @@ export const RU_MESSAGES: Record<string, string> = {
   Agent: "Агент",
   archived: "в архиве",
   Attachment: "Вложение",
-  bot: "бот",
+  assistant: "ассистент",
+  "New line": "Новая строка",
   "{from} messaged {to}": "{from} отправил сообщение {to}",
   "Bring your own key. ElevenLabs, OpenAI, and Cartesia all plug into the same speak buttons.":
     "Используйте собственный ключ. ElevenLabs, OpenAI и Cartesia подключаются к одним и тем же кнопкам озвучивания.",
@@ -824,8 +831,8 @@ export const RU_MESSAGES: Record<string, string> = {
   Submitted: "Отправлено",
   "Teach a task": "Научить задачу",
   "This removes the space for everyone.": "Это удалит пространство для всех.",
-  "Delete {name} and its bot?": "Удалить {name} и его бота?",
-  "Delete {name} and its {count} bots?": "Удалить {name} и его ботов ({count})?",
+  "Delete {name} and its assistant?": "Удалить {name} и его бота?",
+  "Delete {name} and its {count} assistants?": "Удалить {name} и его ботов ({count})?",
   "This removes every message and stops current work. The bot, computer, memory, and routines are kept.":
     "Это удалит все сообщения и остановит текущую работу. Бот, компьютер, память и задачи сохранятся.",
   "This subscription sign-in is not available in Shepherd yet. Use a deployment credential or choose another provider.":
@@ -887,7 +894,8 @@ export const RU_MESSAGES: Record<string, string> = {
   Mute: "Выключить микрофон",
   Unmute: "Включить микрофон",
   "Hang up": "Завершить",
-  "Allow microphone access to call a bot.": "Разрешите доступ к микрофону, чтобы звонить боту.",
+  "Allow microphone access to call an assistant.":
+    "Разрешите доступ к микрофону, чтобы звонить боту.",
   "Could not hear that.": "Не удалось расслышать.",
   "Could not transcribe that.": "Не удалось распознать речь.",
   "Could not speak that.": "Не удалось озвучить.",
@@ -897,7 +905,7 @@ export const RU_MESSAGES: Record<string, string> = {
 
   Artifact: "Артефакт",
   Artifacts: "Артефакты",
-  "All bots": "Все боты",
+  "All assistants": "Все боты",
   "Search artifacts…": "Поиск артефактов…",
   "No artifacts yet": "Пока нет артефактов",
   "No matching artifacts": "Нет подходящих артефактов",
@@ -970,7 +978,7 @@ export const RU_MESSAGES: Record<string, string> = {
   "Members ({count})": "Участники ({count})",
   "Show all": "Показать всех",
   "Show selected": "Показать выбранных",
-  "Filter bots": "Фильтровать ботов",
+  "Filter assistants": "Фильтровать ботов",
   "Pick {min}–{max}": "Выберите {min}–{max}",
   "No members yet": "Пока нет участников",
   Applied: "Применено",
@@ -1003,29 +1011,29 @@ export const RU_MESSAGES: Record<string, string> = {
   "Credential saved": "Учётные данные сохранены",
   Authentication: "Способ аутентификации",
   "No auth": "Без авторизации",
-  "The bot couldn't reply because its provider's daily limit was reached.":
+  "The assistant couldn't reply because its provider's daily limit was reached.":
     "Бот не смог ответить, потому что достигнут дневной лимит его провайдера.",
-  "The bot couldn't reply because its provider's weekly limit was reached.":
+  "The assistant couldn't reply because its provider's weekly limit was reached.":
     "Бот не смог ответить, потому что достигнут недельный лимит его провайдера.",
-  "The bot couldn't reply because its provider's monthly limit was reached.":
+  "The assistant couldn't reply because its provider's monthly limit was reached.":
     "Бот не смог ответить, потому что достигнут месячный лимит его провайдера.",
-  "The bot couldn't reply because its provider's usage limit was reached.":
+  "The assistant couldn't reply because its provider's usage limit was reached.":
     "Бот не смог ответить, потому что достигнут лимит использования его провайдера.",
-  "The provider received too many requests to answer this bot.":
+  "The provider received too many requests to answer this assistant.":
     "Провайдер получил слишком много запросов и не смог ответить этому боту.",
-  "The provider refused the key this bot used for its reply.":
+  "The provider refused the key this assistant used for its reply.":
     "Провайдер отклонил ключ, который бот использовал для ответа.",
-  "The provider couldn't serve the model selected for this bot.":
+  "The provider couldn't serve the model selected for this assistant.":
     "Провайдер не смог предоставить модель, выбранную для этого бота.",
-  "The bot couldn't finish its reply. Technical details includes the reported error.":
+  "The assistant couldn't finish its reply. Technical details includes the reported error.":
     "Бот не смог завершить ответ. В технических деталях указана полученная ошибка.",
-  "This bot's reply stopped at its key's daily limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's daily limit. Your own key has its own limits.":
     "Ответ бота остановился из-за дневного лимита его ключа. У вашего ключа свои лимиты.",
-  "This bot's reply stopped at its key's weekly limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's weekly limit. Your own key has its own limits.":
     "Ответ бота остановился из-за недельного лимита его ключа. У вашего ключа свои лимиты.",
-  "This bot's reply stopped at its key's monthly limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's monthly limit. Your own key has its own limits.":
     "Ответ бота остановился из-за месячного лимита его ключа. У вашего ключа свои лимиты.",
-  "This bot's reply stopped at its key's usage limit. Your own key has its own limits.":
+  "This assistant's reply stopped at its key's usage limit. Your own key has its own limits.":
     "Ответ бота остановился из-за лимита использования его ключа. У вашего ключа свои лимиты.",
   "Sign in with passkey": "Войти с ключом доступа",
   Passkeys: "Ключи доступа",
@@ -1066,8 +1074,8 @@ export const RU_MESSAGES: Record<string, string> = {
   Ends: "Заканчивается",
   Renews: "Продление",
   "Could not open billing": "Не удалось открыть оплату",
-  "Put your bots to work": "Пусть боты работают на вас",
-  "Bots with their own computer": "Боты со своим компьютером",
+  "Put your assistants to work": "Пусть боты работают на вас",
+  "Assistants with their own computer": "Боты со своим компьютером",
   "Routines that run while you're away": "Задачи, которые выполняются, пока вас нет",
   "Web, desktop and mobile apps": "Приложения для веба, компьютера и телефона",
   "Start free trial": "Начать бесплатный период",
@@ -1139,7 +1147,7 @@ export const RU_MESSAGES: Record<string, string> = {
     "{bot} по-прежнему отвечает на прямые упоминания.",
   "{sender} rollup hours": "{sender}: интервал группировки в часах",
   "Add workspace": "Добавить рабочее пространство",
-  "Chat with your bot from Slack.": "Общайтесь с ботом из Slack.",
+  "Chat with your assistant from Slack.": "Общайтесь с ботом из Slack.",
   "Link DMs": "Привязать ЛС",
   "One-time": "Один раз",
   "Every hour": "Каждый час",
@@ -1231,11 +1239,11 @@ export const RU_MESSAGES: Record<string, string> = {
   "Could not preview plugin": "Не удалось загрузить предпросмотр плагина",
   "Could not remove plugin": "Не удалось удалить плагин",
   "Could not sign in": "Не удалось войти",
-  "In this bot": "В этом боте",
+  "In this assistant": "В этом боте",
   "Plugin GitHub URL": "URL плагина на GitHub",
   Skills: "Навыки",
   "Some plugins could not be loaded.": "Не удалось загрузить некоторые плагины.",
-  "Use in this bot": "Использовать в этом боте",
+  "Use in this assistant": "Использовать в этом боте",
   "View all": "Показать все",
   "View source": "Исходный код",
   "{count} connectors": "Коннекторов: {count}",

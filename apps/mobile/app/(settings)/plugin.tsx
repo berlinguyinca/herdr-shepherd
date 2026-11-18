@@ -474,12 +474,12 @@ export default function PluginScreen() {
                       )}
                       {botId ? (
                         assigned.has(server.id) ? (
-                          <Text style={styles.secondary}>{t("In this bot")}</Text>
+                          <Text style={styles.secondary}>{t("In this assistant")}</Text>
                         ) : (
                           <NativeActionButton
                             disabled={busy}
                             fill={false}
-                            label={t("Use in this bot")}
+                            label={t("Use in this assistant")}
                             onPress={() => void enable(server)}
                             prominence="secondary"
                           />

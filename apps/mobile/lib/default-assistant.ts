@@ -11,63 +11,11 @@ function time(iso: string | undefined): number {
 }
 
 /**
- * A minimal Bot for one known only from a run: the thread route needs just its id and name, so
- * every other required field gets a safe, inert default (never default, archived or spawned).
+ * The live assistant bots. bots/list lists every named assistant, so a bot seen only in a run
+ * (an offline agent) is not an assistant and is never added.
  */
-function runOnlyBot(run: RunActivityRow): Bot {
-  return {
-    id: run.botId,
-    spaceId: "",
-    name: run.botName,
-    title: "",
-    description: "",
-    instructions: "",
-    color: "",
-    notifyOnFinish: false,
-    pinned: false,
-    sectionId: null,
-    archivedAt: null,
-    unread: false,
-    parentBotId: null,
-    memoryScope: null,
-    threadId: run.threadId,
-    preview: "",
-    status: "",
-    runErrorId: null,
-    computerMode: "team",
-    updatedAt: run.updatedAt,
-    createdAt: run.updatedAt,
-    voiceId: null,
-    autoSpeak: false,
-    modelProvider: null,
-    modelId: null,
-    thinkingLevel: null,
-    teamChatAmbientEnabled: false,
-    teamChatRules: "",
-    fleetManagement: false,
-    isDefault: false,
-    disabledBuiltinTools: [],
-    webhookConfigured: false,
-    spawnKey: null,
-  };
-}
-
-/**
- * Assistant bots plus bots known only from recent runs (e.g. one absent from bots/list), by botId.
- * A run-only bot is a minimal Bot: the thread route needs just its id and name.
- */
-export function assistantCandidates(
-  bots: readonly Bot[],
-  runs: readonly RunActivityRow[] = [],
-): Bot[] {
-  const out = bots.filter(isAssistantBot);
-  const known = new Set(bots.map((b) => b.id));
-  for (const run of runs) {
-    if (known.has(run.botId)) continue;
-    known.add(run.botId);
-    out.push(runOnlyBot(run));
-  }
-  return out;
+export function assistantCandidates(bots: readonly Bot[]): Bot[] {
+  return bots.filter(isAssistantBot);
 }
 
 /**
@@ -79,7 +27,7 @@ export function pickDefaultBot(
   bots: readonly Bot[],
   runs: readonly RunActivityRow[] = [],
 ): Bot | null {
-  const candidates = assistantCandidates(bots, runs);
+  const candidates = assistantCandidates(bots);
   const flagged = candidates.find((bot) => bot.isDefault);
   if (flagged) return flagged;
   const last = new Map<string, number>();

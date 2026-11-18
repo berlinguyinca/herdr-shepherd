@@ -151,7 +151,7 @@ describe("archived chat read failures", () => {
       rpc.mockRejectedValueOnce(cause);
       await act(async () => container.querySelector("button")!.click());
       expect(push).not.toHaveBeenCalled();
-      expect(alert).toHaveBeenCalledWith("Could not load bot", expect.any(String), [
+      expect(alert).toHaveBeenCalledWith("Could not load assistant", expect.any(String), [
         { text: "Cancel", style: "cancel" },
         { text: "Try again.", onPress: expect.any(Function) },
       ]);

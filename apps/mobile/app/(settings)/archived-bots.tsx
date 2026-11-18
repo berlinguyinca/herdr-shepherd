@@ -126,7 +126,7 @@ export default function ArchivedBots() {
         await rpc("bots/restore", { botId: bot.id }, await requestOptions(bot.spaceId));
       },
       withoutBot(bot.id),
-      t("Could not restore bot"),
+      t("Could not restore assistant"),
     );
   }
 
@@ -137,7 +137,7 @@ export default function ArchivedBots() {
     try {
       options = await requestOptions(bot.spaceId);
     } catch (cause) {
-      Alert.alert(t("Could not delete bot"), errorText(cause, t("Try again.")));
+      Alert.alert(t("Could not delete assistant"), errorText(cause, t("Try again.")));
       return;
     }
     if (generation !== focusGeneration.current) return;
@@ -167,7 +167,7 @@ export default function ArchivedBots() {
       });
     } catch (cause) {
       if (generation !== focusGeneration.current) return;
-      Alert.alert(t("Could not load bot"), errorText(cause, t("Try again.")), [
+      Alert.alert(t("Could not load assistant"), errorText(cause, t("Try again.")), [
         { text: t("Cancel"), style: "cancel" },
         {
           text: t("Try again."),

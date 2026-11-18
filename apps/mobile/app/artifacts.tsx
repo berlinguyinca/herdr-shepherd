@@ -244,7 +244,7 @@ export default function ArtifactsScreen() {
             contentContainerStyle={styles.chipsRow}
           >
             <Chip
-              label={t("All bots")}
+              label={t("All assistants")}
               active={activeBotId === null}
               onPress={() => setActiveBotId(null)}
             />

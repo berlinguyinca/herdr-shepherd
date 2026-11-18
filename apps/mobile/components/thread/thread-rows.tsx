@@ -127,7 +127,7 @@ export function useThreadRows({
           : (memberName(snap?.members, replyBotId) ??
             mentionBots.find((bot) => bot.id === replyBotId)?.name ??
             displayName ??
-            t("Bot"));
+            t("Assistant"));
       const messageReactions = reactionView.reactions.get(message.id);
       const activityBotId =
         !inGroup && message.role === "bot" && message.id.startsWith("progress:")

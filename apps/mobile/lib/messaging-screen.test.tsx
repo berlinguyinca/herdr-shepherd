@@ -275,7 +275,7 @@ it("connects Slack to the default bot with workspace authorization", async () =>
   responses["messaging/installations/start"] = { url: "https://slack.example.test/authorize" };
   await act(async () => root.render(<MessagingSettings />));
   const buttons = [...container.querySelectorAll("button")];
-  expect(container.textContent).toContain("Chat with your bot from Slack.");
+  expect(container.textContent).toContain("Chat with your assistant from Slack.");
   expect(buttons.filter((button) => button.textContent === "Connect")).toHaveLength(1);
   expect(
     buttons.some((button) =>
