@@ -1,10 +1,16 @@
 import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { probeShepherd, WELL_KNOWN_PATH } from "./shepherd-discovery";
+import { acceptBridgeUrl, probeShepherd, WELL_KNOWN_PATH } from "./shepherd-discovery";
 
 // A real HTTP server that answers like the Shepherd bridge's /.well-known/herdr-shepherd.
-type Reply = { status: number; body?: unknown; raw?: string; delayMs?: number };
+type Reply = {
+  status: number;
+  body?: unknown;
+  raw?: string;
+  delayMs?: number;
+  location?: string;
+};
 let server: Server;
 let reply: Reply;
 let seen: IncomingMessage[];
@@ -17,7 +23,10 @@ beforeEach(async () => {
     seen.push(req);
     req.resume();
     setTimeout(() => {
-      res.writeHead(reply.status, { "content-type": "application/json" });
+      res.writeHead(reply.status, {
+        "content-type": "application/json",
+        ...(reply.location ? { location: reply.location } : {}),
+      });
       res.end(reply.raw ?? JSON.stringify(reply.body ?? {}));
     }, reply.delayMs ?? 0);
   });
@@ -68,20 +77,35 @@ describe("probeShepherd", () => {
     await expect(probeShepherd(base)).resolves.toEqual({ kind: "password" });
   });
 
-  it("shows Connect Tailscale when the request did not arrive over the tailnet", async () => {
+  // PENDING OWNER DECISION: this is the shape the live server sends today. The app keeps the plain
+  // open for it; the onboarding contract would show Connect Tailscale instead. The server only sends
+  // tailnet:true to an identified tailnet peer and lists "tailnet" in auth_modes only when
+  // tailnet_open_owner is on, so "tailnet:false with a tailnet mode" is not a response it can emit.
+  it("keeps the plain open for the live shape: tailnet false, password only, no bridge_url", async () => {
     reply = {
       status: 200,
-      body: wellKnown({ tailnet: false, bridge_url: null, auth_modes: ["tailnet", "password"] }),
+      body: {
+        name: "herdr-shepherd",
+        bridge_url: null,
+        api_version: 1,
+        auth_modes: ["password"],
+        tailnet: false,
+      },
     };
+    await expect(probeShepherd(base)).resolves.toEqual({ kind: "password" });
+  });
+
+  it("refuses a redirect from the discovery endpoint", async () => {
+    reply = { status: 302, body: {}, location: "https://elsewhere.test.example/x" };
     await expect(probeShepherd(base)).resolves.toEqual({ kind: "off-tailnet" });
   });
 
-  it("keeps the plain open for a server that does not offer tailnet sign-in at all", async () => {
-    reply = {
-      status: 200,
-      body: wellKnown({ tailnet: false, bridge_url: null, auth_modes: ["password"] }),
-    };
-    await expect(probeShepherd(base)).resolves.toEqual({ kind: "password" });
+  it("stops when the caller's signal aborts", async () => {
+    reply = { status: 200, body: wellKnown(), delayMs: 500 };
+    const controller = new AbortController();
+    const result = probeShepherd(base, 5000, { signal: controller.signal });
+    controller.abort();
+    await expect(result).resolves.toEqual({ kind: "off-tailnet" });
   });
 
   it("asks for an app update on an api_version this app does not speak", async () => {
@@ -123,5 +147,32 @@ describe("probeShepherd", () => {
   it("does not follow a bridge_url that is not an http(s) URL", async () => {
     reply = { status: 200, body: wellKnown({ bridge_url: "javascript:alert(1)" }) };
     await expect(probeShepherd(base)).resolves.toEqual({ kind: "tailnet", bridgeUrl: base });
+  });
+});
+
+describe("acceptBridgeUrl", () => {
+  it("accepts https and keeps the path, without a trailing slash", () => {
+    expect(acceptBridgeUrl("https://bridge.test.example")).toBe("https://bridge.test.example");
+    expect(acceptBridgeUrl("https://bridge.test.example/shepherd/")).toBe(
+      "https://bridge.test.example/shepherd",
+    );
+  });
+
+  it("refuses http unless it is loopback and the caller allows it", () => {
+    expect(acceptBridgeUrl("http://bridge.test.example")).toBeNull();
+    expect(acceptBridgeUrl("http://127.0.0.1:8080")).toBeNull();
+    expect(acceptBridgeUrl("http://127.0.0.1:8080", true)).toBe("http://127.0.0.1:8080");
+    expect(acceptBridgeUrl("http://bridge.test.example", true)).toBeNull();
+  });
+
+  it.each([
+    "https://user:pw@bridge.test.example",
+    "https://bridge.test.example/?a=1",
+    "https://bridge.test.example/#x",
+    "ftp://bridge.test.example",
+    "not a url",
+    42,
+  ])("refuses %s", (value) => {
+    expect(acceptBridgeUrl(value)).toBeNull();
   });
 });

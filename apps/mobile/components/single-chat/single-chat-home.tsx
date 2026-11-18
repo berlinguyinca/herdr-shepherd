@@ -13,6 +13,7 @@ import {
 } from "react-native";
 import { rpc } from "../../lib/api";
 import { setDefaultAssistant } from "../../lib/assistant-actions";
+import { reprobeOnActive } from "../../lib/foreground-reprobe";
 import { t } from "../../lib/i18n";
 import { useMobileTokens } from "../../lib/native";
 import { openTailscale } from "../../lib/open-tailscale";
@@ -48,8 +49,13 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
   // Each attempt reads the saved session, opens one if missing or refused by the last attempt, then lists the bots.
   // A saved session the list refuses is stale: it is reopened once, then the list is tried again.
   const lastFailure = useRef<FailureReason | null>(null);
+  // True from the start of an attempt until it ends: a foreground event must not start another.
+  const attemptBusy = useRef(false);
   useEffect(() => {
     let cancelled = false;
+    // A cancelled attempt aborts its probe and open, so none outlives it.
+    const controller = new AbortController();
+    attemptBusy.current = true;
     let openedThisAttempt = false;
     setOpen({ kind: "idle" });
     setBots({ kind: "pending" });
@@ -57,7 +63,7 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
       openedThisAttempt = true;
       setOpen({ kind: "pending" });
       try {
-        const result = await connectShepherd();
+        const result = await connectShepherd({ signal: controller.signal });
         if (result.kind !== "connected") {
           if (!cancelled)
             setOpen({
@@ -76,6 +82,13 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
       return true;
     };
     void (async () => {
+      try {
+        await run();
+      } finally {
+        if (!cancelled) attemptBusy.current = false;
+      }
+    })();
+    async function run() {
       const saved = Boolean(await loadSessionToken());
       if (cancelled) return;
       setHasSession(saved);
@@ -108,9 +121,10 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
           if (!(await openSession())) return;
         }
       }
-    })();
+    }
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [attempt]);
 
@@ -125,9 +139,9 @@ export function SingleChatHome({ onCreateAssistant }: { onCreateAssistant?: () =
   const needsTailscale = state.kind === "connect-tailscale";
   useEffect(() => {
     if (!needsTailscale) return;
-    const sub = AppState.addEventListener("change", (next) => {
-      if (next === "active") setAttempt((n) => n + 1);
-    });
+    const sub = AppState.addEventListener("change", (next) =>
+      reprobeOnActive({ next, busy: attemptBusy, retry: () => setAttempt((n) => n + 1) }),
+    );
     return () => sub.remove();
   }, [needsTailscale]);
 

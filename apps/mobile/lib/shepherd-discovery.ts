@@ -26,38 +26,64 @@ type WellKnown = {
   bridge_url?: unknown;
 };
 
-function httpOrigin(value: unknown): string | null {
+export type DiscoveryOptions = {
+  signal?: AbortSignal;
+  /** Tests only: a loopback test server speaks plain http. */
+  allowLoopbackHttp?: boolean;
+};
+
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "[::1]"]);
+
+/**
+ * The address the server names for the app to use from now on: https (loopback http only when the
+ * caller allows it), with its path kept and no credentials, query or fragment. Anything else is
+ * not followed.
+ */
+export function acceptBridgeUrl(value: unknown, allowLoopbackHttp = false): string | null {
   if (typeof value !== "string") return null;
   try {
     const url = new URL(value);
-    return url.protocol === "https:" || url.protocol === "http:" ? url.origin : null;
+    const secure =
+      url.protocol === "https:" ||
+      (allowLoopbackHttp && url.protocol === "http:" && LOOPBACK_HOSTS.has(url.hostname));
+    if (!secure || url.username || url.password || url.search || url.hash) return null;
+    return `${url.origin}${url.pathname.replace(/\/+$/, "")}`;
   } catch {
     return null;
   }
 }
 
-function interpret(body: WellKnown, probed: string): Discovery {
+function interpret(body: WellKnown, probed: string, allowLoopbackHttp: boolean): Discovery {
   if (body.api_version !== SUPPORTED_API_VERSION) return { kind: "update-app" };
   const modes = Array.isArray(body.auth_modes) ? body.auth_modes : [];
   // A server that never offers tailnet sign-in keeps the plain open; only one that does can send
   // the person to Tailscale.
   if (!modes.includes("tailnet")) return { kind: "password" };
   if (body.tailnet !== true) return { kind: "off-tailnet" };
-  return { kind: "tailnet", bridgeUrl: httpOrigin(body.bridge_url) ?? probed };
+  return {
+    kind: "tailnet",
+    bridgeUrl: acceptBridgeUrl(body.bridge_url, allowLoopbackHttp) ?? probed,
+  };
 }
 
 /** Probes a bridge without credentials. Never throws: a network failure is `off-tailnet`. */
 export async function probeShepherd(
   baseUrl: string,
   timeoutMs: number = DISCOVERY_TIMEOUT_MS,
+  { signal, allowLoopbackHttp = false }: DiscoveryOptions = {},
 ): Promise<Discovery> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error("Request timed out")), timeoutMs);
+  const forward = () => controller.abort(signal?.reason);
+  if (signal?.aborted) forward();
+  else signal?.addEventListener("abort", forward, { once: true });
   try {
     const response = await withAbort(
       fetch(`${baseUrl}${WELL_KNOWN_PATH}`, {
         method: "GET",
         credentials: "omit",
+        // The probe answers for this address only; a redirect would hand the decision to another host.
+        redirect: "error",
         headers: { accept: "application/json" },
         signal: controller.signal,
       }),
@@ -71,7 +97,7 @@ export async function probeShepherd(
         controller.signal,
       );
       return body && typeof body === "object"
-        ? interpret(body, baseUrl)
+        ? interpret(body, baseUrl, allowLoopbackHttp)
         : { kind: "undiscoverable" };
     } catch {
       return controller.signal.aborted ? { kind: "off-tailnet" } : { kind: "undiscoverable" };
@@ -80,5 +106,6 @@ export async function probeShepherd(
     return { kind: "off-tailnet" };
   } finally {
     clearTimeout(timer);
+    signal?.removeEventListener("abort", forward);
   }
 }

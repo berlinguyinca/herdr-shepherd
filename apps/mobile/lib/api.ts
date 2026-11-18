@@ -568,6 +568,7 @@ async function postAuth(
   path: string,
   input: Record<string, string>,
   timeoutMs: number = RPC_TIMEOUT_MS,
+  signal?: AbortSignal,
 ) {
   return fetchMobileJson<unknown>(
     `${currentApiBase()}/api/auth/${path}`,
@@ -575,6 +576,7 @@ async function postAuth(
       method: "POST",
       headers: { "content-type": "application/json", origin: "rakazo://" },
       body: JSON.stringify(input),
+      ...(signal ? { signal } : {}),
     },
     {},
     timeoutMs,
@@ -586,8 +588,9 @@ async function authenticate(
   input: Record<string, string>,
   missingSession: string,
   timeoutMs: number = RPC_TIMEOUT_MS,
+  signal?: AbortSignal,
 ): Promise<{ verificationRequired: boolean }> {
-  const { response, body, invalidJson } = await postAuth(path, input, timeoutMs);
+  const { response, body, invalidJson } = await postAuth(path, input, timeoutMs, signal);
   if (!response.ok || invalidJson) {
     const error = new Error(authResponseErrorText(response.status, body, invalidJson));
     // Only the open-owner bootstrap classifies refusals by status (to skip its retry) and honours Retry-After.
@@ -602,6 +605,8 @@ async function authenticate(
   if (path === "sign-up/email" && signupRequiresEmailVerification(body))
     return { verificationRequired: true };
   if (!token) throw new Error(missingSession);
+  // A cancelled attempt must not replace the session a newer attempt may be saving.
+  signal?.throwIfAborted();
   try {
     if (!(await clearSpace()))
       throw new Error(t("Could not save your sign-in on this device. Try again."));
@@ -614,11 +619,17 @@ async function authenticate(
 }
 
 /** One-person servers (`rakazo_bridge.open_owner`): a session as the owner, with no credentials, from the owner's own network. */
-export async function openOwnerSession(timeoutMs: number = OPEN_OWNER_TIMEOUT_MS) {
-  const open = () => authenticate("open", {}, t("Sign-in did not return a session"), timeoutMs);
+export async function openOwnerSession(
+  timeoutMs: number = OPEN_OWNER_TIMEOUT_MS,
+  signal?: AbortSignal,
+) {
+  const open = () =>
+    authenticate("open", {}, t("Sign-in did not return a session"), timeoutMs, signal);
   try {
     return await open();
   } catch (error) {
+    // A cancelled attempt ends here: no retry, no second open in flight.
+    if (signal?.aborted) throw error;
     // The server's first open can stall; one more try for a timeout or network failure, never for a refusal
     // or for a session this device could not save. A rate limit waits its Retry-After (capped) first.
     if ((error as { sessionSaveFailed?: boolean }).sessionSaveFailed) throw error;
@@ -628,6 +639,7 @@ export async function openOwnerSession(timeoutMs: number = OPEN_OWNER_TIMEOUT_MS
       await new Promise((done) =>
         setTimeout(done, Math.min(retryAfterMs, OPEN_OWNER_MAX_RETRY_WAIT_MS)),
       );
+    signal?.throwIfAborted();
     return open();
   }
 }
@@ -781,6 +793,11 @@ export async function fetchMobileJson<T>(
 ): Promise<{ response: Response; body: T; invalidJson?: boolean }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(new Error("Request timed out")), timeoutMs);
+  // A caller's signal cancels the same request the timeout does.
+  const outer = init.signal;
+  const forward = () => controller.abort(outer?.reason);
+  if (outer?.aborted) forward();
+  else outer?.addEventListener("abort", forward, { once: true });
   try {
     const response = await withAbort(
       fetchServer(
@@ -811,6 +828,7 @@ export async function fetchMobileJson<T>(
     }
   } finally {
     clearTimeout(timer);
+    outer?.removeEventListener("abort", forward);
   }
 }
 
