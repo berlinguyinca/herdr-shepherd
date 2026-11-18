@@ -70,8 +70,8 @@ describe("resolveSingleChat", () => {
   });
 });
 
-describe("resolveSingleChat with run-only assistants", () => {
-  it("opens the assistant known only from recent runs", () => {
+describe("resolveSingleChat with runs from unlisted bots", () => {
+  it("does not open a bot known only from recent runs", () => {
     const runs = [
       { botId: "h", botName: "Herdr", threadId: "thr_h", updatedAt: "2026-11-16T00:00:00Z" },
     ] as RunActivityRow[];
@@ -79,7 +79,7 @@ describe("resolveSingleChat with run-only assistants", () => {
     const state = resolveSingleChat(
       inputs({ hasSession: true, bots: { kind: "loaded", bots, runs } }),
     );
-    expect(state).toMatchObject({ kind: "ready", bot: { id: "h", name: "Herdr" } });
+    expect(state.kind).toBe("empty");
   });
   it("is empty when only spawned bots exist", () => {
     const bots = [bot("agent1", { spawnKey: "agent_01" })];

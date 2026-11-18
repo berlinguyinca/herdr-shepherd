@@ -146,10 +146,7 @@ export function AssistantPickerModal({
   const load = useCallback(async () => {
     try {
       const list = await rpc("bots/list");
-      const runs = await rpc("runs/list", { filter: "recent" })
-        .then((r) => r.runs)
-        .catch(() => []);
-      setBots(assistantCandidates(list, runs));
+      setBots(assistantCandidates(list));
     } catch (error) {
       Alert.alert(t("Could not load assistants"), errorText(error));
       setBots((prev) => prev ?? []);
